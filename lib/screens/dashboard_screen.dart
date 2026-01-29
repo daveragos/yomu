@@ -3,6 +3,7 @@ import '../core/constants.dart';
 import '../components/glass_container.dart';
 import '../components/book_card.dart';
 import '../components/activity_graph.dart';
+import '../models/book_model.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -132,26 +133,45 @@ class DashboardScreen extends StatelessWidget {
           height: 220,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            children: const [
+            children: [
               BookCard(
-                title: 'Project Hail Mary',
-                author: 'Andy Weir',
-                coverUrl:
-                    'https://m.media-amazon.com/images/I/81vdYEn9XPL._AC_UF1000,1000_QL80_.jpg',
-                progress: 0.65,
+                book: Book(
+                  id: -1,
+                  title: 'Project Hail Mary',
+                  author: 'Andy Weir',
+                  coverPath:
+                      'https://m.media-amazon.com/images/I/81vdYEn9XPL._AC_UF1000,1000_QL80_.jpg',
+                  filePath: '',
+                  progress: 0.65,
+                  addedAt: DateTime.now(),
+                ),
+                onTap: () {},
               ),
               BookCard(
-                title: 'The Midnight Library',
-                author: 'Matt Haig',
-                coverUrl:
-                    'https://m.media-amazon.com/images/I/71K8iVRYLBL._AC_UF1000,1000_QL80_.jpg',
-                progress: 0.32,
+                book: Book(
+                  id: -2,
+                  title: 'The Midnight Library',
+                  author: 'Matt Haig',
+                  coverPath:
+                      'https://m.media-amazon.com/images/I/71K8iVRYLBL._AC_UF1000,1000_QL80_.jpg',
+                  filePath: '',
+                  progress: 0.32,
+                  addedAt: DateTime.now(),
+                ),
+                onTap: () {},
               ),
               BookCard(
-                title: 'Hyperion',
-                author: 'Dan Simmons',
-                coverUrl: 'https://m.media-amazon.com/images/I/51pM1jA0QXL.jpg',
-                progress: 0.12,
+                book: Book(
+                  id: -3,
+                  title: 'Hyperion',
+                  author: 'Dan Simmons',
+                  coverPath:
+                      'https://m.media-amazon.com/images/I/51pM1jA0QXL.jpg',
+                  filePath: '',
+                  progress: 0.12,
+                  addedAt: DateTime.now(),
+                ),
+                onTap: () {},
               ),
             ],
           ),
