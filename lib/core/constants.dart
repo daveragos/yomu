@@ -7,15 +7,22 @@ class YomuConstants {
   static const double horizontalPadding = 20.0;
   static const double verticalPadding = 20.0;
 
-  // Colors (Dark Theme focused)
-  static const Color background = Color(0xFF0F0F12);
-  static const Color surface = Color(0xFF1C1C22);
-  static const Color accent = Color(0xFF6366F1); // Indigo
-  static const Color accentLight = Color(0xFF818CF8);
-  static const Color textPrimary = Color(0xFFF3F4F6);
-  static const Color textSecondary = Color(0xFF9CA3AF);
-  static const Color glassy = Color(0x33FFFFFF);
-  static const Color outline = Color(0xFF374151);
+  // Colors (Stitch Design Alignment)
+  static const Color background = Color(0xFF0A0B0E);
+  static const Color surface = Color(0xFF16171D);
+  static const Color accent = Color(0xFF2ECC71); // Vibrant Emerald Green
+  static const Color accentGreen = Color(
+    0xFF27AE60,
+  ); // Darker Green for secondary
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFF8E8E93);
+  static const Color glassy = Color(0x1AFFFFFF);
+  static const Color outline = Color(0xFF2C2C2E);
+
+  // Shadows
+  static const List<BoxShadow> cardShadow = [
+    BoxShadow(color: Color(0x40000000), blurRadius: 20, offset: Offset(0, 10)),
+  ];
 
   // GitHub Graph Colors
   static List<Color> graphColors = [

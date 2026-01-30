@@ -4,11 +4,13 @@ import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
 import '../core/constants.dart';
 import '../components/book_card.dart';
+import '../components/glass_container.dart';
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
 import '../services/book_service.dart';
 import 'edit_book_screen.dart';
 import 'file_selection_screen.dart';
+import 'reading_screen.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -17,9 +19,39 @@ class LibraryScreen extends ConsumerStatefulWidget {
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+class _LibraryScreenState extends ConsumerState<LibraryScreen>
+    with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  bool _isMenuOpen = false;
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _toggleMenu() {
+    setState(() {
+      _isMenuOpen = !_isMenuOpen;
+      if (_isMenuOpen) {
+        _animationController.forward();
+      } else {
+        _animationController.reverse();
+      }
+    });
+  }
 
   Future<void> _handleSelectiveImport() async {
     final notifier = ref.read(libraryProvider.notifier);
@@ -56,12 +88,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
     final notifier = ref.read(libraryProvider.notifier);
@@ -69,85 +95,278 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return Scaffold(
       backgroundColor: YomuConstants.background,
       appBar: AppBar(
+        toolbarHeight: 0,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search books...',
-                  border: InputBorder.none,
-                ),
-                onChanged: (value) => notifier.setSearchQuery(value),
-              )
-            : const Text('My Library'),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.add),
-            tooltip: 'Add Books',
-            onSelected: (value) {
-              if (value == 'file') {
-                _handleSelectiveImport();
-              } else if (value == 'folder') {
-                ref.read(libraryProvider.notifier).scanFolder();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'folder',
-                child: Row(
-                  children: [
-                    Icon(Icons.folder_open),
-                    SizedBox(width: 8),
-                    Text('Scan Folder'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'file',
-                child: Row(
-                  children: [
-                    Icon(Icons.file_open),
-                    SizedBox(width: 8),
-                    Text('Import Files'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                if (_isSearching) {
-                  _isSearching = false;
-                  _searchController.clear();
-                  notifier.setSearchQuery('');
-                } else {
-                  _isSearching = true;
-                }
-              });
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune),
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) => const _FilterBottomSheet(),
-              );
-            },
-          ),
-        ],
       ),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : state.allBooks.isEmpty
-          ? _buildEmptyState()
-          : _buildBookGrid(state.filteredBooks),
+          : Column(
+              children: [
+                _buildLibraryHeader(context, state, notifier),
+                Expanded(
+                  child: state.allBooks.isEmpty
+                      ? _buildEmptyState()
+                      : _buildBookGrid(state.filteredBooks),
+                ),
+              ],
+            ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: _buildAnimatedFAB(),
+      ),
+    );
+  }
+
+  Widget _buildLibraryHeader(
+    BuildContext context,
+    LibraryState state,
+    LibraryNotifier notifier,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Library',
+                style: Theme.of(
+                  context,
+                ).textTheme.displayLarge?.copyWith(fontSize: 28),
+              ),
+              IconButton(
+                icon: Icon(_isSearching ? Icons.close : Icons.search),
+                onPressed: () {
+                  setState(() {
+                    if (_isSearching) {
+                      _isSearching = false;
+                      _searchController.clear();
+                      notifier.setSearchQuery('');
+                    } else {
+                      _isSearching = true;
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+          if (_isSearching)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search books...',
+                  hintStyle: TextStyle(color: Colors.white24),
+                  filled: true,
+                  fillColor: YomuConstants.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                onChanged: (value) => notifier.setSearchQuery(value),
+              ),
+            ),
+          const SizedBox(height: 16),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => notifier.clearFilters(),
+                  child: GlassContainer(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    borderRadius: 12,
+                    color: YomuConstants.accent,
+                    child: const Text(
+                      'All',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildFilterDropdown(
+                  'Genre',
+                  state.selectedGenre,
+                  [
+                    'All',
+                    ...state.allBooks.map((b) => b.genre ?? 'Unknown').toSet(),
+                  ],
+                  (val) => notifier.setGenreFilter(val),
+                ),
+                const SizedBox(width: 8),
+                _buildFilterDropdown(
+                  'Author',
+                  state.selectedAuthor,
+                  ['All', ...state.allBooks.map((b) => b.author).toSet()],
+                  (val) => notifier.setAuthorFilter(val),
+                ),
+                const SizedBox(width: 8),
+                _buildFilterDropdown(
+                  'Folder',
+                  state.selectedFolder,
+                  [
+                    'All',
+                    ...state.allBooks
+                        .map((b) => b.folderPath)
+                        .whereType<String>()
+                        .toSet(),
+                  ],
+                  (val) => notifier.setFolderFilter(val),
+                  labelBuilder: (path) =>
+                      path == 'All' ? 'Folder' : p.basename(path),
+                ),
+                const SizedBox(width: 8),
+                _buildFilterDropdown(
+                  'Sort',
+                  state.sortBy.name.toUpperCase(),
+                  BookSortBy.values.map((v) => v.name.toUpperCase()).toList(),
+                  (val) => notifier.setSortBy(
+                    BookSortBy.values.firstWhere(
+                      (e) => e.name.toUpperCase() == val,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildStatusTab(
+                'All',
+                state.statusFilter == BookStatusFilter.all,
+                () => notifier.setStatusFilter(BookStatusFilter.all),
+              ),
+              const SizedBox(width: 12),
+              _buildStatusTab(
+                'Reading',
+                state.statusFilter == BookStatusFilter.reading,
+                () => notifier.setStatusFilter(BookStatusFilter.reading),
+              ),
+              const SizedBox(width: 12),
+              _buildStatusTab(
+                'Unread',
+                state.statusFilter == BookStatusFilter.unread,
+                () => notifier.setStatusFilter(BookStatusFilter.unread),
+              ),
+              const SizedBox(width: 12),
+              _buildStatusTab(
+                'Finished',
+                state.statusFilter == BookStatusFilter.finished,
+                () => notifier.setStatusFilter(BookStatusFilter.finished),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterDropdown(
+    String label,
+    String selectedValue,
+    List<String> options,
+    Function(String) onChanged, {
+    String Function(String)? labelBuilder,
+  }) {
+    final isDefault =
+        selectedValue == 'All' ||
+        selectedValue == 'TITLE' ||
+        selectedValue == 'RECENT' ||
+        selectedValue == 'AUTHOR';
+    final displayText = isDefault
+        ? label
+        : (labelBuilder != null ? labelBuilder(selectedValue) : selectedValue);
+
+    return GlassContainer(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      borderRadius: 12,
+      color: isDefault ? YomuConstants.surface : YomuConstants.accent,
+      opacity: isDefault ? 0.5 : 0.9,
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedValue,
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 18,
+            color: isDefault ? Colors.white54 : Colors.black54,
+          ),
+          style: TextStyle(
+            color: isDefault ? Colors.white : Colors.black,
+            fontSize: 13,
+            fontWeight: isDefault ? FontWeight.normal : FontWeight.bold,
+          ),
+          dropdownColor: YomuConstants.surface,
+          borderRadius: BorderRadius.circular(12),
+          selectedItemBuilder: (context) {
+            return options.map((opt) {
+              return Center(
+                child: Text(
+                  displayText,
+                  style: TextStyle(
+                    color: isDefault ? Colors.white : Colors.black,
+                  ),
+                ),
+              );
+            }).toList();
+          },
+          items: options
+              .map(
+                (opt) => DropdownMenuItem(
+                  value: opt,
+                  child: Text(labelBuilder != null ? labelBuilder(opt) : opt),
+                ),
+              )
+              .toList(),
+          onChanged: (val) {
+            if (val != null) onChanged(val);
+          },
+          hint: Text(label, style: const TextStyle(color: Colors.white54)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusTab(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14,
+            ),
+          ),
+          if (isSelected)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              width: 12,
+              height: 2,
+              decoration: BoxDecoration(
+                color: YomuConstants.accent,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -188,7 +407,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Widget _buildBookGrid(List<Book> books) {
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 0.65,
@@ -208,7 +427,53 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   void _showBookDetails(Book book) {
-    // Navigate to reader
+    ref.read(currentlyReadingProvider.notifier).state = book;
+    ref.read(libraryProvider.notifier).markBookAsOpened(book);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ReadingScreen()),
+    );
+  }
+
+  Widget _buildAnimatedFAB() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_isMenuOpen) ...[
+          FloatingActionButton.small(
+            onPressed: () {
+              _toggleMenu();
+              ref.read(libraryProvider.notifier).scanFolder();
+            },
+            backgroundColor: YomuConstants.surface,
+            child: const Icon(Icons.folder_open, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.small(
+            onPressed: () {
+              _toggleMenu();
+              _handleSelectiveImport();
+            },
+            backgroundColor: YomuConstants.surface,
+            child: const Icon(Icons.file_open, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+        ],
+        FloatingActionButton(
+          onPressed: _toggleMenu,
+          backgroundColor: YomuConstants.accent,
+          child: AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _animationController.value * (3.14159 / 4), // 45 degrees
+                child: const Icon(Icons.add, color: Colors.black, size: 28),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   void _showBookOptions(Book book) {
@@ -289,245 +554,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _FilterBottomSheet extends ConsumerWidget {
-  const _FilterBottomSheet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(libraryProvider);
-    final notifier = ref.read(libraryProvider.notifier);
-
-    // Get unique values for lists
-    final authors = ['All', ...state.allBooks.map((b) => b.author).toSet()];
-    final folders = [
-      'All',
-      ...state.allBooks.map((b) => b.folderPath).whereType<String>().toSet(),
-    ];
-    final series = [
-      'All',
-      ...state.allBooks.map((b) => b.series).whereType<String>().toSet(),
-    ];
-    final tags = [
-      'All',
-      ...state.allBooks.expand((b) => b.tags?.split(',') ?? <String>[]).toSet(),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: YomuConstants.background,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Sort & Filter',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                TextButton(
-                  onPressed: () => notifier.clearFilters(),
-                  child: const Text('Reset'),
-                ),
-              ],
-            ),
-            const Divider(),
-
-            // Sorting Section
-            _buildSection(context, 'Sort By'),
-            Wrap(
-              spacing: 8,
-              children: [
-                _buildChip(
-                  context,
-                  'Title',
-                  state.sortBy == BookSortBy.title,
-                  () => notifier.setSortBy(BookSortBy.title),
-                ),
-                _buildChip(
-                  context,
-                  'Author',
-                  state.sortBy == BookSortBy.author,
-                  () => notifier.setSortBy(BookSortBy.author),
-                ),
-                _buildChip(
-                  context,
-                  'Recent',
-                  state.sortBy == BookSortBy.recent,
-                  () => notifier.setSortBy(BookSortBy.recent),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Ascending Order'),
-              trailing: Switch(
-                value: state.sortAscending,
-                onChanged: (_) => notifier.toggleSortOrder(),
-              ),
-            ),
-
-            const Divider(),
-
-            // Status Section
-            _buildSection(context, 'Status'),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final status in BookStatusFilter.values)
-                  _buildChip(
-                    context,
-                    status.name.substring(0, 1).toUpperCase() +
-                        status.name.substring(1),
-                    state.statusFilter == status,
-                    () => notifier.setStatusFilter(status),
-                  ),
-              ],
-            ),
-
-            const Divider(),
-
-            // Favorite Section
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Show Favorites Only'),
-              trailing: Switch(
-                value: state.onlyFavorites,
-                onChanged: (_) => notifier.toggleFavoriteOnly(),
-              ),
-            ),
-
-            const Divider(),
-
-            // Author Section
-            _buildDropdownSection(
-              context,
-              'Filter by Author',
-              state.selectedAuthor,
-              authors,
-              (val) => notifier.setAuthorFilter(val),
-            ),
-
-            // Folder Section
-            _buildDropdownSection(
-              context,
-              'Filter by Folder',
-              state.selectedFolder,
-              folders,
-              (val) => notifier.setFolderFilter(val),
-              labelBuilder: (path) {
-                if (path == 'All') return 'All';
-                if (path == 'imported_files') return 'Imported Files';
-                return p.basename(path);
-              },
-            ),
-
-            // Series Section
-            _buildDropdownSection(
-              context,
-              'Filter by Series',
-              state.selectedSeries ?? 'All',
-              series,
-              (val) => notifier.setSeriesFilter(val),
-            ),
-
-            // Tags Section
-            _buildDropdownSection(
-              context,
-              'Filter by Tag',
-              state.selectedTag ?? 'All',
-              tags,
-              (val) => notifier.setTagFilter(val),
-            ),
-
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: YomuConstants.accent,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChip(
-    BuildContext context,
-    String label,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => onTap(),
-      selectedColor: YomuConstants.accent.withValues(alpha: 0.2),
-      checkmarkColor: YomuConstants.accent,
-      labelStyle: TextStyle(
-        color: isSelected ? YomuConstants.accent : Colors.white,
-      ),
-    );
-  }
-
-  Widget _buildDropdownSection(
-    BuildContext context,
-    String title,
-    String selectedValue,
-    List<String> options,
-    Function(String) onChanged, {
-    String Function(String)? labelBuilder,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSection(context, title),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: YomuConstants.surface,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: options.contains(selectedValue) ? selectedValue : 'All',
-              isExpanded: true,
-              dropdownColor: YomuConstants.surface,
-              items: options
-                  .map(
-                    (opt) => DropdownMenuItem(
-                      value: opt,
-                      child: Text(
-                        labelBuilder != null ? labelBuilder(opt) : opt,
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) {
-                if (val != null) onChanged(val);
-              },
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

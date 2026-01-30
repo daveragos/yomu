@@ -21,7 +21,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 3,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -41,7 +41,21 @@ class DatabaseService {
         isFavorite INTEGER DEFAULT 0,
         series TEXT,
         tags TEXT,
-        folderPath TEXT
+        folderPath TEXT,
+        genre TEXT,
+        currentPage INTEGER DEFAULT 0,
+        totalPages INTEGER DEFAULT 0,
+        estimatedReadingMinutes INTEGER DEFAULT 0,
+        lastPosition TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE reading_sessions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId INTEGER,
+        date TEXT,
+        pagesRead INTEGER,
+        durationMinutes INTEGER
       )
     ''');
   }
@@ -54,6 +68,36 @@ class DatabaseService {
       await db.execute('ALTER TABLE books ADD COLUMN series TEXT');
       await db.execute('ALTER TABLE books ADD COLUMN tags TEXT');
       await db.execute('ALTER TABLE books ADD COLUMN folderPath TEXT');
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE books ADD COLUMN genre TEXT DEFAULT "Unknown"',
+      );
+    }
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE reading_sessions(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bookId INTEGER,
+          date TEXT,
+          pagesRead INTEGER,
+          durationMinutes INTEGER
+        )
+      ''');
+    }
+    if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE books ADD COLUMN currentPage INTEGER DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE books ADD COLUMN totalPages INTEGER DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE books ADD COLUMN estimatedReadingMinutes INTEGER DEFAULT 0',
+      );
+    }
+    if (oldVersion < 7) {
+      await db.execute('ALTER TABLE books ADD COLUMN lastPosition TEXT');
     }
   }
 
@@ -85,5 +129,22 @@ class DatabaseService {
   Future<int> deleteBook(int id) async {
     final db = await database;
     return await db.delete('books', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Activity CRUD
+  Future<int> insertReadingSession(int bookId, int pages, int duration) async {
+    final db = await database;
+    final date = DateTime.now().toIso8601String().split('T')[0];
+    return await db.insert('reading_sessions', {
+      'bookId': bookId,
+      'date': date,
+      'pagesRead': pages,
+      'durationMinutes': duration,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getReadingSessions() async {
+    final db = await database;
+    return await db.query('reading_sessions', orderBy: 'date DESC');
   }
 }

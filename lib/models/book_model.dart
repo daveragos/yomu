@@ -11,6 +11,13 @@ class Book {
   final String? series;
   final String? tags; // Comma separated tags
   final String? folderPath;
+  final String? genre;
+  final int
+  currentPage; // Current page number (0-indexed for PDFs, estimated for EPUBs)
+  final int totalPages; // Total pages in the book
+  final int estimatedReadingMinutes; // Estimated time to complete
+  final String?
+  lastPosition; // Granular position string (e.g., CFI for EPUB, offset for PDF)
 
   Book({
     this.id,
@@ -25,6 +32,11 @@ class Book {
     this.series,
     this.tags,
     this.folderPath,
+    this.genre = 'Unknown',
+    this.currentPage = 0,
+    this.totalPages = 0,
+    this.estimatedReadingMinutes = 0,
+    this.lastPosition,
   });
 
   Map<String, dynamic> toMap() {
@@ -41,6 +53,11 @@ class Book {
       'series': series,
       'tags': tags,
       'folderPath': folderPath,
+      'genre': genre,
+      'currentPage': currentPage,
+      'totalPages': totalPages,
+      'estimatedReadingMinutes': estimatedReadingMinutes,
+      'lastPosition': lastPosition,
     };
   }
 
@@ -60,6 +77,11 @@ class Book {
       series: map['series'],
       tags: map['tags'],
       folderPath: map['folderPath'],
+      genre: map['genre'] ?? 'Unknown',
+      currentPage: map['currentPage'] as int? ?? 0,
+      totalPages: map['totalPages'] as int? ?? 0,
+      estimatedReadingMinutes: map['estimatedReadingMinutes'] as int? ?? 0,
+      lastPosition: map['lastPosition'],
     );
   }
 
@@ -76,6 +98,11 @@ class Book {
     String? series,
     String? tags,
     String? folderPath,
+    String? genre,
+    int? currentPage,
+    int? totalPages,
+    int? estimatedReadingMinutes,
+    String? lastPosition,
   }) {
     return Book(
       id: id ?? this.id,
@@ -90,6 +117,12 @@ class Book {
       series: series ?? this.series,
       tags: tags ?? this.tags,
       folderPath: folderPath ?? this.folderPath,
+      genre: genre ?? this.genre,
+      currentPage: currentPage ?? this.currentPage,
+      totalPages: totalPages ?? this.totalPages,
+      estimatedReadingMinutes:
+          estimatedReadingMinutes ?? this.estimatedReadingMinutes,
+      lastPosition: lastPosition ?? this.lastPosition,
     );
   }
 }

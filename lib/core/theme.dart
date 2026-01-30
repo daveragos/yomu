@@ -9,9 +9,9 @@ class YomuTheme {
     scaffoldBackgroundColor: YomuConstants.background,
     colorScheme: const ColorScheme.dark(
       primary: YomuConstants.accent,
-      secondary: YomuConstants.accentLight,
+      secondary: YomuConstants.accentGreen,
       surface: YomuConstants.surface,
-      onPrimary: Colors.white,
+      onPrimary: Colors.black, // Better contrast with Lime
       onSurface: YomuConstants.textPrimary,
     ),
     textTheme: GoogleFonts.outfitTextTheme(

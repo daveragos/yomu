@@ -5,7 +5,7 @@ import '../components/glass_container.dart';
 import 'dashboard_screen.dart';
 import 'library_screen.dart';
 import 'stats_screen.dart';
-import 'reading_screen.dart';
+import 'settings_screen.dart';
 
 final selectedIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -17,10 +17,10 @@ class MainNavigation extends ConsumerWidget {
     final selectedIndex = ref.watch(selectedIndexProvider);
 
     final List<Widget> screens = [
-      const DashboardScreen(), // Dashboard
+      const DashboardScreen(), // Home
       const LibraryScreen(), // Library
-      const ReadingScreen(), // Reading
       const StatsScreen(), // Stats
+      const SettingsScreen(), // Settings
     ];
 
     return Scaffold(
@@ -51,14 +51,14 @@ class MainNavigation extends ConsumerWidget {
               _buildNavItem(
                 ref,
                 index: 2,
-                icon: Icons.play_arrow_rounded,
-                label: 'Reading',
+                icon: Icons.bar_chart_rounded,
+                label: 'Stats',
               ),
               _buildNavItem(
                 ref,
                 index: 3,
-                icon: Icons.bar_chart_rounded,
-                label: 'Stats',
+                icon: Icons.settings_rounded,
+                label: 'Settings',
               ),
             ],
           ),
