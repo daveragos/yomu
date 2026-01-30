@@ -8,10 +8,12 @@ class DatabaseService {
   DatabaseService._internal();
 
   Database? _database;
+  Future<Database>? _dbFuture;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDatabase();
+    _dbFuture ??= _initDatabase();
+    _database = await _dbFuture;
     return _database!;
   }
 
@@ -19,7 +21,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );

@@ -1,4 +1,6 @@
+import 'dart:io' as io;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import '../models/book_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
@@ -12,16 +14,12 @@ class LibraryState {
   final List<Book> filteredBooks;
   final String searchQuery;
   final bool isLoading;
-
-  // Advanced filters
-  final String selectedAuthor; // 'All' for no filter
-  final String selectedFolder; // 'All' for no filter
+  final String selectedAuthor;
+  final String selectedFolder;
   final BookStatusFilter statusFilter;
   final bool onlyFavorites;
-  final String selectedSeries; // 'All' for no filter
-  final String selectedTag; // 'All' for no filter
-
-  // Sorting
+  final String? selectedSeries;
+  final String? selectedTag;
   final BookSortBy sortBy;
   final bool sortAscending;
 
@@ -81,7 +79,23 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   final DatabaseService _dbService = DatabaseService();
   final BookService _bookService = BookService();
 
-  LibraryNotifier() : super(LibraryState(allBooks: [], filteredBooks: [])) {
+  LibraryNotifier()
+    : super(
+        LibraryState(
+          allBooks: [],
+          filteredBooks: [],
+          searchQuery: '',
+          isLoading: true,
+          selectedAuthor: 'All',
+          selectedFolder: 'All',
+          statusFilter: BookStatusFilter.all,
+          onlyFavorites: false,
+          selectedSeries: 'All',
+          selectedTag: 'All',
+          sortBy: BookSortBy.recent,
+          sortAscending: false,
+        ),
+      ) {
     loadBooks();
   }
 
@@ -96,12 +110,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   void setSearchQuery(String query) {
-    state = state.copyWith(
-      searchQuery: query,
-      filteredBooks: _applyFilters(
-        state.allBooks,
-        state.copyWith(searchQuery: query),
-      ),
+    final newState = state.copyWith(searchQuery: query);
+    state = newState.copyWith(
+      filteredBooks: _applyFilters(state.allBooks, newState),
     );
   }
 
@@ -249,36 +260,41 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     return filtered;
   }
 
-  Future<void> importBook() async {
-    final newBooks = await _bookService.importBooks();
+  Future<void> importFiles(List<String> paths) async {
+    state = state.copyWith(isLoading: true);
+    for (var path in paths) {
+      final file = io.File(path);
+      final book = await _bookService.processFile(file);
+      if (book != null) {
+        final existing = await _dbService.getBooks();
+        if (!existing.any((b) => b.filePath == book.filePath)) {
+          final bookToInsert = book.copyWith(folderPath: p.dirname(path));
+          await _dbService.insertBook(bookToInsert);
+        }
+      }
+    }
+    await loadBooks();
+  }
+
+  Future<void> scanFolder() async {
+    state = state.copyWith(isLoading: true);
+    final newBooks = await _bookService.scanDirectory();
     if (newBooks.isNotEmpty) {
-      final newAllBooks = [...newBooks, ...state.allBooks];
-      state = state.copyWith(
-        allBooks: newAllBooks,
-        filteredBooks: _applyFilters(newAllBooks, state),
-      );
+      await loadBooks();
+    } else {
+      state = state.copyWith(isLoading: false);
     }
   }
 
   Future<void> deleteBook(int id) async {
     await _dbService.deleteBook(id);
-    final newAllBooks = state.allBooks.where((b) => b.id != id).toList();
-    state = state.copyWith(
-      allBooks: newAllBooks,
-      filteredBooks: _applyFilters(newAllBooks, state),
-    );
+    await loadBooks();
   }
 
   Future<void> toggleBookFavorite(Book book) async {
     final updatedBook = book.copyWith(isFavorite: !book.isFavorite);
     await _dbService.updateBook(updatedBook);
-    final newAllBooks = state.allBooks
-        .map((b) => b.id == book.id ? updatedBook : b)
-        .toList();
-    state = state.copyWith(
-      allBooks: newAllBooks,
-      filteredBooks: _applyFilters(newAllBooks, state),
-    );
+    await loadBooks();
   }
 
   void clearFilters() {

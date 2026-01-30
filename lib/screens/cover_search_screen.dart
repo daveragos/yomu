@@ -88,7 +88,7 @@ class _CoverSearchScreenState extends State<CoverSearchScreen> {
     final localPath = await _bookService.downloadCover(url);
     if (mounted) {
       setState(() => _isLoading = false);
-      if (localPath != null) {
+      if (localPath.isNotEmpty) {
         Navigator.pop(context, localPath);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

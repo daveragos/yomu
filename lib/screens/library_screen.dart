@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/constants.dart';
 import 'package:path/path.dart' as p;
+import 'package:file_picker/file_picker.dart';
+import '../core/constants.dart';
 import '../components/book_card.dart';
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
+import '../services/book_service.dart';
 import 'edit_book_screen.dart';
+import 'file_selection_screen.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -15,8 +18,42 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
-  bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+
+  Future<void> _handleSelectiveImport() async {
+    final notifier = ref.read(libraryProvider.notifier);
+    final bookService = BookService();
+
+    final directoryPath = await FilePicker.platform.getDirectoryPath();
+    if (directoryPath == null) return;
+
+    final files = await bookService.findBookFiles(directoryPath);
+    if (files.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No EPUB or PDF files found in this folder.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      final selectedPaths = await Navigator.push<List<String>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              FileSelectionScreen(directoryPath: directoryPath, files: files),
+        ),
+      );
+
+      if (selectedPaths != null && selectedPaths.isNotEmpty) {
+        notifier.importFiles(selectedPaths);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -26,11 +63,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final libraryState = ref.watch(libraryProvider);
-    final books = libraryState.filteredBooks;
+    final state = ref.watch(libraryProvider);
+    final notifier = ref.read(libraryProvider.notifier);
 
     return Scaffold(
+      backgroundColor: YomuConstants.background,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
@@ -39,18 +79,43 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   hintText: 'Search books...',
                   border: InputBorder.none,
                 ),
-                onChanged: (value) {
-                  ref.read(libraryProvider.notifier).setSearchQuery(value);
-                },
+                onChanged: (value) => notifier.setSearchQuery(value),
               )
             : const Text('My Library'),
         actions: [
-          if (!_isSearching)
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => ref.read(libraryProvider.notifier).importBook(),
-              tooltip: 'Import Book',
-            ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add Books',
+            onSelected: (value) {
+              if (value == 'file') {
+                _handleSelectiveImport();
+              } else if (value == 'folder') {
+                ref.read(libraryProvider.notifier).scanFolder();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'folder',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open),
+                    SizedBox(width: 8),
+                    Text('Scan Folder'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'file',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_open),
+                    SizedBox(width: 8),
+                    Text('Import Files'),
+                  ],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: Icon(_isSearching ? Icons.close : Icons.search),
             onPressed: () {
@@ -58,7 +123,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 if (_isSearching) {
                   _isSearching = false;
                   _searchController.clear();
-                  ref.read(libraryProvider.notifier).setSearchQuery('');
+                  notifier.setSearchQuery('');
                 } else {
                   _isSearching = true;
                 }
@@ -67,97 +132,96 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.tune),
-            onPressed: () => _showFilterSheet(context, ref, libraryState),
-            tooltip: 'Filters & Sorting',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const _FilterBottomSheet(),
+              );
+            },
           ),
         ],
       ),
-      body: libraryState.isLoading
+      body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : books.isEmpty
-          ? _buildEmptyState(context, ref)
-          : GridView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                YomuConstants.horizontalPadding,
-                YomuConstants.horizontalPadding,
-                YomuConstants.horizontalPadding,
-                100, // Extra padding at bottom for BNB clearance
-              ),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.6,
-                crossAxisSpacing: 20,
-                mainAxisSpacing: 20,
-              ),
-              itemCount: books.length,
-              itemBuilder: (context, index) {
-                final book = books[index];
-                return BookCard(
-                  book: book,
-                  onTap: () {
-                    // Open reading screen
-                  },
-                  onLongPress: () => _showBookActions(context, ref, book),
-                );
-              },
-            ),
+          : state.allBooks.isEmpty
+          ? _buildEmptyState()
+          : _buildBookGrid(state.filteredBooks),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+  Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.library_books_outlined,
-            size: 80,
-            color: YomuConstants.textSecondary.withValues(alpha: 0.3),
+            Icons.library_books,
+            size: 64,
+            color: Colors.white.withValues(alpha: 0.3),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Your library is empty',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: YomuConstants.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ElevatedButton(
-            onPressed: () => ref.read(libraryProvider.notifier).importBook(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: YomuConstants.accent,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Import your first book'),
+          const SizedBox(height: 16),
+          const Text('Your library is empty'),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () =>
+                    ref.read(libraryProvider.notifier).scanFolder(),
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Scan Folder'),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: _handleSelectiveImport,
+                icon: const Icon(Icons.add),
+                label: const Text('Import Files'),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  void _showFilterSheet(
-    BuildContext context,
-    WidgetRef ref,
-    LibraryState state,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const _FilterBottomSheet(),
+  Widget _buildBookGrid(List<Book> books) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.65,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: books.length,
+      itemBuilder: (context, index) {
+        final book = books[index];
+        return BookCard(
+          book: book,
+          onTap: () => _showBookDetails(book),
+          onLongPress: () => _showBookOptions(book),
+        );
+      },
     );
   }
 
-  void _showBookActions(BuildContext context, WidgetRef ref, Book book) {
+  void _showBookDetails(Book book) {
+    // Navigate to reader
+  }
+
+  void _showBookOptions(Book book) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: YomuConstants.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: YomuConstants.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
         ),
+      ),
+      builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -241,7 +305,7 @@ class _FilterBottomSheet extends ConsumerWidget {
     final authors = ['All', ...state.allBooks.map((b) => b.author).toSet()];
     final folders = [
       'All',
-      ...state.allBooks.map((b) => b.folderPath ?? 'Unknown').toSet(),
+      ...state.allBooks.map((b) => b.folderPath).whereType<String>().toSet(),
     ];
     final series = [
       'All',
@@ -271,9 +335,7 @@ class _FilterBottomSheet extends ConsumerWidget {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 TextButton(
-                  onPressed: () {
-                    notifier.clearFilters();
-                  },
+                  onPressed: () => notifier.clearFilters(),
                   child: const Text('Reset'),
                 ),
               ],
@@ -363,14 +425,18 @@ class _FilterBottomSheet extends ConsumerWidget {
               state.selectedFolder,
               folders,
               (val) => notifier.setFolderFilter(val),
-              labelBuilder: (path) => path == 'All' ? 'All' : p.basename(path),
+              labelBuilder: (path) {
+                if (path == 'All') return 'All';
+                if (path == 'imported_files') return 'Imported Files';
+                return p.basename(path);
+              },
             ),
 
             // Series Section
             _buildDropdownSection(
               context,
               'Filter by Series',
-              state.selectedSeries,
+              state.selectedSeries ?? 'All',
               series,
               (val) => notifier.setSeriesFilter(val),
             ),
@@ -379,7 +445,7 @@ class _FilterBottomSheet extends ConsumerWidget {
             _buildDropdownSection(
               context,
               'Filter by Tag',
-              state.selectedTag,
+              state.selectedTag ?? 'All',
               tags,
               (val) => notifier.setTagFilter(val),
             ),
