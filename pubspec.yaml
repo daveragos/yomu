@@ -53,6 +53,8 @@ dependencies:
   flutter_pdfview: ^1.4.4
   intl: ^0.20.2
   pdfrx: ^1.3.5
+  shared_preferences: ^2.2.2
+  flutter_html: ^3.0.0-beta.2
 
 dev_dependencies:
   flutter_test:

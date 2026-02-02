@@ -108,14 +108,12 @@ class DashboardScreen extends ConsumerWidget {
       'Nov',
       'Dec',
     ];
-    final dateStr =
-        '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          dateStr.toUpperCase(),
+          DateFormat('EEEE, MMM d').format(now).toUpperCase(),
           style: TextStyle(
             color: YomuConstants.textSecondary,
             fontSize: 12,
@@ -124,25 +122,29 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              'Good Evening, ',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontSize: 24,
-                color: YomuConstants.textSecondary,
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: now.hour < 12
+                    ? 'Good Morning, '
+                    : now.hour < 17
+                    ? 'Good Afternoon, '
+                    : 'Good Evening, ',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 24,
+                  color: YomuConstants.textSecondary,
+                ),
               ),
-            ),
-            Text(
-              'Yomite',
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+              TextSpan(
+                text: 'Yomite',
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
