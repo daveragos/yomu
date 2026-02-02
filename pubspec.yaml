@@ -55,6 +55,7 @@ dependencies:
   pdfrx: ^1.3.5
   shared_preferences: ^2.2.2
   flutter_html: ^3.0.0-beta.2
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:

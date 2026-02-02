@@ -1,5 +1,7 @@
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../core/constants.dart';
 import '../components/glass_container.dart';
 import '../components/activity_graph.dart';
@@ -13,7 +15,7 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
-  String _selectedMonth = 'January 2026';
+  String _selectedMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +67,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 dailyValues: libraryState.dailyReadingValues,
                 selectedMonth: _selectedMonth,
                 weeklyGoalType: libraryState.weeklyGoalType,
+                onDateTapped: (date, value) =>
+                    _showDailyActivityDetail(date, value),
               ),
               const SizedBox(height: 32),
               _buildAchievements(context, libraryState),
@@ -91,66 +95,219 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       if (state.level >= entry.key) currentTitle = entry.value;
     }
 
-    return GlassContainer(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: YomuConstants.accent.withValues(alpha: 0.1),
-              border: Border.all(color: YomuConstants.accent, width: 2),
-            ),
-            child: Center(
-              child: Text(
-                '${state.level}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+    return GestureDetector(
+      onTap: () => _showLevelMetadata(context, state),
+      child: GlassContainer(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: YomuConstants.accent.withValues(alpha: 0.1),
+                border: Border.all(color: YomuConstants.accent, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: YomuConstants.accent.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                  ),
+                ],
               ),
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  currentTitle,
+              child: Center(
+                child: Text(
+                  '${state.level}',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  'Current Level',
-                  style: TextStyle(
-                    color: YomuConstants.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: (state.totalXP % 1000) / 1000,
-                    backgroundColor: Colors.white10,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      YomuConstants.accent,
-                    ),
-                    minHeight: 6,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        currentTitle,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: Colors.white38,
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Current Level',
+                    style: TextStyle(
+                      color: YomuConstants.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (state.totalXP % 1000) / 1000,
+                      backgroundColor: Colors.white10,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        YomuConstants.accent,
+                      ),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _showLevelMetadata(BuildContext context, LibraryState state) {
+    final titles = [
+      {
+        'level': 1,
+        'name': 'Kohai (後輩)',
+        'desc': 'Getting started on the journey.',
+      },
+      {'level': 5, 'name': 'Yomite (読み手)', 'desc': 'A dedicated reader.'},
+      {
+        'level': 10,
+        'name': 'Senpai (先輩)',
+        'desc': 'Experienced and knowledgeable.',
+      },
+      {
+        'level': 20,
+        'name': 'Chousha (著者)',
+        'desc': 'Deeply connected to the words.',
+      },
+      {
+        'level': 40,
+        'name': 'Sensei (先生)',
+        'desc': 'A master of the literary arts.',
+      },
+      {
+        'level': 50,
+        'name': 'Tatsujin (達人)',
+        'desc': 'Absolute mastery reached.',
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GlassContainer(
+          borderRadius: 24,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Reading Ranks',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Earn XP by reading to rank up!',
+                style: TextStyle(
+                  color: YomuConstants.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ...titles.map((t) {
+                final bool isReached = state.level >= (t['level'] as int);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isReached
+                              ? YomuConstants.accent.withValues(alpha: 0.1)
+                              : Colors.white.withValues(alpha: 0.05),
+                          border: Border.all(
+                            color: isReached
+                                ? YomuConstants.accent
+                                : Colors.white10,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${t['level']}',
+                            style: TextStyle(
+                              color: isReached ? Colors.white : Colors.white30,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              t['name'] as String,
+                              style: TextStyle(
+                                color: isReached
+                                    ? Colors.white
+                                    : Colors.white30,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              t['desc'] as String,
+                              style: TextStyle(
+                                color: isReached
+                                    ? YomuConstants.textSecondary
+                                    : Colors.white10,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isReached)
+                        Icon(
+                          Icons.check_circle,
+                          color: YomuConstants.accent,
+                          size: 18,
+                        ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -227,6 +384,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         : state.totalPagesRead.toDouble();
     final double progress = (current / goal).clamp(0.0, 1.0);
 
+    final bool isGoalMet = progress >= 1.0;
+
     return GlassContainer(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -249,8 +408,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Keep going! Progress: ${(progress * 100).toInt()}%',
-            style: TextStyle(color: YomuConstants.textSecondary, fontSize: 14),
+            isGoalMet
+                ? 'Amazing! Goal Exceeded! 🎉'
+                : 'Keep going! Progress: ${(progress * 100).toInt()}%',
+            style: TextStyle(
+              color: isGoalMet
+                  ? YomuConstants.accent
+                  : YomuConstants.textSecondary,
+              fontSize: 14,
+              fontWeight: isGoalMet ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
           const SizedBox(height: 16),
           ClipRRect(
@@ -258,7 +425,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             child: LinearProgressIndicator(
               value: progress,
               backgroundColor: Colors.white10,
-              valueColor: AlwaysStoppedAnimation<Color>(YomuConstants.accent),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isGoalMet ? YomuConstants.accentGreen : YomuConstants.accent,
+              ),
               minHeight: 8,
             ),
           ),
@@ -384,11 +553,31 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   void _showMonthPicker(BuildContext context) {
+    final state = ref.read(libraryProvider);
+    final sessions = state.dailyReadingValues.keys.toList();
+
+    // Generate month list from session dates
+    final Set<String> availableMonthsSet = {};
+    availableMonthsSet.add(DateFormat('MMMM yyyy').format(DateTime.now()));
+
+    for (var dateStr in sessions) {
+      try {
+        final date = DateTime.parse(dateStr);
+        availableMonthsSet.add(DateFormat('MMMM yyyy').format(date));
+      } catch (_) {}
+    }
+
+    final availableMonths = availableMonthsSet.toList()
+      ..sort((a, b) {
+        final dateA = DateFormat('MMMM yyyy').parse(a);
+        final dateB = DateFormat('MMMM yyyy').parse(b);
+        return dateB.compareTo(dateA); // Descending
+      });
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        final months = ['December 2025', 'January 2026', 'February 2026'];
         return GlassContainer(
           borderRadius: 20,
           child: Column(
@@ -409,22 +598,32 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              ...months.map(
-                (m) => ListTile(
-                  title: Text(
-                    m,
-                    style: TextStyle(
-                      color: _selectedMonth == m
-                          ? YomuConstants.accent
-                          : Colors.white,
-                    ),
-                  ),
-                  trailing: _selectedMonth == m
-                      ? Icon(Icons.check, color: YomuConstants.accent)
-                      : null,
-                  onTap: () {
-                    setState(() => _selectedMonth = m);
-                    Navigator.pop(context);
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availableMonths.length,
+                  itemBuilder: (context, index) {
+                    final m = availableMonths[index];
+                    return ListTile(
+                      title: Text(
+                        m,
+                        style: TextStyle(
+                          color: _selectedMonth == m
+                              ? YomuConstants.accent
+                              : Colors.white,
+                          fontWeight: _selectedMonth == m
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      trailing: _selectedMonth == m
+                          ? Icon(Icons.check, color: YomuConstants.accent)
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedMonth = m);
+                        Navigator.pop(context);
+                      },
+                    );
                   },
                 ),
               ),
@@ -443,6 +642,172 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       isScrollControlled: true,
       builder: (context) {
         return _GoalSettingsSheet();
+      },
+    );
+  }
+
+  void _showDailyActivityDetail(DateTime date, int totalValue) {
+    if (totalValue == 0) return;
+
+    final state = ref.read(libraryProvider);
+    final dateStr = date.toIso8601String().split('T')[0];
+    final sessions = state.sessionHistory
+        .where((s) => s['date'] == dateStr)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GlassContainer(
+          borderRadius: 24,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('EEEE, MMMM d').format(date),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Daily Achievement',
+                        style: TextStyle(
+                          color: YomuConstants.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: YomuConstants.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: YomuConstants.accent.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      '$totalValue ${state.weeklyGoalType}',
+                      style: TextStyle(
+                        color: YomuConstants.accent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Books Read',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: sessions.length,
+                  itemBuilder: (context, index) {
+                    final session = sessions[index];
+                    final bookId = session['bookId'] as int;
+                    final book = state.allBooks.firstWhere(
+                      (b) => b.id == bookId,
+                    );
+                    final val = state.weeklyGoalType == 'pages'
+                        ? session['pagesRead']
+                        : session['durationMinutes'];
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(4),
+                              image: DecorationImage(
+                                image: (book.coverPath.startsWith('assets'))
+                                    ? AssetImage(book.coverPath)
+                                          as ImageProvider
+                                    : FileImage(io.File(book.coverPath)),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  book.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  book.author,
+                                  style: TextStyle(
+                                    color: YomuConstants.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '+$val',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  'Keep it up!',
+                  style: TextStyle(
+                    color: YomuConstants.accent.withValues(alpha: 0.8),
+                    fontStyle: FontStyle.italic,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
       },
     );
   }

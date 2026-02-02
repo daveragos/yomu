@@ -6,12 +6,14 @@ class ActivityGraph extends StatelessWidget {
   final Map<String, int> dailyValues;
   final String selectedMonth; // e.g., "January 2026"
   final String weeklyGoalType;
+  final Function(DateTime, int)? onDateTapped;
 
   const ActivityGraph({
     super.key,
     required this.dailyValues,
     required this.selectedMonth,
     required this.weeklyGoalType,
+    this.onDateTapped,
   });
 
   @override
@@ -63,7 +65,10 @@ class ActivityGraph extends StatelessWidget {
             final String dateStr = date.toIso8601String().split('T')[0];
             final int value = dailyValues[dateStr] ?? 0;
 
-            return _buildDayCell(context, date.day, value);
+            return GestureDetector(
+              onTap: () => onDateTapped?.call(date, value),
+              child: _buildDayCell(context, date.day, value),
+            );
           },
         ),
       ],
@@ -73,23 +78,25 @@ class ActivityGraph extends StatelessWidget {
   Widget _buildDayCell(BuildContext context, int day, int value) {
     int level = 0;
     if (weeklyGoalType == 'pages') {
-      if (value > 50)
+      if (value > 50) {
         level = 4;
-      else if (value > 20)
+      } else if (value > 20) {
         level = 3;
-      else if (value > 10)
+      } else if (value > 10) {
         level = 2;
-      else if (value > 0)
+      } else if (value > 0) {
         level = 1;
+      }
     } else {
-      if (value > 60)
+      if (value > 60) {
         level = 4;
-      else if (value > 30)
+      } else if (value > 30) {
         level = 3;
-      else if (value > 15)
+      } else if (value > 15) {
         level = 2;
-      else if (value > 0)
+      } else if (value > 0) {
         level = 1;
+      }
     }
 
     final Color bgColor = YomuConstants.graphColors[level];
@@ -122,7 +129,7 @@ class ActivityGraph extends StatelessWidget {
           ),
           if (hasActivity)
             Text(
-              '${label}${weeklyGoalType == 'pages' ? 'p' : 'm'}',
+              '$label${weeklyGoalType == 'pages' ? 'p' : 'm'}',
               style: const TextStyle(
                 color: Colors.black87,
                 fontSize: 8,

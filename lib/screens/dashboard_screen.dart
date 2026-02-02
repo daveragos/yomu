@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
 import '../components/glass_container.dart';
 import '../components/activity_graph.dart';
@@ -30,16 +31,27 @@ class DashboardScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              _buildHeader(context),
+              _buildHeader(
+                context,
+              ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0),
               const SizedBox(height: 30),
               if (recentBooks.isNotEmpty) ...[
-                _buildContinueReadingTile(context, ref, recentBooks.first),
+                _buildContinueReadingTile(context, ref, recentBooks.first)
+                    .animate()
+                    .fadeIn(delay: 200.ms, duration: 600.ms)
+                    .slideY(begin: 0.1, end: 0),
                 const SizedBox(height: 30),
               ],
-              _buildQuickStats(context, libraryState),
+              _buildQuickStats(context, libraryState)
+                  .animate()
+                  .fadeIn(delay: 400.ms, duration: 600.ms)
+                  .slideY(begin: 0.1, end: 0),
               const SizedBox(height: 30),
               if (recentBooks.length > 1) ...[
-                Text('My Shelf', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'My Shelf',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ).animate().fadeIn(delay: 500.ms),
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 180,
@@ -50,7 +62,10 @@ class DashboardScreen extends ConsumerWidget {
                         const SizedBox(width: 16),
                     itemBuilder: (context, index) {
                       final book = recentBooks[index + 1];
-                      return _buildShelfItem(context, ref, book);
+                      return _buildShelfItem(context, ref, book)
+                          .animate()
+                          .fadeIn(delay: (600 + (index * 100)).ms)
+                          .scale(begin: const Offset(0.9, 0.9));
                     },
                   ),
                 ),
@@ -59,7 +74,7 @@ class DashboardScreen extends ConsumerWidget {
               Text(
                 'Reading Activity',
                 style: Theme.of(context).textTheme.titleLarge,
-              ),
+              ).animate().fadeIn(delay: 800.ms),
               const SizedBox(height: 4),
               Text(
                 'Current Month',
@@ -67,13 +82,15 @@ class DashboardScreen extends ConsumerWidget {
                   color: YomuConstants.textSecondary,
                   fontSize: 12,
                 ),
-              ),
+              ).animate().fadeIn(delay: 850.ms),
               const SizedBox(height: 12),
               ActivityGraph(
                 dailyValues: libraryState.dailyReadingValues,
                 selectedMonth: DateFormat('MMMM yyyy').format(DateTime.now()),
                 weeklyGoalType: libraryState.weeklyGoalType,
-              ),
+                onDateTapped: (date, value) =>
+                    _showDailyActivityDetail(context, ref, date, value),
+              ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.05, end: 0),
               const SizedBox(height: 100),
             ],
           ),
@@ -84,67 +101,67 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildHeader(BuildContext context) {
     final now = DateTime.now();
-    // Simple manual date formatting for "Monday, Oct 24"
-    final days = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Stack(
       children: [
-        Text(
-          DateFormat('EEEE, MMM d').format(now).toUpperCase(),
-          style: TextStyle(
-            color: YomuConstants.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
+        Positioned(
+          top: -20,
+          right: -20,
+          child: Container(
+            width: 150,
+            height: 150,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  YomuConstants.accent.withValues(alpha: 0.15),
+                  Colors.transparent,
+                ],
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: now.hour < 12
-                    ? 'Good Morning, '
-                    : now.hour < 17
-                    ? 'Good Afternoon, '
-                    : 'Good Evening, ',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 24,
-                  color: YomuConstants.textSecondary,
-                ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('EEEE, MMM d').format(now).toUpperCase(),
+              style: TextStyle(
+                color: YomuConstants.accent.withValues(alpha: 0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2.0,
               ),
+            ),
+            const SizedBox(height: 8),
+            Text.rich(
               TextSpan(
-                text: 'Yomite',
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
+                children: [
+                  TextSpan(
+                    text: now.hour < 12
+                        ? 'Good Morning, \n'
+                        : now.hour < 17
+                        ? 'Good Afternoon, \n'
+                        : 'Good Evening, \n',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 24,
+                      color: YomuConstants.textSecondary,
+                      height: 1.2,
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'Yomite',
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: YomuConstants.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -340,6 +357,177 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDailyActivityDetail(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime date,
+    int totalValue,
+  ) {
+    if (totalValue == 0) return;
+
+    final state = ref.read(libraryProvider);
+    final dateStr = date.toIso8601String().split('T')[0];
+    final sessions = state.sessionHistory
+        .where((s) => s['date'] == dateStr)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GlassContainer(
+          borderRadius: 24,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('EEEE, MMMM d').format(date),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Daily Achievement',
+                        style: TextStyle(
+                          color: YomuConstants.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: YomuConstants.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: YomuConstants.accent.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      '$totalValue ${state.weeklyGoalType}',
+                      style: TextStyle(
+                        color: YomuConstants.accent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Books Read',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: sessions.length,
+                  itemBuilder: (context, index) {
+                    final session = sessions[index];
+                    final bookId = session['bookId'] as int;
+                    final book = state.allBooks.firstWhere(
+                      (b) => b.id == bookId,
+                    );
+                    final val = state.weeklyGoalType == 'pages'
+                        ? session['pagesRead']
+                        : session['durationMinutes'];
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(4),
+                              image: DecorationImage(
+                                image: book.coverPath.startsWith('assets')
+                                    ? AssetImage(book.coverPath)
+                                          as ImageProvider
+                                    : FileImage(File(book.coverPath)),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  book.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  book.author,
+                                  style: TextStyle(
+                                    color: YomuConstants.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '+$val',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  'Keep it up!',
+                  style: TextStyle(
+                    color: YomuConstants.accent.withValues(alpha: 0.8),
+                    fontStyle: FontStyle.italic,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
     );
   }
 }

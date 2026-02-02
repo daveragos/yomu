@@ -36,6 +36,7 @@ class LibraryState {
   final double weeklyGoalValue;
   final String weeklyGoalType; // 'minutes' or 'pages'
   final Set<String> unlockedAchievements;
+  final List<Map<String, dynamic>> sessionHistory;
 
   LibraryState({
     required this.allBooks,
@@ -61,6 +62,7 @@ class LibraryState {
     this.weeklyGoalValue = 300,
     this.weeklyGoalType = 'minutes',
     this.unlockedAchievements = const {},
+    this.sessionHistory = const [],
   });
 
   LibraryState copyWith({
@@ -87,6 +89,7 @@ class LibraryState {
     double? weeklyGoalValue,
     String? weeklyGoalType,
     Set<String>? unlockedAchievements,
+    List<Map<String, dynamic>>? sessionHistory,
   }) {
     return LibraryState(
       allBooks: allBooks ?? this.allBooks,
@@ -112,6 +115,7 @@ class LibraryState {
       weeklyGoalValue: weeklyGoalValue ?? this.weeklyGoalValue,
       weeklyGoalType: weeklyGoalType ?? this.weeklyGoalType,
       unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
+      sessionHistory: sessionHistory ?? this.sessionHistory,
     );
   }
 }
@@ -169,6 +173,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       totalPagesRead: stats.totalPages,
       totalMinutesRead: stats.totalMinutes,
       unlockedAchievements: stats.achievements,
+      sessionHistory: sessions,
     );
   }
 
@@ -215,8 +220,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     // Time-based achievements (would need real session timestamps)
     // For now, placeholders or simple checks
     for (var s in sessions) {
-      if ((s['pagesRead'] as int? ?? 0) >= 100)
+      if ((s['pagesRead'] as int? ?? 0) >= 100) {
         achievements.add('century_club');
+      }
     }
 
     return _UserStats(
@@ -290,23 +296,25 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         final val = entry.value;
         int level = 0;
         if (type == 'pages') {
-          if (val > 50)
+          if (val > 50) {
             level = 4;
-          else if (val > 20)
+          } else if (val > 20) {
             level = 3;
-          else if (val > 10)
+          } else if (val > 10) {
             level = 2;
-          else if (val > 0)
+          } else if (val > 0) {
             level = 1;
+          }
         } else {
-          if (val > 60)
+          if (val > 60) {
             level = 4;
-          else if (val > 30)
+          } else if (val > 30) {
             level = 3;
-          else if (val > 15)
+          } else if (val > 15) {
             level = 2;
-          else if (val > 0)
+          } else if (val > 0) {
             level = 1;
+          }
         }
         activity[30 - difference] = level;
       }
@@ -532,10 +540,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int finalPages = pagesRead ?? 0;
     int finalMinutes = durationMinutes ?? 0;
 
-    // Fallback to estimation if no exact data provided but progress moved
-    if (finalPages == 0 && progress > oldProgress) {
+    // Fallback to estimation ONLY if no exact data provided AND progress moved significantly
+    // However, for "Wrapped", accurate data is better.
+    if (finalPages == 0 && finalMinutes == 0 && progress > oldProgress) {
       finalPages = ((progress - oldProgress) * 300).round().clamp(1, 100);
-      finalMinutes = 5; // Default estimate
+      finalMinutes = 2; // Reduced default estimate for small movements
     }
 
     if (finalPages > 0 || finalMinutes > 0) {

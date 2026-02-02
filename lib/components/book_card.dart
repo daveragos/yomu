@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:percent_indicator/linear_percent_indicator.dart';
 import '../core/constants.dart';
-import 'glass_container.dart';
 
 import '../models/book_model.dart';
 
@@ -83,34 +81,13 @@ class BookCard extends StatelessWidget {
                         ),
                       ),
                     if (book.isFavorite)
-                      const Positioned(
+                      Positioned(
                         top: 8,
                         right: 8,
                         child: Icon(
                           Icons.favorite,
                           color: Colors.red,
                           size: 20,
-                        ),
-                      ),
-                    // Progress Bar for Reading books
-                    if (book.progress > 0 && book.progress < 1.0)
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: GlassContainer(
-                          height: 4,
-                          blur: 0,
-                          opacity: 0.3,
-                          borderRadius: 0,
-                          child: LinearPercentIndicator(
-                            lineHeight: 4.0,
-                            percent: book.progress,
-                            backgroundColor: Colors.transparent,
-                            progressColor: YomuConstants.accent,
-                            barRadius: const Radius.circular(0),
-                            padding: EdgeInsets.zero,
-                          ),
                         ),
                       ),
                   ],
@@ -122,9 +99,10 @@ class BookCard extends StatelessWidget {
               book.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.2,
+              ),
             ),
             Text(
               book.author,
@@ -132,17 +110,37 @@ class BookCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: YomuConstants.textSecondary,
+                fontSize: 12,
               ),
             ),
             // Progress information for books in progress
             if (book.progress > 0 && book.progress < 1.0) ...[
-              const SizedBox(height: 4),
-              Text(
-                '${(book.progress * 100).toStringAsFixed(0)}% complete',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: YomuConstants.accent,
-                  fontWeight: FontWeight.w600,
-                ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: book.progress,
+                        backgroundColor: Colors.white.withValues(alpha: 0.05),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          YomuConstants.accent,
+                        ),
+                        minHeight: 3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${(book.progress * 100).toStringAsFixed(0)}%',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: YomuConstants.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
               if (book.totalPages > 0) ...[
                 const SizedBox(height: 2),

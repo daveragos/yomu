@@ -31,13 +31,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   final ValueNotifier<bool> _isPullingDownNotifier = ValueNotifier(false);
   final ValueNotifier<double> _scrollProgressNotifier = ValueNotifier(0.0);
   bool _shouldJumpToBottom = false;
+  double _initialScrollProgress = 0.0;
 
   final double _pullTriggerDistance = 80.0;
   final double _pullDeadzone = 8.0; // Slightly more sensitive
   Timer? _heartbeatTimer;
   Timer? _debounceTimer;
   bool _isPdfReady = false;
-  String _pdfErrorMessage = '';
+  final String _pdfErrorMessage = '';
   DateTime _lastSyncTime = DateTime.now();
   int _lastSyncPage = 0;
   bool _initialized = false;
@@ -115,11 +116,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       setState(() {
         _chapters = flattenedChapters;
 
-        // Find initial chapter index from progress or CFI
-        // For simplicity, we'll use progress for now, but in a real app we'd parse CFI
-        _currentChapterIndex = (book.progress * (flattenedChapters.length - 1))
-            .toInt()
-            .clamp(0, flattenedChapters.length - 1);
+        // Find initial chapter index and scroll progress from overall progress
+        double totalProgress = book.progress * flattenedChapters.length;
+        _currentChapterIndex = totalProgress.floor().clamp(
+          0,
+          flattenedChapters.length - 1,
+        );
+        _initialScrollProgress = totalProgress - _currentChapterIndex;
+
         _pageController = PageController(initialPage: _currentChapterIndex);
         _currentChapter =
             flattenedChapters[_currentChapterIndex].Title ??
@@ -142,6 +146,21 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     return flattened;
   }
 
+  double _calculateCurrentProgress(Book book) {
+    if (book.filePath.toLowerCase().endsWith('.pdf')) {
+      if (_pdfPages > 0) {
+        return _pdfCurrentPage / (_pdfPages - 1).clamp(1, 1000000);
+      }
+      return book.progress;
+    } else if (book.filePath.toLowerCase().endsWith('.epub')) {
+      if (_chapters.isNotEmpty) {
+        return (_currentChapterIndex + _scrollProgressNotifier.value) /
+            _chapters.length;
+      }
+    }
+    return book.progress;
+  }
+
   void _handleChapterPageChange(int index, Book book) {
     if (index == _currentChapterIndex) return;
 
@@ -155,7 +174,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
     _recordInteraction();
 
-    final progress = index / (_chapters.length - 1).clamp(1, 10000);
+    final progress = _calculateCurrentProgress(book);
     final now = DateTime.now();
     final duration = now.difference(_lastSyncTime).inMinutes;
 
@@ -178,11 +197,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       _accumulatedSeconds++;
       if (_accumulatedSeconds >= 60) {
         _accumulatedSeconds = 0;
+        final progress = _calculateCurrentProgress(book);
         ref
             .read(libraryProvider.notifier)
             .updateBookProgress(
               book,
-              book.progress,
+              progress,
               pagesRead: 0,
               durationMinutes: 1,
             );
@@ -224,7 +244,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       final int pagesRead = (page - _lastSyncPage).clamp(0, 1000);
       final int duration = DateTime.now().difference(_lastSyncTime).inMinutes;
-      final progress = page / (total - 1);
+      final progress = _calculateCurrentProgress(book);
 
       if (pagesRead > 0 || duration >= 1) {
         ref
@@ -268,20 +288,19 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     }
 
     int pagesRead = 0;
-    double progress = book.progress;
+    double progress = _calculateCurrentProgress(book);
     int currentPage = book.currentPage;
     int totalPages = book.totalPages;
 
     if (book.filePath.toLowerCase().endsWith('.pdf')) {
       if (_pdfPages > 0) {
         pagesRead = (_pdfCurrentPage - _lastSyncPage).clamp(0, 1000);
-        progress = _pdfCurrentPage / (_pdfPages - 1).clamp(1, 1000000);
         currentPage = _pdfCurrentPage;
         totalPages = _pdfPages;
       }
     }
 
-    if (pagesRead > 0 || duration > 0) {
+    if (pagesRead > 0 || duration > 0 || progress != book.progress) {
       ref
           .read(libraryProvider.notifier)
           .updateBookProgress(
@@ -347,24 +366,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           color: settings.backgroundColor,
           child: Column(
             children: [
-              // Custom Header (Visible only when controls are toggled)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: _showControls ? null : 0,
-                child: _showControls
-                    ? SafeArea(child: _buildHeader(context, book, settings))
-                    : const SizedBox.shrink(),
-              ),
-
-              // Mode Toggle (Visible only when controls are toggled)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: _showControls ? null : 0,
-                child: _showControls
-                    ? _buildModeToggle(settings)
-                    : const SizedBox.shrink(),
-              ),
-
               // Content Area
               Expanded(
                 child: GestureDetector(
@@ -380,6 +381,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                         _buildEpubContent(book, settings)
                       else
                         _buildPdfContent(book, settings),
+
+                      // Animated Overlay Controls
+                      _buildAnimatedControlsOverlay(context, book, settings),
 
                       if (_pdfErrorMessage.isNotEmpty)
                         Center(
@@ -399,15 +403,78 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                 ),
               ),
 
-              // Bottom Controls / Minimal Footer
-              if (_showControls)
-                SafeArea(child: _buildBottomControls(context, book, settings))
-              else
-                _buildMinimalFooter(book, settings),
+              // Minimal Footer (Persistent or animated)
+              _buildMinimalFooter(book, settings),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAnimatedControlsOverlay(
+    BuildContext context,
+    Book book,
+    ReaderSettings settings,
+  ) {
+    return Stack(
+      children: [
+        // Top Header
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          top: _showControls ? 0 : -100,
+          left: 0,
+          right: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  settings.backgroundColor,
+                  settings.backgroundColor.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHeader(context, book, settings),
+                  _buildModeToggle(settings),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Bottom Controls
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          bottom: _showControls ? 0 : -200,
+          left: 0,
+          right: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  settings.backgroundColor,
+                  settings.backgroundColor.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: _buildBottomControls(context, book, settings),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -578,10 +645,20 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             settings: settings,
             shouldJumpToBottom:
                 _shouldJumpToBottom && index == _currentChapterIndex,
+            initialScrollProgress: index == _currentChapterIndex
+                ? _initialScrollProgress
+                : 0.0,
             onJumpedToBottom: () {
               setState(() {
                 _shouldJumpToBottom = false;
               });
+            },
+            onJumpedToPosition: () {
+              if (index == _currentChapterIndex) {
+                setState(() {
+                  _initialScrollProgress = 0.0;
+                });
+              }
             },
             pullDistanceNotifier: _pullDistanceNotifier,
             isPullingDownNotifier: _isPullingDownNotifier,
@@ -941,7 +1018,9 @@ class _EpubChapterPage extends StatefulWidget {
   final EpubChapter chapter;
   final ReaderSettings settings;
   final bool shouldJumpToBottom;
+  final double initialScrollProgress;
   final VoidCallback onJumpedToBottom;
+  final VoidCallback onJumpedToPosition;
   final ValueNotifier<double> pullDistanceNotifier;
   final ValueNotifier<bool> isPullingDownNotifier;
   final ValueNotifier<double> scrollProgressNotifier;
@@ -957,7 +1036,9 @@ class _EpubChapterPage extends StatefulWidget {
     required this.chapter,
     required this.settings,
     required this.shouldJumpToBottom,
+    required this.initialScrollProgress,
     required this.onJumpedToBottom,
+    required this.onJumpedToPosition,
     required this.pullDistanceNotifier,
     required this.isPullingDownNotifier,
     required this.scrollProgressNotifier,
@@ -986,6 +1067,8 @@ class _EpubChapterPageState extends State<_EpubChapterPage> {
     _scrollController = ScrollController();
     if (widget.shouldJumpToBottom) {
       _checkAndJump();
+    } else if (widget.initialScrollProgress > 0) {
+      _checkAndJumpToPosition();
     }
   }
 
@@ -1002,6 +1085,33 @@ class _EpubChapterPageState extends State<_EpubChapterPage> {
       if (mounted && _scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
         widget.onJumpedToBottom();
+      }
+    });
+  }
+
+  void _checkAndJumpToPosition() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _scrollController.hasClients) {
+        final double maxScroll = _scrollController.position.maxScrollExtent;
+        if (maxScroll > 0) {
+          _scrollController.jumpTo(maxScroll * widget.initialScrollProgress);
+          widget.onJumpedToPosition();
+        } else {
+          // If maxScroll is 0, layout might not be fully ready or content is small
+          // Try again once more after a small delay if it's the first attempt
+          Future.delayed(const Duration(milliseconds: 50), () {
+            if (mounted && _scrollController.hasClients) {
+              final double newMaxScroll =
+                  _scrollController.position.maxScrollExtent;
+              if (newMaxScroll > 0) {
+                _scrollController.jumpTo(
+                  newMaxScroll * widget.initialScrollProgress,
+                );
+              }
+              widget.onJumpedToPosition();
+            }
+          });
+        }
       }
     });
   }

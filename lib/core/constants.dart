@@ -10,14 +10,14 @@ class YomuConstants {
   // Colors (Stitch Design Alignment)
   static const Color background = Color(0xFF0A0B0E);
   static const Color surface = Color(0xFF16171D);
-  static const Color accent = Color(0xFF2ECC71); // Vibrant Emerald Green
-  static const Color accentGreen = Color(
-    0xFF27AE60,
-  ); // Darker Green for secondary
+  static const Color accent = Color(
+    0xFF135BEC,
+  ); // Deep Vibrant Blue from Stitch
+  static const Color accentGreen = Color(0xFF2ECC71); // Emerald Green
   static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFF8E8E93);
+  static const Color textSecondary = Color(0xFF94A3B8); // Slate 400
   static const Color glassy = Color(0x1AFFFFFF);
-  static const Color outline = Color(0xFF2C2C2E);
+  static const Color outline = Color(0xFF1E293B); // Slate 800
 
   // Shadows
   static const List<BoxShadow> cardShadow = [
