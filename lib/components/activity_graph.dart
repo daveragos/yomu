@@ -6,6 +6,7 @@ class ActivityGraph extends StatelessWidget {
   final Map<String, int> dailyValues;
   final String selectedMonth; // e.g., "January 2026"
   final String weeklyGoalType;
+  final double weeklyGoalValue;
   final Function(DateTime, int)? onDateTapped;
 
   const ActivityGraph({
@@ -13,6 +14,7 @@ class ActivityGraph extends StatelessWidget {
     required this.dailyValues,
     required this.selectedMonth,
     required this.weeklyGoalType,
+    required this.weeklyGoalValue,
     this.onDateTapped,
   });
 
@@ -77,24 +79,15 @@ class ActivityGraph extends StatelessWidget {
 
   Widget _buildDayCell(BuildContext context, int day, int value) {
     int level = 0;
-    if (weeklyGoalType == 'pages') {
-      if (value > 50) {
+    if (value > 0) {
+      final double dailyGoal = weeklyGoalValue / 7.0;
+      if (value >= dailyGoal * 2.0) {
         level = 4;
-      } else if (value > 20) {
+      } else if (value >= dailyGoal) {
         level = 3;
-      } else if (value > 10) {
+      } else if (value >= dailyGoal * 0.5) {
         level = 2;
-      } else if (value > 0) {
-        level = 1;
-      }
-    } else {
-      if (value > 60) {
-        level = 4;
-      } else if (value > 30) {
-        level = 3;
-      } else if (value > 15) {
-        level = 2;
-      } else if (value > 0) {
+      } else {
         level = 1;
       }
     }

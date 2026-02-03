@@ -1,6 +1,7 @@
 import 'dart:io' as io;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/book_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
@@ -149,7 +150,19 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           sortAscending: false,
         ),
       ) {
-    loadBooks();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await _loadGoal();
+    await loadBooks();
+  }
+
+  Future<void> _loadGoal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getDouble('weeklyGoalValue') ?? 300.0;
+    final type = prefs.getString('weeklyGoalType') ?? 'minutes';
+    state = state.copyWith(weeklyGoalValue: value, weeklyGoalType: type);
   }
 
   Future<void> loadBooks() async {
@@ -541,10 +554,14 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int finalMinutes = durationMinutes ?? 0;
 
     // Fallback to estimation ONLY if no exact data provided AND progress moved significantly
-    // However, for "Wrapped", accurate data is better.
     if (finalPages == 0 && finalMinutes == 0 && progress > oldProgress) {
-      finalPages = ((progress - oldProgress) * 300).round().clamp(1, 100);
-      finalMinutes = 2; // Reduced default estimate for small movements
+      final effectiveTotalPages = book.totalPages > 0 ? book.totalPages : 300;
+      finalPages = ((progress - oldProgress) * effectiveTotalPages)
+          .round()
+          .clamp(1, 100);
+      // Estimate minutes based on a standard reading speed (e.g., 200 words/min -> ~2 mins per page)
+      // but make it distinct from pages.
+      finalMinutes = (finalPages * 1.2).ceil().clamp(1, 60);
     }
 
     if (finalPages > 0 || finalMinutes > 0) {
@@ -581,6 +598,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       totalPagesRead: stats.totalPages,
       totalMinutesRead: stats.totalMinutes,
       unlockedAchievements: stats.achievements,
+      sessionHistory: sessions,
     );
   }
 
@@ -634,10 +652,22 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
   }
 
-  void setWeeklyGoal(double value, String type) {
+  Future<void> setWeeklyGoal(double value, String type) async {
     state = state.copyWith(weeklyGoalValue: value, weeklyGoalType: type);
-    // Ideally save this to SharedPreferences or DB.
-    // For now, keep it in memory state.
+
+    // Persist goal
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('weeklyGoalValue', value);
+    await prefs.setString('weeklyGoalType', type);
+
+    // Re-calculate activity data for the new unit
+    final sessions = await _dbService.getReadingSessions();
+    final activity = _calculateActivity(sessions, type);
+
+    state = state.copyWith(
+      activityData: activity.levels,
+      dailyReadingValues: activity.values,
+    );
   }
 
   Future<void> deleteBook(int id) async {

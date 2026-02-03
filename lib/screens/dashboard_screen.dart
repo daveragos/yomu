@@ -88,6 +88,7 @@ class DashboardScreen extends ConsumerWidget {
                 dailyValues: libraryState.dailyReadingValues,
                 selectedMonth: DateFormat('MMMM yyyy').format(DateTime.now()),
                 weeklyGoalType: libraryState.weeklyGoalType,
+                weeklyGoalValue: libraryState.weeklyGoalValue,
                 onDateTapped: (date, value) =>
                     _showDailyActivityDetail(context, ref, date, value),
               ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.05, end: 0),
@@ -177,7 +178,7 @@ class DashboardScreen extends ConsumerWidget {
           Icons.local_fire_department,
           YomuConstants.accent,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         _buildStatItem(
           context,
           'Pages',
@@ -185,13 +186,21 @@ class DashboardScreen extends ConsumerWidget {
           Icons.auto_stories,
           YomuConstants.accentGreen,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
+        _buildStatItem(
+          context,
+          'Minutes',
+          '${state.totalMinutesRead}',
+          Icons.timer,
+          Colors.orangeAccent,
+        ),
+        const SizedBox(width: 8),
         _buildStatItem(
           context,
           'Level',
           '${state.level}',
           Icons.stars_rounded,
-          Colors.orangeAccent,
+          Colors.purpleAccent,
         ),
       ],
     );
@@ -370,9 +379,33 @@ class DashboardScreen extends ConsumerWidget {
 
     final state = ref.read(libraryProvider);
     final dateStr = date.toIso8601String().split('T')[0];
-    final sessions = state.sessionHistory
+    final daySessions = state.sessionHistory
         .where((s) => s['date'] == dateStr)
         .toList();
+
+    // Group and aggregate sessions by bookId (using String key for robustness)
+    final Map<String, Map<String, dynamic>> aggregatedMap = {};
+    for (var s in daySessions) {
+      final idRaw = s['bookId'];
+      if (idRaw == null) continue;
+      final bookIdKey = idRaw.toString();
+
+      if (!aggregatedMap.containsKey(bookIdKey)) {
+        aggregatedMap[bookIdKey] = {
+          'bookId': idRaw is int ? idRaw : int.tryParse(bookIdKey) ?? 0,
+          'pagesRead': 0,
+          'durationMinutes': 0,
+        };
+      }
+      aggregatedMap[bookIdKey]!['pagesRead'] =
+          (aggregatedMap[bookIdKey]!['pagesRead'] as int) +
+          (s['pagesRead'] as int? ?? 0);
+      aggregatedMap[bookIdKey]!['durationMinutes'] =
+          (aggregatedMap[bookIdKey]!['durationMinutes'] as int) +
+          (s['durationMinutes'] as int? ?? 0);
+    }
+
+    final mergedSessions = aggregatedMap.values.toList();
 
     showModalBottomSheet(
       context: context,
@@ -444,9 +477,9 @@ class DashboardScreen extends ConsumerWidget {
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
-                  itemCount: sessions.length,
+                  itemCount: mergedSessions.length,
                   itemBuilder: (context, index) {
-                    final session = sessions[index];
+                    final session = mergedSessions[index];
                     final bookId = session['bookId'] as int;
                     final book = state.allBooks.firstWhere(
                       (b) => b.id == bookId,

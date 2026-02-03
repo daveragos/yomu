@@ -67,6 +67,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 dailyValues: libraryState.dailyReadingValues,
                 selectedMonth: _selectedMonth,
                 weeklyGoalType: libraryState.weeklyGoalType,
+                weeklyGoalValue: libraryState.weeklyGoalValue,
                 onDateTapped: (date, value) =>
                     _showDailyActivityDetail(date, value),
               ),
@@ -259,7 +260,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           child: Text(
                             '${t['level']}',
                             style: TextStyle(
-                              color: isReached ? Colors.white : Colors.white30,
+                              color: isReached ? Colors.white : Colors.white54,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -276,7 +277,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               style: TextStyle(
                                 color: isReached
                                     ? Colors.white
-                                    : Colors.white30,
+                                    : Colors.white54,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
                               ),
@@ -286,7 +287,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               style: TextStyle(
                                 color: isReached
                                     ? YomuConstants.textSecondary
-                                    : Colors.white10,
+                                    : Colors.white30,
                                 fontSize: 11,
                               ),
                             ),
@@ -651,9 +652,33 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     final state = ref.read(libraryProvider);
     final dateStr = date.toIso8601String().split('T')[0];
-    final sessions = state.sessionHistory
+    final daySessions = state.sessionHistory
         .where((s) => s['date'] == dateStr)
         .toList();
+
+    // Group and aggregate sessions by bookId (using String key for robustness)
+    final Map<String, Map<String, dynamic>> aggregatedMap = {};
+    for (var s in daySessions) {
+      final idRaw = s['bookId'];
+      if (idRaw == null) continue;
+      final bookIdKey = idRaw.toString();
+
+      if (!aggregatedMap.containsKey(bookIdKey)) {
+        aggregatedMap[bookIdKey] = {
+          'bookId': idRaw is int ? idRaw : int.tryParse(bookIdKey) ?? 0,
+          'pagesRead': 0,
+          'durationMinutes': 0,
+        };
+      }
+      aggregatedMap[bookIdKey]!['pagesRead'] =
+          (aggregatedMap[bookIdKey]!['pagesRead'] as int) +
+          (s['pagesRead'] as int? ?? 0);
+      aggregatedMap[bookIdKey]!['durationMinutes'] =
+          (aggregatedMap[bookIdKey]!['durationMinutes'] as int) +
+          (s['durationMinutes'] as int? ?? 0);
+    }
+
+    final mergedSessions = aggregatedMap.values.toList();
 
     showModalBottomSheet(
       context: context,
@@ -725,9 +750,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
-                  itemCount: sessions.length,
+                  itemCount: mergedSessions.length,
                   itemBuilder: (context, index) {
-                    final session = sessions[index];
+                    final session = mergedSessions[index];
                     final bookId = session['bookId'] as int;
                     final book = state.allBooks.firstWhere(
                       (b) => b.id == bookId,
@@ -882,6 +907,7 @@ class _GoalSettingsSheet extends ConsumerStatefulWidget {
 class _GoalSettingsSheetState extends ConsumerState<_GoalSettingsSheet> {
   late double _value;
   late String _type;
+  late TextEditingController _controller;
 
   @override
   void initState() {
@@ -889,6 +915,20 @@ class _GoalSettingsSheetState extends ConsumerState<_GoalSettingsSheet> {
     final state = ref.read(libraryProvider);
     _value = state.weeklyGoalValue;
     _type = state.weeklyGoalType;
+    _controller = TextEditingController(text: _value.toInt().toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateValue(double newValue) {
+    setState(() {
+      _value = newValue.clamp(1, 10000);
+      _controller.text = _value.toInt().toString();
+    });
   }
 
   @override
@@ -926,22 +966,55 @@ class _GoalSettingsSheetState extends ConsumerState<_GoalSettingsSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '${_value.toInt()} $_type',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: YomuConstants.accent,
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        IntrinsicWidth(
+                          child: TextField(
+                            controller: _controller,
+                            keyboardType: TextInputType.number,
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: YomuConstants.accent,
+                            ),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            onChanged: (val) {
+                              final dVal = double.tryParse(val);
+                              if (dVal != null) {
+                                setState(() {
+                                  _value = dVal;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _type,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: YomuConstants.textSecondary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Row(
                     children: [
                       _buildValueBtn(Icons.remove, () {
-                        setState(() => _value = (_value - 10).clamp(10, 1000));
+                        _updateValue((_value - 10).clamp(1, 10000));
                       }),
                       const SizedBox(width: 12),
                       _buildValueBtn(Icons.add, () {
-                        setState(() => _value = (_value + 10).clamp(10, 1000));
+                        _updateValue((_value + 10).clamp(1, 10000));
                       }),
                     ],
                   ),
