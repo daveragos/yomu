@@ -79,6 +79,11 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
     _saveSettings();
   }
 
+  void setAutoScrollSpeed(double speed) {
+    state = state.copyWith(autoScrollSpeed: speed);
+    _saveSettings();
+  }
+
   void resetToDefaults() {
     state = ReaderSettings.defaults;
     _saveSettings();

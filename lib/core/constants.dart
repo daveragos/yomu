@@ -11,8 +11,8 @@ class YomuConstants {
   static const Color background = Color(0xFF0A0B0E);
   static const Color surface = Color(0xFF16171D);
   static const Color accent = Color(
-    0xFF135BEC,
-  ); // Deep Vibrant Blue from Stitch
+    0xFF2ECC71,
+  ); // Vibrant Green from Stitch alignment attempt
   static const Color accentGreen = Color(0xFF2ECC71); // Emerald Green
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFF94A3B8); // Slate 400

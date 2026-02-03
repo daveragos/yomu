@@ -81,6 +81,15 @@ class DisplaySettingsSheet extends ConsumerWidget {
               displayValue: '${settings.textSize.round()}px',
               onChanged: (value) => notifier.setTextSize(value),
             ),
+            // Auto Scroll Speed Slider
+            _buildSliderRow(
+              label: 'Auto Scroll Speed',
+              value: settings.autoScrollSpeed,
+              min: 0.5,
+              max: 10.0,
+              displayValue: '${settings.autoScrollSpeed.toStringAsFixed(1)}x',
+              onChanged: (value) => notifier.setAutoScrollSpeed(value),
+            ),
             const SizedBox(height: 16),
 
             // Line Height Slider
@@ -235,7 +244,12 @@ class DisplaySettingsSheet extends ConsumerWidget {
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
           ),
-          child: Slider(value: value, min: min, max: max, onChanged: onChanged),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            onChanged: onChanged,
+          ),
         ),
       ],
     );

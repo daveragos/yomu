@@ -140,10 +140,10 @@ class DashboardScreen extends ConsumerWidget {
                 children: [
                   TextSpan(
                     text: now.hour < 12
-                        ? 'Good Morning, \n'
+                        ? 'Good Morning, '
                         : now.hour < 17
-                        ? 'Good Afternoon, \n'
-                        : 'Good Evening, \n',
+                        ? 'Good Afternoon, '
+                        : 'Good Evening, ',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontSize: 24,
                       color: YomuConstants.textSecondary,

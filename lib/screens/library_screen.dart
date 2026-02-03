@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
 import '../core/constants.dart';
 import '../components/book_card.dart';
-import '../components/glass_container.dart';
+
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
 import '../services/book_service.dart';
@@ -22,7 +21,6 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = false;
   bool _isMenuOpen = false;
   late AnimationController _animationController;
 
@@ -128,153 +126,118 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Library',
-                style: Theme.of(
-                  context,
-                ).textTheme.displayLarge?.copyWith(fontSize: 28),
-              ),
-              IconButton(
-                icon: Icon(_isSearching ? Icons.close : Icons.search),
-                onPressed: () {
-                  setState(() {
-                    if (_isSearching) {
-                      _isSearching = false;
-                      _searchController.clear();
-                      notifier.setSearchQuery('');
-                    } else {
-                      _isSearching = true;
-                    }
-                  });
-                },
-              ),
-            ],
-          ),
-          if (_isSearching)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search books...',
-                  hintStyle: TextStyle(color: Colors.white24),
-                  filled: true,
-                  fillColor: YomuConstants.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                onChanged: (value) => notifier.setSearchQuery(value),
-              ),
-            ),
+          // Search Row
           Row(
             children: [
-              GestureDetector(
-                onTap: () => _showFilterExplorer(context, state, notifier),
-                child: GlassContainer(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  borderRadius: 12,
-                  color: YomuConstants.accent,
-                  opacity: 0.9,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.tune, color: Colors.black, size: 18),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Filters',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (_getActiveFilterCount(state) > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.black,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '${_getActiveFilterCount(state)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      if (state.selectedGenre != 'All')
-                        _buildActiveFilterTag(
-                          state.selectedGenre,
-                          () => notifier.setGenreFilter('All'),
-                        ),
-                      if (state.selectedAuthor != 'All')
-                        _buildActiveFilterTag(
-                          state.selectedAuthor,
-                          () => notifier.setAuthorFilter('All'),
-                        ),
-                      if (state.selectedFolder != 'All')
-                        _buildActiveFilterTag(
-                          p.basename(state.selectedFolder),
-                          () => notifier.setFolderFilter('All'),
-                        ),
-                      if (state.sortBy != BookSortBy.recent)
-                        _buildActiveFilterTag(
-                          state.sortBy.name.toUpperCase(),
-                          () => notifier.setSortBy(BookSortBy.recent),
-                        ),
-                      if (state.searchQuery.isNotEmpty)
-                        _buildActiveFilterTag(
-                          'Search: ${state.searchQuery}',
-                          () {
-                            _searchController.clear();
-                            notifier.setSearchQuery('');
-                          },
-                        ),
-                    ],
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search titles, authors...',
+                    hintStyle: TextStyle(
+                      color: YomuConstants.textSecondary.withValues(alpha: 0.5),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: YomuConstants.textSecondary,
+                      size: 20,
+                    ),
+                    filled: true,
+                    fillColor: YomuConstants.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
+                  onChanged: (value) => notifier.setSearchQuery(value),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+
+          // Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterChip(
+                  label: 'All',
+                  isSelected:
+                      state.selectedGenre == 'All' &&
+                      state.selectedAuthor == 'All' &&
+                      state.selectedFolder == 'All' &&
+                      !state.onlyFavorites,
+                  onTap: () => notifier.clearFilters(),
+                ),
+                _buildFilterChip(
+                  label: 'Favorites',
+                  isSelected: state.onlyFavorites,
+                  icon: state.onlyFavorites
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  onTap: () => notifier.toggleFavoriteOnly(),
+                ),
+                _buildFilterChip(
+                  label: state.selectedGenre == 'All'
+                      ? 'Genre'
+                      : state.selectedGenre,
+                  isSelected: state.selectedGenre != 'All',
+                  hasDropdown: true,
+                  dropdownOptions: [
+                    'All',
+                    ...state.allBooks.map((b) => b.genre ?? 'Unknown').toSet(),
+                  ].toList(),
+                  onSelected: (val) => notifier.setGenreFilter(val),
+                  onTap: () {},
+                ),
+                _buildFilterChip(
+                  label: state.selectedAuthor == 'All'
+                      ? 'Author'
+                      : state.selectedAuthor,
+                  isSelected: state.selectedAuthor != 'All',
+                  hasDropdown: true,
+                  dropdownOptions: [
+                    'All',
+                    ...state.allBooks.map((b) => b.author).toSet(),
+                  ].toList(),
+                  onSelected: (val) => notifier.setAuthorFilter(val),
+                  onTap: () {},
+                ),
+                _buildFilterChip(
+                  label: state.sortBy.name.toUpperCase(),
+                  isSelected: state.sortBy != BookSortBy.recent,
+                  icon: Icons.sort_rounded,
+                  hasDropdown: true,
+                  dropdownOptions: BookSortBy.values
+                      .map((v) => v.name.toUpperCase())
+                      .toList(),
+                  onSelected: (val) {
+                    notifier.setSortBy(
+                      BookSortBy.values.firstWhere(
+                        (e) => e.name.toUpperCase() == val,
+                      ),
+                    );
+                  },
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Status Tabs
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatusTab(
-                'All',
-                state.statusFilter == BookStatusFilter.all,
-                () => notifier.setStatusFilter(BookStatusFilter.all),
-              ),
               _buildStatusTab(
                 'Reading',
                 state.statusFilter == BookStatusFilter.reading,
                 () => notifier.setStatusFilter(BookStatusFilter.reading),
               ),
               _buildStatusTab(
-                'Unread',
+                'To Read',
                 state.statusFilter == BookStatusFilter.unread,
                 () => notifier.setStatusFilter(BookStatusFilter.unread),
               ),
@@ -283,17 +246,92 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 state.statusFilter == BookStatusFilter.finished,
                 () => notifier.setStatusFilter(BookStatusFilter.finished),
               ),
-              _buildStatusTab(
-                'Favorites',
-                state.onlyFavorites,
-                () => notifier.toggleFavoriteOnly(),
-              ),
             ],
           ),
           const SizedBox(height: 10),
         ],
       ),
     );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    IconData? icon,
+    bool hasDropdown = false,
+    List<String>? dropdownOptions,
+    Function(String)? onSelected,
+    required VoidCallback onTap,
+  }) {
+    final chipContent = Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: isSelected ? YomuConstants.accent : YomuConstants.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          if (hasDropdown) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (hasDropdown && dropdownOptions != null && onSelected != null) {
+      return PopupMenuButton<String>(
+        onSelected: onSelected,
+        offset: const Offset(0, 44),
+        color: YomuConstants.surface,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        itemBuilder: (context) => dropdownOptions.map((opt) {
+          final isItemSelected =
+              opt == label ||
+              (label == 'Genre' && opt == 'All') ||
+              (label == 'Author' && opt == 'All');
+          return PopupMenuItem<String>(
+            value: opt,
+            child: Text(
+              opt,
+              style: TextStyle(
+                color: YomuConstants.textPrimary,
+                fontSize: 14,
+                fontWeight: isItemSelected
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+        child: chipContent,
+      );
+    }
+
+    return GestureDetector(onTap: onTap, child: chipContent);
   }
 
   Widget _buildStatusTab(String label, bool isSelected, VoidCallback onTap) {
@@ -519,234 +557,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ],
         ),
       ),
-    );
-  }
-
-  int _getActiveFilterCount(LibraryState state) {
-    int count = 0;
-    if (state.selectedGenre != 'All') count++;
-    if (state.selectedAuthor != 'All') count++;
-    if (state.selectedFolder != 'All') count++;
-    if (state.sortBy != BookSortBy.recent) count++;
-    if (state.searchQuery.isNotEmpty) count++;
-    return count;
-  }
-
-  Widget _buildActiveFilterTag(String label, VoidCallback onRemove) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
-          ),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: onRemove,
-            child: const Icon(Icons.close, size: 12, color: Colors.white38),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showFilterExplorer(
-    BuildContext context,
-    LibraryState state,
-    LibraryNotifier notifier,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) {
-          final tempState = ref.watch(libraryProvider);
-          return GlassContainer(
-            borderRadius: 24,
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Filter Explorer',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (_getActiveFilterCount(tempState) > 0)
-                      TextButton(
-                        onPressed: () {
-                          notifier.clearFilters();
-                          setModalState(() {});
-                        },
-                        child: Text(
-                          'Reset All',
-                          style: TextStyle(color: YomuConstants.accent),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _buildExplorerSection(
-                  'Genre',
-                  tempState.selectedGenre,
-                  [
-                    'All',
-                    ...tempState.allBooks
-                        .map((b) => b.genre ?? 'Unknown')
-                        .toSet(),
-                  ],
-                  (val) {
-                    notifier.setGenreFilter(val);
-                    setModalState(() {});
-                  },
-                ),
-                const SizedBox(height: 20),
-                _buildExplorerSection(
-                  'Author',
-                  tempState.selectedAuthor,
-                  ['All', ...tempState.allBooks.map((b) => b.author).toSet()],
-                  (val) {
-                    notifier.setAuthorFilter(val);
-                    setModalState(() {});
-                  },
-                ),
-                const SizedBox(height: 20),
-                _buildExplorerSection(
-                  'Folder',
-                  tempState.selectedFolder,
-                  [
-                    'All',
-                    ...tempState.allBooks
-                        .map((b) => b.folderPath)
-                        .whereType<String>()
-                        .toSet(),
-                  ],
-                  (val) {
-                    notifier.setFolderFilter(val);
-                    setModalState(() {});
-                  },
-                  labelBuilder: (path) =>
-                      path == 'All' ? 'All Folders' : p.basename(path),
-                ),
-                const SizedBox(height: 20),
-                _buildExplorerSection(
-                  'Sort By',
-                  tempState.sortBy.name.toUpperCase(),
-                  BookSortBy.values.map((v) => v.name.toUpperCase()).toList(),
-                  (val) {
-                    notifier.setSortBy(
-                      BookSortBy.values.firstWhere(
-                        (e) => e.name.toUpperCase() == val,
-                      ),
-                    );
-                    setModalState(() {});
-                  },
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: YomuConstants.accent,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Show ${tempState.filteredBooks.length} Results',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildExplorerSection(
-    String title,
-    String currentVal,
-    List<String> options,
-    Function(String) onSelected, {
-    String Function(String)? labelBuilder,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: options.map((opt) {
-              final isSelected = opt == currentVal;
-              return GestureDetector(
-                onTap: () => onSelected(opt),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? YomuConstants.accent.withValues(alpha: 0.2)
-                        : Colors.white.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? YomuConstants.accent : Colors.white10,
-                    ),
-                  ),
-                  child: Text(
-                    labelBuilder != null ? labelBuilder(opt) : opt,
-                    style: TextStyle(
-                      color: isSelected ? YomuConstants.accent : Colors.white70,
-                      fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/book_model.dart';
+import '../models/bookmark_model.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -21,7 +22,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -58,6 +59,16 @@ class DatabaseService {
         date TEXT,
         pagesRead INTEGER,
         durationMinutes INTEGER
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE bookmarks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId INTEGER,
+        title TEXT,
+        progress REAL,
+        createdAt TEXT,
+        position TEXT
       )
     ''');
   }
@@ -107,6 +118,18 @@ class DatabaseService {
         'ALTER TABLE books ADD COLUMN audioLastPosition INTEGER',
       );
     }
+    if (oldVersion < 9) {
+      await db.execute('''
+        CREATE TABLE bookmarks(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bookId INTEGER,
+          title TEXT,
+          progress REAL,
+          createdAt TEXT,
+          position TEXT
+        )
+      ''');
+    }
   }
 
   // Book CRUD
@@ -137,6 +160,28 @@ class DatabaseService {
   Future<int> deleteBook(int id) async {
     final db = await database;
     return await db.delete('books', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Bookmark CRUD
+  Future<int> insertBookmark(Bookmark bookmark) async {
+    final db = await database;
+    return await db.insert('bookmarks', bookmark.toMap());
+  }
+
+  Future<List<Bookmark>> getBookmarks(int bookId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'bookmarks',
+      where: 'bookId = ?',
+      whereArgs: [bookId],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Bookmark.fromMap(maps[i]));
+  }
+
+  Future<int> deleteBookmark(int id) async {
+    final db = await database;
+    return await db.delete('bookmarks', where: 'id = ?', whereArgs: [id]);
   }
 
   // Activity CRUD

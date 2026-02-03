@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
 import '../models/book_model.dart';
+import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
 
@@ -358,7 +359,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   void setStatusFilter(BookStatusFilter filter) {
-    final newState = state.copyWith(statusFilter: filter);
+    // Toggle: if clicking already selected tab, clear it
+    final targetFilter = state.statusFilter == filter
+        ? BookStatusFilter.all
+        : filter;
+    final newState = state.copyWith(statusFilter: targetFilter);
     state = newState.copyWith(
       filteredBooks: _applyFilters(state.allBooks, newState),
     );
@@ -372,14 +377,18 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   void setAuthorFilter(String author) {
-    final newState = state.copyWith(selectedAuthor: author);
+    // Toggle: if clicking already selected author, set to 'All'
+    final targetAuthor = state.selectedAuthor == author ? 'All' : author;
+    final newState = state.copyWith(selectedAuthor: targetAuthor);
     state = newState.copyWith(
       filteredBooks: _applyFilters(state.allBooks, newState),
     );
   }
 
   void setGenreFilter(String genre) {
-    final newState = state.copyWith(selectedGenre: genre);
+    // Toggle: if clicking already selected genre, set to 'All'
+    final targetGenre = state.selectedGenre == genre ? 'All' : genre;
+    final newState = state.copyWith(selectedGenre: targetGenre);
     state = newState.copyWith(
       filteredBooks: _applyFilters(state.allBooks, newState),
     );
@@ -695,12 +704,25 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     if (book == null) return;
 
     final updatedBook = book.copyWith(
-      audioPath: audioPath ?? book.audioPath,
+      audioPath: audioPath, // Allow setting to null or a new path
       audioLastPosition: audioLastPosition ?? book.audioLastPosition,
     );
     await _dbService.updateBook(updatedBook);
 
     _updateStateAndSync(updatedBook);
+  }
+
+  // Bookmark specialized methods
+  Future<void> addBookmark(Bookmark bookmark) async {
+    await _dbService.insertBookmark(bookmark);
+  }
+
+  Future<List<Bookmark>> getBookmarks(int bookId) async {
+    return await _dbService.getBookmarks(bookId);
+  }
+
+  Future<void> deleteBookmark(int bookmarkId) async {
+    await _dbService.deleteBookmark(bookmarkId);
   }
 
   void _updateStateAndSync(Book updatedBook) {

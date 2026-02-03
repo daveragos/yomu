@@ -14,6 +14,7 @@ class ReaderSettings {
   final double lineHeight;
   final ReaderAlignment alignment;
   final bool usePublisherDefaults;
+  final double autoScrollSpeed;
 
   const ReaderSettings({
     this.theme = ReaderTheme.black,
@@ -22,6 +23,7 @@ class ReaderSettings {
     this.lineHeight = 1.6,
     this.alignment = ReaderAlignment.justified,
     this.usePublisherDefaults = false,
+    this.autoScrollSpeed = 2.0,
   });
 
   ReaderSettings copyWith({
@@ -31,6 +33,7 @@ class ReaderSettings {
     double? lineHeight,
     ReaderAlignment? alignment,
     bool? usePublisherDefaults,
+    double? autoScrollSpeed,
   }) {
     return ReaderSettings(
       theme: theme ?? this.theme,
@@ -39,6 +42,7 @@ class ReaderSettings {
       lineHeight: lineHeight ?? this.lineHeight,
       alignment: alignment ?? this.alignment,
       usePublisherDefaults: usePublisherDefaults ?? this.usePublisherDefaults,
+      autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
     );
   }
 
@@ -105,6 +109,7 @@ class ReaderSettings {
       'lineHeight': lineHeight,
       'alignment': alignment.index,
       'usePublisherDefaults': usePublisherDefaults,
+      'autoScrollSpeed': autoScrollSpeed,
     };
   }
 
@@ -117,6 +122,10 @@ class ReaderSettings {
       lineHeight: (map['lineHeight'] as num?)?.toDouble() ?? 1.6,
       alignment: ReaderAlignment.values[map['alignment'] as int? ?? 2],
       usePublisherDefaults: map['usePublisherDefaults'] as bool? ?? false,
+      autoScrollSpeed: (map['autoScrollSpeed'] as num).toDouble().clamp(
+        0.5,
+        10.0,
+      ),
     );
   }
 
