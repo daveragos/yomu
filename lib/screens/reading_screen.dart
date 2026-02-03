@@ -14,6 +14,8 @@ import '../providers/reader_settings_provider.dart';
 import '../models/book_model.dart';
 import '../models/reader_settings_model.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'main_navigation.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
@@ -47,9 +49,19 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   PdfViewerController? _pdfController;
   final Duration _idlenessTimeout = const Duration(minutes: 2);
 
+  // Audio state
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final ValueNotifier<Duration> _audioPositionNotifier = ValueNotifier(
+    Duration.zero,
+  );
+  final ValueNotifier<Duration> _audioDurationNotifier = ValueNotifier(
+    Duration.zero,
+  );
+  final ValueNotifier<bool> _isAudioPlayingNotifier = ValueNotifier(false);
+  bool _isAudioLoading = false;
+
   // Reading mode state
   bool _isSyncMode = false;
-  bool _isPlaying = false;
   double _playbackSpeed = 1.0;
   String _currentChapter = 'Chapter 1';
   List<EpubChapter> _chapters = [];
@@ -59,15 +71,98 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   // UI state
   bool _showControls = true;
   String _currentTime = '';
-  Timer? _timeTimer;
+  Timer? _currentTimeTimer;
+  Timer? _audioDebounceTimer;
+  String? _loadedAudioBookId;
+  DateTime _lastAudioSaveTime = DateTime.now();
+  int _lastSavedAudioMs = -1;
 
   @override
   void initState() {
     super.initState();
     _updateTime();
-    _timeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _currentTimeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _updateTime();
     });
+    _initAudio();
+  }
+
+  void _initAudio() {
+    _audioPlayer.positionStream.listen((pos) {
+      _audioPositionNotifier.value = pos;
+      _maybeSaveAudioPosition(pos);
+    });
+    _audioPlayer.durationStream.listen((dur) {
+      _audioDurationNotifier.value = dur ?? Duration.zero;
+    });
+    _audioPlayer.playerStateStream.listen((state) {
+      _isAudioPlayingNotifier.value = state.playing;
+    });
+  }
+
+  void _maybeSaveAudioPosition(Duration pos) {
+    if (_loadedAudioBookId == null || _isAudioLoading) return;
+
+    final now = DateTime.now();
+    final currentMs = pos.inMilliseconds;
+
+    // save at most every 10 seconds OR if seek is large (> 5s)
+    final diff = (currentMs - _lastSavedAudioMs).abs();
+    final timeSinceLastSave = now.difference(_lastAudioSaveTime);
+
+    if (timeSinceLastSave > const Duration(seconds: 10) || diff > 5000) {
+      _performAudioSave(currentMs);
+    }
+  }
+
+  void _performAudioSave(int ms) {
+    final book = ref.read(currentlyReadingProvider);
+    if (book != null && book.id.toString() == _loadedAudioBookId) {
+      _lastAudioSaveTime = DateTime.now();
+      _lastSavedAudioMs = ms;
+      ref
+          .read(libraryProvider.notifier)
+          .updateBookAudio(book.id!, audioLastPosition: ms);
+    }
+  }
+
+  Future<void> _loadAudio(
+    String path, {
+    int? initialPositionMs,
+    required String bookId,
+  }) async {
+    try {
+      _loadedAudioBookId = bookId;
+      setState(() => _isAudioLoading = true);
+      await _audioPlayer.setFilePath(path);
+      if (initialPositionMs != null && initialPositionMs > 0) {
+        await _audioPlayer.seek(Duration(milliseconds: initialPositionMs));
+      }
+      setState(() => _isAudioLoading = false);
+    } catch (e) {
+      _loadedAudioBookId = null;
+      setState(() => _isAudioLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading audio: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickAudio(Book book) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.audio,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+      await ref
+          .read(libraryProvider.notifier)
+          .updateBookAudio(book.id!, audioPath: path);
+      _loadAudio(path, bookId: book.id.toString());
+    }
   }
 
   void _updateTime() {
@@ -83,14 +178,19 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
   @override
   void dispose() {
+    _audioPlayer.dispose();
     _epubController?.dispose();
     _pageController?.dispose();
     _heartbeatTimer?.cancel();
     _debounceTimer?.cancel();
-    _timeTimer?.cancel();
+    _currentTimeTimer?.cancel();
+    _audioDebounceTimer?.cancel();
     _pullDistanceNotifier.dispose();
     _isPullingDownNotifier.dispose();
     _scrollProgressNotifier.dispose();
+    _audioPositionNotifier.dispose();
+    _audioDurationNotifier.dispose();
+    _isAudioPlayingNotifier.dispose();
     super.dispose();
   }
 
@@ -181,7 +281,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     ref
         .read(libraryProvider.notifier)
         .updateBookProgress(
-          book,
+          book.id!,
           progress,
           pagesRead: 0,
           durationMinutes: duration > 0 ? duration : 0,
@@ -201,11 +301,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ref
             .read(libraryProvider.notifier)
             .updateBookProgress(
-              book,
+              book.id!,
               progress,
               pagesRead: 0,
               durationMinutes: 1,
             );
+
+        // Also save audio position in heartbeat
+        if (_loadedAudioBookId == book.id.toString()) {
+          _performAudioSave(_audioPlayer.position.inMilliseconds);
+        }
       }
     });
   }
@@ -225,7 +330,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       ref
           .read(libraryProvider.notifier)
           .updateBookProgress(
-            book,
+            book.id!,
             book.progress,
             pagesRead: 0,
             durationMinutes: 0,
@@ -250,7 +355,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ref
             .read(libraryProvider.notifier)
             .updateBookProgress(
-              book,
+              book.id!,
               progress,
               pagesRead: pagesRead,
               durationMinutes: duration,
@@ -263,7 +368,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ref
             .read(libraryProvider.notifier)
             .updateBookProgress(
-              book,
+              book.id!,
               progress,
               pagesRead: 0,
               durationMinutes: 0,
@@ -275,10 +380,21 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   }
 
   void _syncFinalProgress(Book book) {
+    // Save audio position early as it doesn't depend on reader initialization
+    if (book.audioPath != null) {
+      ref
+          .read(libraryProvider.notifier)
+          .updateBookAudio(
+            book.id!,
+            audioLastPosition: _audioPlayer.position.inMilliseconds,
+          );
+    }
+
     if (!_initialized) return;
 
     _debounceTimer?.cancel();
     _heartbeatTimer?.cancel();
+    _audioDebounceTimer?.cancel();
 
     final now = DateTime.now();
     int duration = now.difference(_lastSyncTime).inMinutes;
@@ -304,7 +420,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       ref
           .read(libraryProvider.notifier)
           .updateBookProgress(
-            book,
+            book.id!,
             progress,
             pagesRead: pagesRead,
             durationMinutes: duration,
@@ -351,6 +467,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
     if (isEpub) {
       _initEpub(book);
+    }
+
+    // Load audio if available and not already loaded for this book
+    final hasAudio = book.audioPath != null;
+    if (hasAudio && _loadedAudioBookId != book.id.toString()) {
+      _loadAudio(
+        book.audioPath!,
+        initialPositionMs: book.audioLastPosition,
+        bookId: book.id.toString(),
+      );
     }
 
     return Scaffold(
@@ -491,64 +617,83 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: [
-          // Back button
-          IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: settings.textColor),
-            onPressed: () {
-              _syncFinalProgress(book);
-              ref.read(selectedIndexProvider.notifier).state = 1;
-            },
-          ),
-
-          // Center content
-          Expanded(
-            child: Column(
-              children: [
-                Text(
-                  _currentChapter.toUpperCase(),
-                  style: TextStyle(
-                    color: settings.secondaryTextColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  book.title,
-                  style: TextStyle(
-                    color: settings.textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-
-          // Page info
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: settings.textColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              pageInfo,
-              style: TextStyle(
-                color: settings.textColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+      decoration: BoxDecoration(
+        color: settings.backgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              // Back button
+              IconButton(
+                icon: Icon(Icons.arrow_back_rounded, color: settings.textColor),
+                onPressed: () {
+                  _syncFinalProgress(book);
+                  ref.read(selectedIndexProvider.notifier).state = 1;
+                },
+              ),
+
+              // Center content
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _currentChapter.toUpperCase(),
+                      style: TextStyle(
+                        color: settings.secondaryTextColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      book.title,
+                      style: TextStyle(
+                        color: settings.textColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Page info
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: settings.textColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  pageInfo,
+                  style: TextStyle(
+                    color: settings.textColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -739,145 +884,242 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     ReaderSettings settings,
   ) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       decoration: BoxDecoration(
-        color: settings.backgroundColor,
+        color: settings.backgroundColor, // Use solid background for visibility
         border: Border(
           top: BorderSide(color: settings.textColor.withValues(alpha: 0.1)),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Progress Bar (for Sync Mode)
-          if (_isSyncMode) ...[
-            Row(
-              children: [
-                Text(
-                  '00:00',
-                  style: TextStyle(
-                    color: settings.secondaryTextColor,
-                    fontSize: 12,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Audio Section (Optional)
+            if (book.audioPath != null)
+              _buildAudioSection(settings)
+            else
+              _buildNoAudioSection(book, settings),
+
+            // Reading Controls Row (Always visible)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildSpeedButton(settings),
+                  _buildSkipButton(
+                    icon: Icons.replay_10_rounded,
+                    onTap: () {
+                      final newPos =
+                          _audioPlayer.position - const Duration(seconds: 10);
+                      _audioPlayer.seek(
+                        newPos < Duration.zero ? Duration.zero : newPos,
+                      );
+                    },
+                    settings: settings,
                   ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: YomuConstants.accent,
-                        inactiveTrackColor: settings.textColor.withValues(
-                          alpha: 0.1,
-                        ),
-                        thumbColor: YomuConstants.accent,
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 6,
-                        ),
-                        trackHeight: 3,
+                  _buildPlayPauseButton(),
+                  _buildSkipButton(
+                    icon: Icons.forward_10_rounded,
+                    onTap: () {
+                      final newPos =
+                          _audioPlayer.position + const Duration(seconds: 10);
+                      _audioPlayer.seek(
+                        newPos > (_audioPlayer.duration ?? Duration.zero)
+                            ? (_audioPlayer.duration ?? Duration.zero)
+                            : newPos,
+                      );
+                    },
+                    settings: settings,
+                  ),
+                  _buildControlButton(
+                    child: Icon(
+                      Icons.text_fields_rounded,
+                      color: settings.textColor,
+                      size: 24,
+                    ),
+                    settings: settings,
+                    onTap: () => showDisplaySettingsSheet(context),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAudioSection(ReaderSettings settings) {
+    if (_isAudioLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Row(
+        children: [
+          ValueListenableBuilder<Duration>(
+            valueListenable: _audioPositionNotifier,
+            builder: (context, pos, _) => Text(
+              _formatDuration(pos),
+              style: TextStyle(
+                color: settings.secondaryTextColor,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ValueListenableBuilder<Duration>(
+              valueListenable: _audioPositionNotifier,
+              builder: (context, pos, _) => ValueListenableBuilder<Duration>(
+                valueListenable: _audioDurationNotifier,
+                builder: (context, dur, _) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: YomuConstants.accent,
+                      inactiveTrackColor: settings.textColor.withValues(
+                        alpha: 0.1,
                       ),
-                      child: Slider(value: 0, onChanged: (value) {}),
+                      thumbColor: YomuConstants.accent,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 6,
+                      ),
+                      trackHeight: 3,
+                    ),
+                    child: Slider(
+                      value: pos.inMilliseconds.toDouble().clamp(
+                        0,
+                        dur.inMilliseconds.toDouble(),
+                      ),
+                      max: dur.inMilliseconds.toDouble().clamp(
+                        1,
+                        double.infinity,
+                      ),
+                      onChanged: (value) {
+                        _audioPlayer.seek(
+                          Duration(milliseconds: value.toInt()),
+                        );
+                      },
                     ),
                   ),
                 ),
-                Text(
-                  '15:00',
-                  style: TextStyle(
-                    color: settings.secondaryTextColor,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 12),
-          ],
-
-          // Control Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // Speed button
-              _buildControlButton(
-                child: Text(
-                  '${_playbackSpeed}x',
-                  style: TextStyle(
-                    color: settings.textColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                settings: settings,
-                onTap: () {
-                  setState(() {
-                    if (_playbackSpeed >= 2.0) {
-                      _playbackSpeed = 0.5;
-                    } else {
-                      _playbackSpeed += 0.25;
-                    }
-                  });
-                },
+          ),
+          ValueListenableBuilder<Duration>(
+            valueListenable: _audioDurationNotifier,
+            builder: (context, dur, _) => Text(
+              _formatDuration(dur),
+              style: TextStyle(
+                color: settings.secondaryTextColor,
+                fontSize: 12,
               ),
-
-              // Skip backward
-              _buildControlButton(
-                child: Icon(
-                  Icons.replay_10_rounded,
-                  color: settings.textColor,
-                  size: 28,
-                ),
-                settings: settings,
-                onTap: () {
-                  // Skip back 10 seconds
-                },
-              ),
-
-              // Play/Pause button
-              GestureDetector(
-                onTap: () {
-                  setState(() => _isPlaying = !_isPlaying);
-                },
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: YomuConstants.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-              ),
-
-              // Skip forward
-              _buildControlButton(
-                child: Icon(
-                  Icons.forward_10_rounded,
-                  color: settings.textColor,
-                  size: 28,
-                ),
-                settings: settings,
-                onTap: () {
-                  // Skip forward 10 seconds
-                },
-              ),
-
-              // Settings button
-              _buildControlButton(
-                child: Icon(
-                  Icons.text_fields_rounded,
-                  color: settings.textColor,
-                  size: 24,
-                ),
-                settings: settings,
-                onTap: () => showDisplaySettingsSheet(context),
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildNoAudioSection(Book book, ReaderSettings settings) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+      child: TextButton.icon(
+        onPressed: () => _pickAudio(book),
+        icon: const Icon(Icons.add_rounded, size: 18),
+        label: const Text('Add Audio File'),
+        style: TextButton.styleFrom(
+          foregroundColor: YomuConstants.accent,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedButton(ReaderSettings settings) {
+    return _buildControlButton(
+      child: Text(
+        '${_playbackSpeed}x',
+        style: TextStyle(
+          color: settings.textColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      settings: settings,
+      onTap: () {
+        setState(() {
+          if (_playbackSpeed >= 2.0) {
+            _playbackSpeed = 0.5;
+          } else {
+            _playbackSpeed += 0.25;
+          }
+          _audioPlayer.setSpeed(_playbackSpeed);
+        });
+      },
+    );
+  }
+
+  Widget _buildSkipButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required ReaderSettings settings,
+  }) {
+    return _buildControlButton(
+      child: Icon(icon, color: settings.textColor, size: 28),
+      settings: settings,
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildPlayPauseButton() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _isAudioPlayingNotifier,
+      builder: (context, isPlaying, _) => GestureDetector(
+        onTap: () {
+          if (isPlaying) {
+            _audioPlayer.pause();
+          } else {
+            _audioPlayer.play();
+          }
+        },
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: YomuConstants.accent,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return duration.inHours > 0
+        ? '${twoDigits(duration.inHours)}:$minutes:$seconds'
+        : '$minutes:$seconds';
   }
 
   Widget _buildControlButton({

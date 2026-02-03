@@ -18,6 +18,8 @@ class Book {
   final int estimatedReadingMinutes; // Estimated time to complete
   final String?
   lastPosition; // Granular position string (e.g., CFI for EPUB, offset for PDF)
+  final String? audioPath; // Local path to associated audio file
+  final int? audioLastPosition; // Last playback position in milliseconds
 
   Book({
     this.id,
@@ -37,6 +39,8 @@ class Book {
     this.totalPages = 0,
     this.estimatedReadingMinutes = 0,
     this.lastPosition,
+    this.audioPath,
+    this.audioLastPosition,
   });
 
   Map<String, dynamic> toMap() {
@@ -58,6 +62,8 @@ class Book {
       'totalPages': totalPages,
       'estimatedReadingMinutes': estimatedReadingMinutes,
       'lastPosition': lastPosition,
+      'audioPath': audioPath,
+      'audioLastPosition': audioLastPosition,
     };
   }
 
@@ -82,6 +88,8 @@ class Book {
       totalPages: map['totalPages'] as int? ?? 0,
       estimatedReadingMinutes: map['estimatedReadingMinutes'] as int? ?? 0,
       lastPosition: map['lastPosition'],
+      audioPath: map['audioPath'],
+      audioLastPosition: map['audioLastPosition'] as int?,
     );
   }
 
@@ -103,6 +111,8 @@ class Book {
     int? totalPages,
     int? estimatedReadingMinutes,
     String? lastPosition,
+    String? audioPath,
+    int? audioLastPosition,
   }) {
     return Book(
       id: id ?? this.id,
@@ -123,6 +133,8 @@ class Book {
       estimatedReadingMinutes:
           estimatedReadingMinutes ?? this.estimatedReadingMinutes,
       lastPosition: lastPosition ?? this.lastPosition,
+      audioPath: audioPath ?? this.audioPath,
+      audioLastPosition: audioLastPosition ?? this.audioLastPosition,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:io' as io;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:collection/collection.dart';
 import '../models/book_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
@@ -517,7 +518,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   Future<void> updateBookProgress(
-    Book book,
+    int bookId,
     double progress, {
     int? pagesRead,
     int? durationMinutes,
@@ -525,6 +526,8 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int? totalPages,
     String? lastPosition,
   }) async {
+    final book = state.allBooks.firstWhereOrNull((b) => b.id == bookId);
+    if (book == null) return;
     final oldProgress = book.progress;
 
     // Calculate estimated reading time if we have total pages
@@ -565,24 +568,10 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
 
     if (finalPages > 0 || finalMinutes > 0) {
-      await _dbService.insertReadingSession(book.id!, finalPages, finalMinutes);
+      await _dbService.insertReadingSession(bookId, finalPages, finalMinutes);
     }
 
-    // Update state
-    state = state.copyWith(
-      allBooks: state.allBooks
-          .map((b) => b.id == updatedBook.id ? updatedBook : b)
-          .toList(),
-      filteredBooks: state.filteredBooks
-          .map((b) => b.id == updatedBook.id ? updatedBook : b)
-          .toList(),
-    );
-
-    // Sync current reader
-    final currentBook = _ref.read(currentlyReadingProvider);
-    if (currentBook?.id == updatedBook.id) {
-      _ref.read(currentlyReadingProvider.notifier).state = updatedBook;
-    }
+    _updateStateAndSync(updatedBook);
 
     // Refresh stats
     final sessions = await _dbService.getReadingSessions();
@@ -695,6 +684,41 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       sortAscending: false,
     );
     state = state.copyWith(filteredBooks: _applyFilters(state.allBooks, state));
+  }
+
+  Future<void> updateBookAudio(
+    int bookId, {
+    String? audioPath,
+    int? audioLastPosition,
+  }) async {
+    final book = state.allBooks.firstWhereOrNull((b) => b.id == bookId);
+    if (book == null) return;
+
+    final updatedBook = book.copyWith(
+      audioPath: audioPath ?? book.audioPath,
+      audioLastPosition: audioLastPosition ?? book.audioLastPosition,
+    );
+    await _dbService.updateBook(updatedBook);
+
+    _updateStateAndSync(updatedBook);
+  }
+
+  void _updateStateAndSync(Book updatedBook) {
+    // Update state
+    state = state.copyWith(
+      allBooks: state.allBooks
+          .map((b) => b.id == updatedBook.id ? updatedBook : b)
+          .toList(),
+      filteredBooks: state.filteredBooks
+          .map((b) => b.id == updatedBook.id ? updatedBook : b)
+          .toList(),
+    );
+
+    // Sync current reader
+    final currentBook = _ref.read(currentlyReadingProvider);
+    if (currentBook?.id == updatedBook.id) {
+      _ref.read(currentlyReadingProvider.notifier).state = updatedBook;
+    }
   }
 }
 

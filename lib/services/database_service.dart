@@ -21,7 +21,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -46,7 +46,9 @@ class DatabaseService {
         currentPage INTEGER DEFAULT 0,
         totalPages INTEGER DEFAULT 0,
         estimatedReadingMinutes INTEGER DEFAULT 0,
-        lastPosition TEXT
+        lastPosition TEXT,
+        audioPath TEXT,
+        audioLastPosition INTEGER
       )
     ''');
     await db.execute('''
@@ -98,6 +100,12 @@ class DatabaseService {
     }
     if (oldVersion < 7) {
       await db.execute('ALTER TABLE books ADD COLUMN lastPosition TEXT');
+    }
+    if (oldVersion < 8) {
+      await db.execute('ALTER TABLE books ADD COLUMN audioPath TEXT');
+      await db.execute(
+        'ALTER TABLE books ADD COLUMN audioLastPosition INTEGER',
+      );
     }
   }
 
