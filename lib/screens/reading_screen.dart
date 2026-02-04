@@ -95,6 +95,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   final FocusNode _searchFocusNode = FocusNode();
   String? _activeSearchQuery;
   bool _isSearchResultsCollapsed = false;
+  bool _isOrientationLandscape = false;
 
   @override
   void initState() {
@@ -252,7 +253,31 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _pdfAutoScrollTicker?.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+
+    // Reset orientation to portrait-only when leaving reading screen
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
     super.dispose();
+  }
+
+  void _toggleOrientation() {
+    setState(() {
+      _isOrientationLandscape = !_isOrientationLandscape;
+      if (_isOrientationLandscape) {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
+      }
+    });
   }
 
   void _recordInteraction() {
@@ -1406,7 +1431,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
             // Tier 3: Main Navigation & Reader Utilities
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              padding: EdgeInsets.fromLTRB(
+                _isOrientationLandscape ? 40 : 20,
+                0,
+                _isOrientationLandscape ? 40 : 20,
+                16,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1439,8 +1469,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildPlayPauseButton(),
-                        const SizedBox(width: 8),
                         _buildControlButton(
                           child: Icon(
                             _isAudioControlsExpanded
@@ -1455,6 +1483,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 !_isAudioControlsExpanded,
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        _buildPlayPauseButton(),
                       ],
                     )
                   else
@@ -1467,7 +1497,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                       settings: settings,
                       onTap: () => _pickAudio(book),
                     ),
-                  // Auto Scroll Toggle
                   _buildControlButton(
                     child: Icon(
                       _isAutoScrolling
@@ -1491,6 +1520,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             : 0.0;
                       });
                     },
+                  ),
+                  // Orientation Toggle
+                  _buildControlButton(
+                    child: Icon(
+                      _isOrientationLandscape
+                          ? Icons.screen_rotation_rounded
+                          : Icons.screen_rotation_rounded,
+                      color: settings.textColor,
+                      size: 20,
+                    ),
+                    settings: settings,
+                    onTap: _toggleOrientation,
                   ),
 
                   // Display Settings
