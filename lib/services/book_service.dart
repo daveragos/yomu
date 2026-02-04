@@ -259,4 +259,22 @@ class BookService {
     }
     return '';
   }
+
+  Future<String> saveLocalCover(File file) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final coversDir = Directory(p.join(appDir.path, 'covers'));
+      if (!await coversDir.exists()) await coversDir.create();
+
+      final coverPath = p.join(
+        coversDir.path,
+        '${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}',
+      );
+      await file.copy(coverPath);
+      return coverPath;
+    } catch (e) {
+      debugPrint('Error saving local cover: $e');
+    }
+    return '';
+  }
 }

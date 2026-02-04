@@ -76,30 +76,33 @@ class MainNavigation extends ConsumerWidget {
     final selectedIndex = ref.watch(selectedIndexProvider);
     final isSelected = selectedIndex == index;
 
-    return GestureDetector(
-      onTap: () => ref.read(selectedIndexProvider.notifier).state = index,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected
-                ? YomuConstants.accent
-                : YomuConstants.textSecondary,
-            size: 28,
-          ),
-          if (isSelected)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              width: 4,
-              height: 4,
-              decoration: const BoxDecoration(
-                color: YomuConstants.accent,
-                shape: BoxShape.circle,
-              ),
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(selectedIndexProvider.notifier).state = index,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? YomuConstants.accent
+                  : YomuConstants.textSecondary,
+              size: 28,
             ),
-        ],
+            if (isSelected)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                width: 4,
+                height: 4,
+                decoration: const BoxDecoration(
+                  color: YomuConstants.accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -522,16 +522,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text(
-                'Delete Book',
+                'Remove Book',
                 style: TextStyle(color: Colors.red),
               ),
               onTap: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Delete Book'),
+                    title: const Text('Remove Book'),
                     content: Text(
-                      'Are you sure you want to delete "${book.title}"?',
+                      'Are you sure you want to remove "${book.title}"?',
                     ),
                     actions: [
                       TextButton(
@@ -541,7 +541,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
                         child: const Text(
-                          'Delete',
+                          'Remove',
                           style: TextStyle(color: Colors.red),
                         ),
                       ),

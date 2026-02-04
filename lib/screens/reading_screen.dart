@@ -15,6 +15,7 @@ import '../providers/reader_settings_provider.dart';
 import '../models/book_model.dart';
 import '../models/reader_settings_model.dart';
 import '../models/bookmark_model.dart';
+import '../models/search_result_model.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:file_picker/file_picker.dart';
@@ -83,6 +84,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   final ValueNotifier<double> _autoScrollSpeedNotifier = ValueNotifier(0.0);
   Ticker? _pdfAutoScrollTicker;
   bool _isNavigationSheetOpen = false;
+  bool _isDraggingSlider = false;
+  double _sliderDragValue = 0.0;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  List<SearchResult> _searchResults = [];
+  bool _isSearchLoading = false;
+  final FocusNode _searchFocusNode = FocusNode();
+  String? _activeSearchQuery;
+  bool _isSearchResultsCollapsed = false;
 
   @override
   void initState() {
@@ -118,7 +128,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   void _initAudio() {
     _audioPlayer.positionStream.listen((pos) {
-      _audioPositionNotifier.value = pos;
+      if (!_isDraggingSlider) {
+        _audioPositionNotifier.value = pos;
+      }
       _maybeSaveAudioPosition(pos);
     });
     _audioPlayer.durationStream.listen((dur) {
@@ -222,6 +234,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _isAudioPlayingNotifier.dispose();
     _autoScrollSpeedNotifier.removeListener(_handleGlobalSpeedChange);
     _pdfAutoScrollTicker?.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -650,7 +664,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               bottom: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: [_buildHeader(context, book, settings)],
+                children: [_buildHeader(book, settings)],
               ),
             ),
           ),
@@ -684,14 +698,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    Book book,
-    ReaderSettings settings,
-  ) {
+  Widget _buildHeader(Book book, ReaderSettings settings) {
     String pageInfo = '';
     if (book.filePath.toLowerCase().endsWith('.pdf')) {
-      pageInfo = 'Page ${_pdfCurrentPage + 1} of $_pdfPages';
+      pageInfo = '${_pdfCurrentPage + 1} / $_pdfPages';
     } else {
       pageInfo = '${(book.progress * 100).toStringAsFixed(0)}%';
     }
@@ -710,72 +720,320 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Back button
-              IconButton(
-                icon: Icon(Icons.arrow_back_rounded, color: settings.textColor),
-                onPressed: () {
-                  _syncFinalProgress(book);
-                  Navigator.of(context).pop();
-                },
-              ),
-
-              // Center content
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _currentChapter.toUpperCase(),
-                      style: TextStyle(
-                        color: settings.secondaryTextColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_rounded,
+                      color: settings.textColor,
+                    ),
+                    onPressed: () {
+                      _syncFinalProgress(book);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  if (_isSearching)
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        style: TextStyle(color: settings.textColor),
+                        decoration: InputDecoration(
+                          hintText: 'Search book...',
+                          hintStyle: TextStyle(
+                            color: settings.secondaryTextColor,
+                          ),
+                          border: InputBorder.none,
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.close, color: settings.textColor),
+                            onPressed: () {
+                              setState(() {
+                                _isSearching = false;
+                                _searchController.clear();
+                                _searchResults = [];
+                                _activeSearchQuery = null;
+                              });
+                            },
+                          ),
+                        ),
+                        onTap: () {
+                          if (_isSearchResultsCollapsed) {
+                            setState(() => _isSearchResultsCollapsed = false);
+                          }
+                        },
+                        onSubmitted: (value) => _handleSearch(value, book),
+                      ),
+                    )
+                  else ...[
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _currentChapter.toUpperCase(),
+                            style: TextStyle(
+                              color: settings.secondaryTextColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            book.title,
+                            style: TextStyle(
+                              color: settings.textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      book.title,
-                      style: TextStyle(
+                    IconButton(
+                      icon: Icon(
+                        Icons.search_rounded,
                         color: settings.textColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = true;
+                          _showControls = true;
+                        });
+                        _searchFocusNode.requestFocus();
+                      },
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: settings.textColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        pageInfo,
+                        style: TextStyle(
+                          color: settings.textColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
-
-              // Page info
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: settings.textColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  pageInfo,
-                  style: TextStyle(
-                    color: settings.textColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+              if (_isSearching &&
+                  _searchResults.isNotEmpty &&
+                  !_isSearchResultsCollapsed)
+                _buildSearchResultsOverlay(book, settings),
+              if (_isSearchResultsCollapsed && _searchResults.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: InkWell(
+                    onTap: () =>
+                        setState(() => _isSearchResultsCollapsed = false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 6,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: YomuConstants.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: YomuConstants.accent.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.keyboard_arrow_down,
+                            size: 16,
+                            color: YomuConstants.accent,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Show ${_searchResults.length} results',
+                            style: TextStyle(
+                              color: YomuConstants.accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              if (_isSearchLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(),
+                ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String stripHtml(String html) {
+    return html.replaceAll(RegExp(r'<[^>]*>|&[^;]+;'), ' ').trim();
+  }
+
+  Future<void> _handleSearch(String query, Book book) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchLoading = true;
+      _searchResults = [];
+    });
+
+    try {
+      final List<SearchResult> results = [];
+      if (book.filePath.toLowerCase().endsWith('.pdf')) {
+        // PDF Search is partially handled by built-in pdfrx features
+        // but we can add basic results if needed. For now, EPUB is priority.
+      } else {
+        // EPUB Search
+        for (int i = 0; i < _chapters.length; i++) {
+          final chapter = _chapters[i];
+          final content = chapter.HtmlContent ?? '';
+          final plainText = stripHtml(content);
+
+          int startIndex = 0;
+          while (true) {
+            final index = plainText.toLowerCase().indexOf(
+              query.toLowerCase(),
+              startIndex,
+            );
+            if (index == -1) break;
+
+            final snippetStart = (index - 40).clamp(0, plainText.length);
+            final snippetEnd = (index + query.length + 60).clamp(
+              0,
+              plainText.length,
+            );
+            final snippet = plainText
+                .substring(snippetStart, snippetEnd)
+                .replaceAll('\n', ' ')
+                .trim();
+
+            results.add(
+              SearchResult(
+                pageIndex: i,
+                title: chapter.Title ?? 'Chapter ${i + 1}',
+                snippet: '...$snippet...',
+                query: query,
+                scrollProgress: index / plainText.length,
+              ),
+            );
+
+            startIndex = index + query.length;
+            if (results.length > 30) break;
+          }
+          if (results.length > 30) break;
+        }
+      }
+      setState(() {
+        _searchResults = results;
+      });
+    } catch (e) {
+      debugPrint('Search error: $e');
+    } finally {
+      setState(() {
+        _isSearchLoading = false;
+        _isSearchResultsCollapsed = false; // Show results on new search
+      });
+    }
+  }
+
+  Widget _buildSearchResultsOverlay(Book book, ReaderSettings settings) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 400),
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: settings.backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: settings.textColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: _searchResults.length,
+          separatorBuilder: (context, index) => Divider(
+            color: settings.textColor.withValues(alpha: 0.05),
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
+          itemBuilder: (context, index) {
+            final result = _searchResults[index];
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              title: Text(
+                result.title,
+                style: TextStyle(
+                  color: YomuConstants.accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                result.snippet,
+                style: TextStyle(color: settings.textColor, fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => _goToSearchResult(result, book),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _goToSearchResult(SearchResult result, Book book) {
+    setState(() {
+      _activeSearchQuery = result.query; // Track the query for highlighting
+      _isSearchResultsCollapsed = true; // Collapse overlay on selection
+      if (result.scrollProgress != null) {
+        _initialScrollProgress = result.scrollProgress!;
+      }
+    });
+
+    if (book.filePath.toLowerCase().endsWith('.pdf')) {
+      _pdfController?.goToPage(pageNumber: result.pageIndex + 1);
+    } else {
+      _pageController?.jumpToPage(result.pageIndex);
+    }
   }
 
   Widget _buildEpubContent(Book book, ReaderSettings settings) {
@@ -833,6 +1091,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             chapters: _chapters,
             pageController: _pageController,
             autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
+            searchQuery: _activeSearchQuery,
           );
         },
       ),
@@ -1339,13 +1598,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
         children: [
-          ValueListenableBuilder<Duration>(
-            valueListenable: _audioPositionNotifier,
-            builder: (context, pos, _) => Text(
-              _formatDuration(pos),
-              style: TextStyle(
-                color: settings.secondaryTextColor,
-                fontSize: 12,
+          SizedBox(
+            width: 45,
+            child: ValueListenableBuilder<Duration>(
+              valueListenable: _audioPositionNotifier,
+              builder: (context, pos, _) => Text(
+                _formatDuration(pos),
+                style: TextStyle(
+                  color: settings.secondaryTextColor,
+                  fontSize: 12,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ),
@@ -1369,18 +1633,41 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                       trackHeight: 3,
                     ),
                     child: Slider(
-                      value: pos.inMilliseconds.toDouble().clamp(
-                        0,
-                        dur.inMilliseconds.toDouble(),
-                      ),
+                      value: _isDraggingSlider
+                          ? _sliderDragValue.clamp(
+                              0,
+                              dur.inMilliseconds.toDouble(),
+                            )
+                          : pos.inMilliseconds.toDouble().clamp(
+                              0,
+                              dur.inMilliseconds.toDouble(),
+                            ),
                       max: dur.inMilliseconds.toDouble().clamp(
                         1,
                         double.infinity,
                       ),
+                      onChangeStart: (value) {
+                        setState(() {
+                          _isDraggingSlider = true;
+                          _sliderDragValue = value;
+                        });
+                      },
                       onChanged: (value) {
-                        _audioPlayer.seek(
+                        setState(() {
+                          _sliderDragValue = value;
+                        });
+                        // Update the time label during drag
+                        _audioPositionNotifier.value = Duration(
+                          milliseconds: value.toInt(),
+                        );
+                      },
+                      onChangeEnd: (value) async {
+                        await _audioPlayer.seek(
                           Duration(milliseconds: value.toInt()),
                         );
+                        setState(() {
+                          _isDraggingSlider = false;
+                        });
                       },
                     ),
                   ),
@@ -1388,13 +1675,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               ),
             ),
           ),
-          ValueListenableBuilder<Duration>(
-            valueListenable: _audioDurationNotifier,
-            builder: (context, dur, _) => Text(
-              _formatDuration(dur),
-              style: TextStyle(
-                color: settings.secondaryTextColor,
-                fontSize: 12,
+          SizedBox(
+            width: 45,
+            child: ValueListenableBuilder<Duration>(
+              valueListenable: _audioDurationNotifier,
+              builder: (context, dur, _) => Text(
+                _formatDuration(dur),
+                style: TextStyle(
+                  color: settings.secondaryTextColor,
+                  fontSize: 12,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ),
@@ -1627,6 +1919,7 @@ class _EpubChapterPage extends StatefulWidget {
   final List<EpubChapter> chapters;
   final PageController? pageController;
   final ValueNotifier<double> autoScrollSpeedNotifier;
+  final String? searchQuery;
 
   const _EpubChapterPage({
     required this.index,
@@ -1646,6 +1939,7 @@ class _EpubChapterPage extends StatefulWidget {
     required this.chapters,
     required this.pageController,
     required this.autoScrollSpeedNotifier,
+    this.searchQuery,
   });
 
   @override
@@ -1887,7 +2181,24 @@ class _EpubChapterPageState extends State<_EpubChapterPage>
                         const SizedBox(height: 24),
                       ],
                       Html(
-                        data: widget.chapter.HtmlContent ?? '',
+                        data: () {
+                          String content = widget.chapter.HtmlContent ?? '';
+                          if (widget.searchQuery != null &&
+                              widget.searchQuery!.isNotEmpty) {
+                            final escapedQuery = RegExp.escape(
+                              widget.searchQuery!,
+                            );
+                            // Highlight while avoiding matching inside HTML tags
+                            final regex = RegExp(
+                              '(?![^<]*>)$escapedQuery',
+                              caseSensitive: false,
+                            );
+                            content = content.replaceAllMapped(regex, (match) {
+                              return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
+                            });
+                          }
+                          return content;
+                        }(),
                         style: {
                           "body": Style(
                             margin: Margins.zero,

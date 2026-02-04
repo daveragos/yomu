@@ -6,6 +6,8 @@ import '../providers/library_provider.dart';
 import '../services/database_service.dart';
 import '../core/constants.dart';
 import 'cover_search_screen.dart';
+import '../services/book_service.dart';
+import 'package:file_picker/file_picker.dart';
 
 class EditBookScreen extends ConsumerStatefulWidget {
   final Book book;
@@ -65,6 +67,23 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
     }
   }
 
+  Future<void> _pickCoverFromFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      final newPath = await BookService().saveLocalCover(file);
+      if (newPath.isNotEmpty) {
+        setState(() {
+          _newCoverPath = newPath;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -106,25 +125,39 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                 ],
               ),
             const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CoverSearchScreen(
-                      initialQuery:
-                          '${_titleController.text} ${_authorController.text}',
-                    ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickCoverFromFile,
+                    icon: const Icon(Icons.file_upload_outlined),
+                    label: const Text('Pick from file'),
                   ),
-                );
-                if (result != null) {
-                  setState(() {
-                    _newCoverPath = result;
-                  });
-                }
-              },
-              icon: const Icon(Icons.image_search),
-              label: const Text('Search for new cover'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push<String>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CoverSearchScreen(
+                            initialQuery:
+                                '${_titleController.text} ${_authorController.text}',
+                          ),
+                        ),
+                      );
+                      if (result != null) {
+                        setState(() {
+                          _newCoverPath = result;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.image_search),
+                    label: const Text('Search for cover'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
