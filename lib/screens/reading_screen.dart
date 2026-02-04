@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:epub_view/epub_view.dart';
@@ -16,9 +14,17 @@ import '../models/book_model.dart';
 import '../models/reader_settings_model.dart';
 import '../models/bookmark_model.dart';
 import '../models/search_result_model.dart';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:file_picker/file_picker.dart';
+import './reading/widgets/reading_header.dart';
+import './reading/widgets/reading_search_overlay.dart';
+import './reading/widgets/reading_audio_section.dart';
+import './reading/widgets/play_pause_button.dart';
+import './reading/widgets/reading_bottom_controls.dart';
+import './reading/widgets/navigation_sheet.dart';
+import './reading/widgets/epub_view.dart';
+import './reading/widgets/pdf_view.dart';
+import './reading/widgets/reading_footer.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -38,8 +44,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   bool _shouldJumpToBottom = false;
   double _initialScrollProgress = 0.0;
 
-  final double _pullTriggerDistance = 80.0;
-  final double _pullDeadzone = 8.0; // Slightly more sensitive
   Timer? _heartbeatTimer;
   Timer? _debounceTimer;
   bool _isPdfReady = false;
@@ -568,7 +572,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final book = ref.watch(currentlyReadingProvider);
     final settings = ref.watch(readerSettingsProvider);
 
-    // Sync auto-scroll speed if active
     if (_isAutoScrolling &&
         _autoScrollSpeedNotifier.value != settings.autoScrollSpeed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -607,7 +610,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       _initEpub(book);
     }
 
-    // Load audio if available and not already loaded for this book
     final hasAudio = book.audioPath != null;
     if (hasAudio && _loadedAudioBookId != book.id.toString()) {
       _loadAudio(
@@ -630,7 +632,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           color: settings.backgroundColor,
           child: Column(
             children: [
-              // Content Area
               Expanded(
                 child: GestureDetector(
                   onTap: () {
@@ -642,13 +643,68 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                   child: Stack(
                     children: [
                       if (isEpub)
-                        _buildEpubContent(book, settings)
+                        ReadingEpubView(
+                          book: book,
+                          settings: settings,
+                          chapters: _chapters,
+                          pageController: _pageController,
+                          currentChapterIndex: _currentChapterIndex,
+                          shouldJumpToBottom: _shouldJumpToBottom,
+                          initialScrollProgress: _initialScrollProgress,
+                          pullDistanceNotifier: _pullDistanceNotifier,
+                          isPullingDownNotifier: _isPullingDownNotifier,
+                          scrollProgressNotifier: _scrollProgressNotifier,
+                          autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
+                          showControls: _showControls,
+                          onPageChanged: (index) =>
+                              _handleChapterPageChange(index, book),
+                          onJumpedToBottom: () =>
+                              setState(() => _shouldJumpToBottom = false),
+                          onJumpedToPosition: () =>
+                              setState(() => _initialScrollProgress = 0.0),
+                          onHideControls: () =>
+                              setState(() => _showControls = false),
+                          searchQuery: _activeSearchQuery,
+                        )
                       else
-                        _buildPdfContent(book, settings),
-
-                      // Animated Overlay Controls
+                        ReadingPdfView(
+                          book: book,
+                          settings: settings,
+                          controller: _pdfController ??= PdfViewerController(),
+                          searcher: _pdfSearcher,
+                          onViewerReady: (document, controller) async {
+                            _pdfSearcher = PdfTextSearcher(controller);
+                            _pdfSearcher!.addListener(() => setState(() {}));
+                            final outline = await document.loadOutline();
+                            setState(() {
+                              _pdfPages = document.pages.length;
+                              _pdfOutline = _flattenPdfOutline(outline);
+                              _isPdfReady = true;
+                            });
+                            if (!_initialized) {
+                              final initialPage =
+                                  (book.progress * (_pdfPages - 1)).toInt();
+                              controller.goToPage(pageNumber: initialPage + 1);
+                              _startHeartbeat(book);
+                              _initialized = true;
+                            }
+                          },
+                          onPageChanged: (pageNumber) {
+                            _recordInteraction();
+                            if (pageNumber != null) {
+                              _handlePdfPageChange(
+                                pageNumber - 1,
+                                _pdfPages,
+                                book,
+                              );
+                            }
+                          },
+                          onInteraction: _recordInteraction,
+                          onHideControls: () =>
+                              setState(() => _showControls = false),
+                          showControls: _showControls,
+                        ),
                       _buildAnimatedControlsOverlay(context, book, settings),
-
                       if (_pdfErrorMessage.isNotEmpty)
                         Center(
                           child: Text(
@@ -657,18 +713,20 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           ),
                         )
                       else if (!isEpub && !_isPdfReady)
-                        Center(
-                          child: CircularProgressIndicator(
-                            color: YomuConstants.accent,
-                          ),
-                        ),
+                        const Center(child: CircularProgressIndicator()),
                     ],
                   ),
                 ),
               ),
-
-              // Minimal Footer (Persistent or animated)
-              _buildMinimalFooter(book, settings),
+              ReadingFooter(
+                book: book,
+                settings: settings,
+                currentTime: _currentTime,
+                currentChapter: _currentChapter,
+                scrollProgressNotifier: _scrollProgressNotifier,
+                totalChapters: _chapters.length,
+                currentChapterIndex: _currentChapterIndex,
+              ),
             ],
           ),
         ),
@@ -681,250 +739,153 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     Book book,
     ReaderSettings settings,
   ) {
+    final isEpub = book.filePath.toLowerCase().endsWith('.epub');
+
     return Stack(
       children: [
-        // Top Header
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
           top: _showControls ? 0 : -100,
           left: 0,
           right: 0,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  settings.backgroundColor,
-                  settings.backgroundColor.withValues(alpha: 0.0),
-                ],
-              ),
+          child: ReadingHeader(
+            book: book,
+            settings: settings,
+            currentChapter: _currentChapter,
+            pageInfo: isEpub
+                ? '${(book.progress * 100).toStringAsFixed(0)}%'
+                : '${_pdfCurrentPage + 1} / $_pdfPages',
+            isSearching: _isSearching,
+            isSearchLoading: _isSearchLoading,
+            isSearchResultsCollapsed: _isSearchResultsCollapsed,
+            searchResultsCount: _searchResults.length,
+            searchController: _searchController,
+            searchFocusNode: _searchFocusNode,
+            onBackPressed: () {
+              _syncFinalProgress(book);
+              Navigator.of(context).pop();
+            },
+            onToggleSearch: () {
+              setState(() {
+                _isSearching = true;
+                _showControls = true;
+              });
+              _searchFocusNode.requestFocus();
+            },
+            onClearSearch: () {
+              setState(() {
+                _isSearching = false;
+                _searchController.clear();
+                _searchResults = [];
+                _activeSearchQuery = null;
+              });
+            },
+            onSearchSubmitted: (value) => _handleSearch(value, book),
+            onToggleSearchResultsCollapse: () => setState(
+              () => _isSearchResultsCollapsed = !_isSearchResultsCollapsed,
             ),
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [_buildHeader(book, settings)],
-              ),
+            searchResultsOverlay: ReadingSearchOverlay(
+              book: book,
+              settings: settings,
+              searchResults: _searchResults,
+              onResultTap: (result) => _goToSearchResult(result, book),
             ),
           ),
         ),
-
-        // Bottom Controls
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
           bottom: _showControls ? 0 : -200,
           left: 0,
           right: 0,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  settings.backgroundColor,
-                  settings.backgroundColor.withValues(alpha: 0.0),
-                ],
-              ),
+          child: ReadingBottomControls(
+            book: book,
+            settings: settings,
+            isAudioControlsExpanded: _isAudioControlsExpanded,
+            isNavigationSheetOpen: _isNavigationSheetOpen,
+            isAutoScrolling: _isAutoScrolling,
+            playbackSpeed: _playbackSpeed,
+            isOrientationLandscape: _isOrientationLandscape,
+            audioSection: ReadingAudioSection(
+              settings: settings,
+              isLoading: _isAudioLoading,
+              positionNotifier: _audioPositionNotifier,
+              durationNotifier: _audioDurationNotifier,
+              isDraggingSlider: _isDraggingSlider,
+              sliderDragValue: _sliderDragValue,
+              onChangeStart: (value) {
+                setState(() {
+                  _isDraggingSlider = true;
+                  _sliderDragValue = value;
+                });
+              },
+              onChanged: (value) {
+                setState(() {
+                  _sliderDragValue = value;
+                });
+                _audioPositionNotifier.value = Duration(
+                  milliseconds: value.toInt(),
+                );
+              },
+              onChangeEnd: (value) async {
+                await _audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                setState(() => _isDraggingSlider = false);
+              },
+              formatDuration: _formatDuration,
             ),
-            child: SafeArea(
-              top: false,
-              child: _buildBottomControls(context, book, settings),
+            playPauseButton: PlayPauseButton(
+              isPlayingNotifier: _isAudioPlayingNotifier,
+              onTap: () {
+                if (_isAudioPlayingNotifier.value) {
+                  _audioPlayer.pause();
+                } else {
+                  _audioPlayer.play();
+                }
+              },
             ),
+            onToggleAudioControls: () => setState(
+              () => _isAudioControlsExpanded = !_isAudioControlsExpanded,
+            ),
+            onPickAudio: () => _pickAudio(book),
+            onShowNavigationSheet: () =>
+                _showNavigationSheet(context, book, settings),
+            onAddBookmark: () => _addBookmark(book),
+            onToggleAutoScroll: () {
+              setState(() {
+                _isAutoScrolling = !_isAutoScrolling;
+                final activeSpeed = settings.autoScrollSpeed < 0.5
+                    ? 2.0
+                    : settings.autoScrollSpeed;
+                _autoScrollSpeedNotifier.value = _isAutoScrolling
+                    ? activeSpeed
+                    : 0.0;
+              });
+            },
+            onToggleOrientation: _toggleOrientation,
+            onShowDisplaySettings: () => showDisplaySettingsSheet(context),
+            onIncrementPlaybackSpeed: () {
+              setState(() {
+                if (_playbackSpeed >= 2.0) {
+                  _playbackSpeed = 0.5;
+                } else {
+                  _playbackSpeed += 0.25;
+                }
+                _audioPlayer.setSpeed(_playbackSpeed);
+              });
+            },
+            onSkip: (delta) {
+              final newPos = _audioPlayer.position + delta;
+              final duration = _audioPlayer.duration ?? Duration.zero;
+              _audioPlayer.seek(
+                newPos < Duration.zero
+                    ? Duration.zero
+                    : (newPos > duration ? duration : newPos),
+              );
+            },
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildHeader(Book book, ReaderSettings settings) {
-    String pageInfo = '';
-    if (book.filePath.toLowerCase().endsWith('.pdf')) {
-      pageInfo = '${_pdfCurrentPage + 1} / $_pdfPages';
-    } else {
-      pageInfo = '${(book.progress * 100).toStringAsFixed(0)}%';
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: settings.backgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.arrow_back_rounded,
-                      color: settings.textColor,
-                    ),
-                    onPressed: () {
-                      _syncFinalProgress(book);
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                  if (_isSearching)
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        style: TextStyle(color: settings.textColor),
-                        decoration: InputDecoration(
-                          hintText: 'Search book...',
-                          hintStyle: TextStyle(
-                            color: settings.secondaryTextColor,
-                          ),
-                          border: InputBorder.none,
-                          suffixIcon: IconButton(
-                            icon: Icon(Icons.close, color: settings.textColor),
-                            onPressed: () {
-                              setState(() {
-                                _isSearching = false;
-                                _searchController.clear();
-                                _searchResults = [];
-                                _activeSearchQuery = null;
-                              });
-                            },
-                          ),
-                        ),
-                        onTap: () {
-                          if (_isSearchResultsCollapsed) {
-                            setState(() => _isSearchResultsCollapsed = false);
-                          }
-                        },
-                        onSubmitted: (value) => _handleSearch(value, book),
-                      ),
-                    )
-                  else ...[
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _currentChapter.toUpperCase(),
-                            style: TextStyle(
-                              color: settings.secondaryTextColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            book.title,
-                            style: TextStyle(
-                              color: settings.textColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.search_rounded,
-                        color: settings.textColor,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isSearching = true;
-                          _showControls = true;
-                        });
-                        _searchFocusNode.requestFocus();
-                      },
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: settings.textColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        pageInfo,
-                        style: TextStyle(
-                          color: settings.textColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              if (_isSearching &&
-                  _searchResults.isNotEmpty &&
-                  !_isSearchResultsCollapsed)
-                _buildSearchResultsOverlay(book, settings),
-              if (_isSearchResultsCollapsed && _searchResults.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: InkWell(
-                    onTap: () =>
-                        setState(() => _isSearchResultsCollapsed = false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 6,
-                        horizontal: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: YomuConstants.accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: YomuConstants.accent.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 16,
-                            color: YomuConstants.accent,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Show ${_searchResults.length} results',
-                            style: TextStyle(
-                              color: YomuConstants.accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (_isSearchLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: LinearProgressIndicator(),
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1057,63 +1018,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     }
   }
 
-  Widget _buildSearchResultsOverlay(Book book, ReaderSettings settings) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 400),
-      margin: const EdgeInsets.only(top: 8),
-      decoration: BoxDecoration(
-        color: settings.backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: settings.textColor.withValues(alpha: 0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: ListView.separated(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          itemCount: _searchResults.length,
-          separatorBuilder: (context, index) => Divider(
-            color: settings.textColor.withValues(alpha: 0.05),
-            height: 1,
-            indent: 16,
-            endIndent: 16,
-          ),
-          itemBuilder: (context, index) {
-            final result = _searchResults[index];
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              title: Text(
-                result.title,
-                style: TextStyle(
-                  color: YomuConstants.accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              subtitle: Text(
-                result.snippet,
-                style: TextStyle(color: settings.textColor, fontSize: 11),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () => _goToSearchResult(result, book),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   void _goToSearchResult(SearchResult result, Book book) {
     setState(() {
       _activeSearchQuery = result.query; // Track the query for highlighting
@@ -1134,423 +1038,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     }
   }
 
-  Widget _buildEpubContent(Book book, ReaderSettings settings) {
-    if (_chapters.isEmpty || _pageController == null) {
-      return Center(
-        child: CircularProgressIndicator(color: YomuConstants.accent),
-      );
-    }
-
-    return Container(
-      color: settings.backgroundColor,
-      child: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.vertical,
-        itemCount: _chapters.length,
-        onPageChanged: (index) => _handleChapterPageChange(index, book),
-        physics: const PageScrollPhysics(), // Ensure snapping
-        itemBuilder: (context, index) {
-          return _EpubChapterPage(
-            index: index,
-            chapter: _chapters[index],
-            settings: settings,
-            shouldJumpToBottom:
-                _shouldJumpToBottom && index == _currentChapterIndex,
-            initialScrollProgress: index == _currentChapterIndex
-                ? _initialScrollProgress
-                : 0.0,
-            onJumpedToBottom: () {
-              setState(() {
-                _shouldJumpToBottom = false;
-              });
-            },
-            onJumpedToPosition: () {
-              if (index == _currentChapterIndex) {
-                setState(() {
-                  _initialScrollProgress = 0.0;
-                });
-              }
-            },
-            pullDistanceNotifier: _pullDistanceNotifier,
-            isPullingDownNotifier: _isPullingDownNotifier,
-            scrollProgressNotifier: _scrollProgressNotifier,
-            showControls: _showControls,
-            onHideControls: () {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() {
-                    _showControls = false;
-                  });
-                }
-              });
-            },
-            pullTriggerDistance: _pullTriggerDistance,
-            pullDeadzone: _pullDeadzone,
-            chapters: _chapters,
-            pageController: _pageController,
-            autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
-            searchQuery: _activeSearchQuery,
-          );
-        },
-      ),
-    );
-  }
-
-  ColorFilter? _getPdfColorFilter(ReaderTheme theme) {
-    switch (theme) {
-      case ReaderTheme.darkBlue:
-      case ReaderTheme.black:
-        // Inversion filter for dark modes
-        return const ColorFilter.matrix([
-          -0.9,
-          0,
-          0,
-          0,
-          255,
-          0,
-          -0.9,
-          0,
-          0,
-          255,
-          0,
-          0,
-          -0.9,
-          0,
-          255,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]);
-      case ReaderTheme.cream:
-        // Sepia-like filter for cream theme
-        return const ColorFilter.matrix([
-          0.393,
-          0.769,
-          0.189,
-          0,
-          0,
-          0.349,
-          0.686,
-          0.168,
-          0,
-          0,
-          0.272,
-          0.534,
-          0.131,
-          0,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]);
-      case ReaderTheme.white:
-        return null;
-    }
-  }
-
-  Widget _buildPdfContent(Book book, ReaderSettings settings) {
-    final colorFilter = _getPdfColorFilter(settings.theme);
-
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is UserScrollNotification &&
-            notification.direction != ScrollDirection.idle &&
-            _showControls) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                _showControls = false;
-              });
-            }
-          });
-        }
-        return false;
-      },
-      child: Listener(
-        onPointerDown: (_) => _recordInteraction(),
-        child: Container(
-          color: settings.backgroundColor,
-          child: ColorFiltered(
-            colorFilter:
-                colorFilter ??
-                const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-            child: PdfViewer.file(
-              book.filePath,
-              controller: _pdfController ??= PdfViewerController(),
-              params: PdfViewerParams(
-                backgroundColor: settings.backgroundColor,
-                onViewerReady: (document, controller) async {
-                  _pdfSearcher = PdfTextSearcher(controller);
-                  _pdfSearcher!.addListener(() => setState(() {}));
-
-                  final outline = await document.loadOutline();
-                  setState(() {
-                    _pdfPages = document.pages.length;
-                    _pdfOutline = _flattenPdfOutline(outline);
-                    _isPdfReady = true;
-                  });
-                  if (!_initialized) {
-                    final initialPage = (book.progress * (_pdfPages - 1))
-                        .toInt();
-                    controller.goToPage(pageNumber: initialPage + 1);
-                    _startHeartbeat(book);
-                    _initialized = true;
-                  }
-                },
-                pagePaintCallbacks: [
-                  (canvas, pageRect, page) {
-                    _pdfSearcher?.pageTextMatchPaintCallback(
-                      canvas,
-                      pageRect,
-                      page,
-                    );
-                  },
-                ],
-                onPageChanged: (pageNumber) {
-                  _recordInteraction();
-                  if (pageNumber != null) {
-                    _handlePdfPageChange(pageNumber - 1, _pdfPages, book);
-                  }
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<PdfOutlineNode> _flattenPdfOutline(List<PdfOutlineNode> nodes) {
-    final List<PdfOutlineNode> flattened = [];
-    for (final node in nodes) {
-      flattened.add(node);
-      if (node.children.isNotEmpty) {
-        flattened.addAll(_flattenPdfOutline(node.children));
-      }
-    }
-    return flattened;
-  }
-
-  Widget _buildBottomControls(
-    BuildContext context,
-    Book book,
-    ReaderSettings settings,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: settings.backgroundColor,
-        border: Border(
-          top: BorderSide(color: settings.textColor.withValues(alpha: 0.1)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Tier 1: Audio/Progress Slider
-            if (book.audioPath != null)
-              _buildAudioSection(settings)
-            else
-              const SizedBox(height: 12),
-
-            // Tier 2: Secondary Audio Controls (Collapsible)
-            if (book.audioPath != null)
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, animation) =>
-                    SizeTransition(sizeFactor: animation, child: child),
-                child: _isAudioControlsExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildSpeedButton(settings),
-                            const SizedBox(width: 24),
-                            _buildSkipButton(
-                              icon: Icons.replay_10_rounded,
-                              onTap: () {
-                                final newPos =
-                                    _audioPlayer.position -
-                                    const Duration(seconds: 10);
-                                _audioPlayer.seek(
-                                  newPos < Duration.zero
-                                      ? Duration.zero
-                                      : newPos,
-                                );
-                              },
-                              settings: settings,
-                            ),
-                            const SizedBox(width: 24),
-                            _buildSkipButton(
-                              icon: Icons.forward_10_rounded,
-                              onTap: () {
-                                final newPos =
-                                    _audioPlayer.position +
-                                    const Duration(seconds: 10);
-                                _audioPlayer.seek(
-                                  newPos >
-                                          (_audioPlayer.duration ??
-                                              Duration.zero)
-                                      ? (_audioPlayer.duration ?? Duration.zero)
-                                      : newPos,
-                                );
-                              },
-                              settings: settings,
-                            ),
-                            const SizedBox(width: 24),
-                            // Replace Audio Button
-                            _buildControlButton(
-                              child: Icon(
-                                Icons.swap_horiz_rounded,
-                                color: settings.textColor,
-                                size: 20,
-                              ),
-                              settings: settings,
-                              onTap: () => _pickAudio(book),
-                            ),
-                          ],
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-
-            const SizedBox(height: 16),
-
-            // Tier 3: Main Navigation & Reader Utilities
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                _isOrientationLandscape ? 40 : 20,
-                0,
-                _isOrientationLandscape ? 40 : 20,
-                16,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Navigation (Chapters & Bookmarks)
-                  _buildControlButton(
-                    child: Icon(
-                      Icons.format_list_bulleted_rounded,
-                      color: _isNavigationSheetOpen
-                          ? YomuConstants.accent
-                          : settings.textColor,
-                      size: 22,
-                    ),
-                    settings: settings,
-                    onTap: () => _showNavigationSheet(context, book, settings),
-                  ),
-
-                  // Bookmark
-                  _buildControlButton(
-                    child: Icon(
-                      Icons.bookmark_outline_rounded,
-                      color: settings.textColor,
-                      size: 22,
-                    ),
-                    settings: settings,
-                    onTap: () => _addBookmark(book),
-                  ),
-
-                  // Main Audio Play/Pause (Central)
-                  if (book.audioPath != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildControlButton(
-                          child: Icon(
-                            _isAudioControlsExpanded
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.tune_rounded,
-                            color: settings.textColor,
-                            size: 20,
-                          ),
-                          settings: settings,
-                          onTap: () => setState(
-                            () => _isAudioControlsExpanded =
-                                !_isAudioControlsExpanded,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildPlayPauseButton(),
-                      ],
-                    )
-                  else
-                    _buildControlButton(
-                      child: Icon(
-                        Icons.add_rounded,
-                        color: YomuConstants.accent,
-                        size: 24,
-                      ),
-                      settings: settings,
-                      onTap: () => _pickAudio(book),
-                    ),
-                  _buildControlButton(
-                    child: Icon(
-                      _isAutoScrolling
-                          ? Icons.pause_circle_outline_rounded
-                          : Icons.play_circle_outline_rounded,
-                      color: _isAutoScrolling
-                          ? YomuConstants.accent
-                          : settings.textColor,
-                      size: 22,
-                    ),
-                    settings: settings,
-                    onTap: () {
-                      setState(() {
-                        _isAutoScrolling = !_isAutoScrolling;
-                        // Ensure it's never 0 if active
-                        final activeSpeed = settings.autoScrollSpeed < 0.5
-                            ? 2.0
-                            : settings.autoScrollSpeed;
-                        _autoScrollSpeedNotifier.value = _isAutoScrolling
-                            ? activeSpeed
-                            : 0.0;
-                      });
-                    },
-                  ),
-                  // Orientation Toggle
-                  _buildControlButton(
-                    child: Icon(
-                      _isOrientationLandscape
-                          ? Icons.screen_rotation_rounded
-                          : Icons.screen_rotation_rounded,
-                      color: settings.textColor,
-                      size: 20,
-                    ),
-                    settings: settings,
-                    onTap: _toggleOrientation,
-                  ),
-
-                  // Display Settings
-                  _buildControlButton(
-                    child: Icon(
-                      Icons.text_fields_rounded,
-                      color: settings.textColor,
-                      size: 22,
-                    ),
-                    settings: settings,
-                    onTap: () => showDisplaySettingsSheet(context),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   void _showNavigationSheet(
@@ -1570,55 +1059,69 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return DefaultTabController(
-              length: 2,
-              child: Container(
-                height: MediaQuery.of(context).size.height * 0.7,
-                decoration: BoxDecoration(
-                  color: YomuConstants.surface,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    TabBar(
-                      indicatorColor: YomuConstants.accent,
-                      labelColor: YomuConstants.accent,
-                      unselectedLabelColor: Colors.white54,
-                      tabs: const [
-                        Tab(text: 'CHAPTERS'),
-                        Tab(text: 'BOOKMARKS'),
-                      ],
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          // Chapters Tab
-                          _buildChaptersList(book, settings),
-                          // Bookmarks Tab
-                          _buildBookmarksList(book, settings, setSheetState),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+        return NavigationSheet(
+          book: book,
+          chapters: _chapters,
+          pdfOutline: _pdfOutline,
+          currentChapterIndex: _currentChapterIndex,
+          onChapterTap: (index) {
+            Navigator.pop(context);
+            _pageController?.jumpToPage(index);
           },
+          onPdfOutlineTap: (node) {
+            if (node.dest?.pageNumber != null) {
+              Navigator.pop(context);
+              _pdfController?.goToPage(pageNumber: node.dest!.pageNumber);
+            }
+          },
+          getBookmarks: () =>
+              ref.read(libraryProvider.notifier).getBookmarks(book.id!),
+          onDeleteBookmark: (bookmark) =>
+              ref.read(libraryProvider.notifier).deleteBookmark(bookmark.id!),
+          onBookmarkTap: (bookmark) {
+            Navigator.pop(context);
+            if (book.filePath.toLowerCase().endsWith('.epub')) {
+              if (bookmark.position.contains(':')) {
+                final parts = bookmark.position.split(':');
+                final index = int.tryParse(parts[0]) ?? 0;
+                final progress = double.tryParse(parts[1]) ?? 0.0;
+                if (index >= 0 && index < _chapters.length) {
+                  setState(() {
+                    _currentChapterIndex = index;
+                    _initialScrollProgress = progress;
+                    _currentChapter =
+                        _chapters[index].Title ?? 'Chapter ${index + 1}';
+                  });
+                  _pageController?.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOutCubic,
+                  );
+                }
+              } else {
+                final index = int.tryParse(bookmark.position);
+                if (index != null && index >= 0 && index < _chapters.length) {
+                  setState(() {
+                    _currentChapterIndex = index;
+                    _initialScrollProgress = 0.0;
+                    _currentChapter =
+                        _chapters[index].Title ?? 'Chapter ${index + 1}';
+                  });
+                  _pageController?.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOutCubic,
+                  );
+                } else {
+                  _epubController?.gotoEpubCfi(bookmark.position);
+                }
+              }
+            } else {
+              final targetPage = int.tryParse(bookmark.position) ?? 1;
+              _pdfController?.goToPage(pageNumber: targetPage);
+            }
+          },
+          formatDate: _formatDate,
         );
       },
     ).then((_) {
@@ -1626,327 +1129,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     });
   }
 
-  Widget _buildChaptersList(Book book, ReaderSettings settings) {
-    if (book.filePath.toLowerCase().endsWith('.epub')) {
-      return ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _chapters.length,
-        itemBuilder: (context, index) {
-          final chapter = _chapters[index];
-          final isCurrent = _currentChapterIndex == index;
-
-          return ListTile(
-            title: Text(
-              chapter.Title ?? 'Chapter ${index + 1}',
-              style: TextStyle(
-                color: isCurrent ? YomuConstants.accent : Colors.white,
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _pageController?.jumpToPage(index);
-            },
-          );
-        },
-      );
-    } else {
-      // PDF Outline
-      return ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _pdfOutline.length,
-        itemBuilder: (context, index) {
-          final node = _pdfOutline[index];
-          return ListTile(
-            contentPadding: EdgeInsets.only(
-              left: 16.0 + (node.dest?.pageNumber != null ? 0 : 16),
-              right: 16,
-            ),
-            title: Text(
-              node.title,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-            onTap: () {
-              if (node.dest?.pageNumber != null) {
-                Navigator.pop(context);
-                _pdfController?.goToPage(pageNumber: node.dest!.pageNumber);
-              }
-            },
-          );
-        },
-      );
+  List<PdfOutlineNode> _flattenPdfOutline(List<PdfOutlineNode> nodes) {
+    final List<PdfOutlineNode> flattened = [];
+    for (final node in nodes) {
+      flattened.add(node);
+      if (node.children.isNotEmpty) {
+        flattened.addAll(_flattenPdfOutline(node.children));
+      }
     }
-  }
-
-  Widget _buildBookmarksList(
-    Book book,
-    ReaderSettings settings,
-    StateSetter setSheetState,
-  ) {
-    return FutureBuilder<List<Bookmark>>(
-      future: ref.read(libraryProvider.notifier).getBookmarks(book.id!),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
-            child: Text(
-              'No bookmarks found',
-              style: TextStyle(color: Colors.white54),
-            ),
-          );
-        }
-
-        final bookmarks = snapshot.data!;
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: bookmarks.length,
-          itemBuilder: (context, index) {
-            final bookmark = bookmarks[index];
-            return ListTile(
-              title: Text(
-                bookmark.title,
-                style: const TextStyle(color: Colors.white),
-              ),
-              subtitle: Text(
-                '${(bookmark.progress * 100).toStringAsFixed(1)}% • ${_formatDate(bookmark.createdAt)}',
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.white38),
-                onPressed: () async {
-                  await ref
-                      .read(libraryProvider.notifier)
-                      .deleteBookmark(bookmark.id!);
-                  setSheetState(() {});
-                },
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                if (book.filePath.toLowerCase().endsWith('.epub')) {
-                  if (bookmark.position.contains(':')) {
-                    final parts = bookmark.position.split(':');
-                    final index = int.tryParse(parts[0]) ?? 0;
-                    final progress = double.tryParse(parts[1]) ?? 0.0;
-                    if (index >= 0 && index < _chapters.length) {
-                      setState(() {
-                        _currentChapterIndex = index;
-                        _initialScrollProgress = progress;
-                        _currentChapter =
-                            _chapters[index].Title ?? 'Chapter ${index + 1}';
-                      });
-                      _pageController?.animateToPage(
-                        index,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOutCubic,
-                      );
-                    }
-                  } else {
-                    // Fallback for old integer positions or CFI
-                    final index = int.tryParse(bookmark.position);
-                    if (index != null &&
-                        index >= 0 &&
-                        index < _chapters.length) {
-                      setState(() {
-                        _currentChapterIndex = index;
-                        _initialScrollProgress = 0.0;
-                        _currentChapter =
-                            _chapters[index].Title ?? 'Chapter ${index + 1}';
-                      });
-                      _pageController?.animateToPage(
-                        index,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOutCubic,
-                      );
-                    } else {
-                      _epubController?.gotoEpubCfi(bookmark.position);
-                    }
-                  }
-                } else {
-                  final targetPage = int.tryParse(bookmark.position) ?? 1;
-                  _pdfController?.goToPage(pageNumber: targetPage);
-                }
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  Widget _buildAudioSection(ReaderSettings settings) {
-    if (_isAudioLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 45,
-            child: ValueListenableBuilder<Duration>(
-              valueListenable: _audioPositionNotifier,
-              builder: (context, pos, _) => Text(
-                _formatDuration(pos),
-                style: TextStyle(
-                  color: settings.secondaryTextColor,
-                  fontSize: 12,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-          Expanded(
-            child: ValueListenableBuilder<Duration>(
-              valueListenable: _audioPositionNotifier,
-              builder: (context, pos, _) => ValueListenableBuilder<Duration>(
-                valueListenable: _audioDurationNotifier,
-                builder: (context, dur, _) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      activeTrackColor: YomuConstants.accent,
-                      inactiveTrackColor: settings.textColor.withValues(
-                        alpha: 0.1,
-                      ),
-                      thumbColor: YomuConstants.accent,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
-                      ),
-                      trackHeight: 3,
-                    ),
-                    child: Slider(
-                      value: _isDraggingSlider
-                          ? _sliderDragValue.clamp(
-                              0,
-                              dur.inMilliseconds.toDouble(),
-                            )
-                          : pos.inMilliseconds.toDouble().clamp(
-                              0,
-                              dur.inMilliseconds.toDouble(),
-                            ),
-                      max: dur.inMilliseconds.toDouble().clamp(
-                        1,
-                        double.infinity,
-                      ),
-                      onChangeStart: (value) {
-                        setState(() {
-                          _isDraggingSlider = true;
-                          _sliderDragValue = value;
-                        });
-                      },
-                      onChanged: (value) {
-                        setState(() {
-                          _sliderDragValue = value;
-                        });
-                        // Update the time label during drag
-                        _audioPositionNotifier.value = Duration(
-                          milliseconds: value.toInt(),
-                        );
-                      },
-                      onChangeEnd: (value) async {
-                        await _audioPlayer.seek(
-                          Duration(milliseconds: value.toInt()),
-                        );
-                        setState(() {
-                          _isDraggingSlider = false;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 45,
-            child: ValueListenableBuilder<Duration>(
-              valueListenable: _audioDurationNotifier,
-              builder: (context, dur, _) => Text(
-                _formatDuration(dur),
-                style: TextStyle(
-                  color: settings.secondaryTextColor,
-                  fontSize: 12,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeedButton(ReaderSettings settings) {
-    return _buildControlButton(
-      child: Text(
-        '${_playbackSpeed}x',
-        style: TextStyle(
-          color: settings.textColor,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      settings: settings,
-      onTap: () {
-        setState(() {
-          if (_playbackSpeed >= 2.0) {
-            _playbackSpeed = 0.5;
-          } else {
-            _playbackSpeed += 0.25;
-          }
-          _audioPlayer.setSpeed(_playbackSpeed);
-        });
-      },
-    );
-  }
-
-  Widget _buildSkipButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    required ReaderSettings settings,
-  }) {
-    return _buildControlButton(
-      child: Icon(icon, color: settings.textColor, size: 28),
-      settings: settings,
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildPlayPauseButton() {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _isAudioPlayingNotifier,
-      builder: (context, isPlaying, _) => GestureDetector(
-        onTap: () {
-          if (isPlaying) {
-            _audioPlayer.pause();
-          } else {
-            _audioPlayer.play();
-          }
-        },
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: YomuConstants.accent,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 32,
-          ),
-        ),
-      ),
-    );
+    return flattened;
   }
 
   String _formatDuration(Duration duration) {
@@ -1956,503 +1147,5 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     return duration.inHours > 0
         ? '${twoDigits(duration.inHours)}:$minutes:$seconds'
         : '$minutes:$seconds';
-  }
-
-  Widget _buildControlButton({
-    required Widget child,
-    required ReaderSettings settings,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: settings.textColor.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(child: child),
-      ),
-    );
-  }
-
-  Widget _buildMinimalFooter(Book book, ReaderSettings settings) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            // Battery and Time (Left)
-            Row(
-              children: [
-                Icon(
-                  Icons.battery_6_bar_rounded,
-                  size: 14,
-                  color: settings.secondaryTextColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _currentTime,
-                  style: TextStyle(
-                    color: settings.secondaryTextColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-
-            const Spacer(),
-
-            // Chapter and Page info (Center)
-            Expanded(
-              flex: 4,
-              child: Text(
-                _currentChapter,
-                style: TextStyle(
-                  color: settings.secondaryTextColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-            const Spacer(),
-
-            // Progress percentage (Right)
-            ValueListenableBuilder<double>(
-              valueListenable: _scrollProgressNotifier,
-              builder: (context, scrollProgress, _) {
-                if (book.filePath.toLowerCase().endsWith('.epub') &&
-                    _chapters.isNotEmpty) {
-                  final totalChapters = _chapters.length;
-                  final overallProgress =
-                      ((_currentChapterIndex + scrollProgress) /
-                      totalChapters *
-                      100);
-                  return Text(
-                    '${overallProgress.toStringAsFixed(1)}%',
-                    style: TextStyle(
-                      color: settings.secondaryTextColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  );
-                }
-                return Text(
-                  '${(book.progress * 100).toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    color: settings.secondaryTextColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ValueListenableBuilder2<A, B> extends StatelessWidget {
-  final ValueListenable<A> first;
-  final ValueListenable<B> second;
-  final Widget Function(BuildContext context, A a, B b, Widget? child) builder;
-  final Widget? child;
-
-  const ValueListenableBuilder2({
-    super.key,
-    required this.first,
-    required this.second,
-    required this.builder,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<A>(
-      valueListenable: first,
-      builder: (context, a, _) {
-        return ValueListenableBuilder<B>(
-          valueListenable: second,
-          builder: (context, b, _) {
-            return builder(context, a, b, child);
-          },
-        );
-      },
-    );
-  }
-}
-
-class _EpubChapterPage extends StatefulWidget {
-  final int index;
-  final EpubChapter chapter;
-  final ReaderSettings settings;
-  final bool shouldJumpToBottom;
-  final double initialScrollProgress;
-  final VoidCallback onJumpedToBottom;
-  final VoidCallback onJumpedToPosition;
-  final ValueNotifier<double> pullDistanceNotifier;
-  final ValueNotifier<bool> isPullingDownNotifier;
-  final ValueNotifier<double> scrollProgressNotifier;
-  final bool showControls;
-  final VoidCallback onHideControls;
-  final double pullTriggerDistance;
-  final double pullDeadzone;
-  final List<EpubChapter> chapters;
-  final PageController? pageController;
-  final ValueNotifier<double> autoScrollSpeedNotifier;
-  final String? searchQuery;
-
-  const _EpubChapterPage({
-    required this.index,
-    required this.chapter,
-    required this.settings,
-    required this.shouldJumpToBottom,
-    required this.initialScrollProgress,
-    required this.onJumpedToBottom,
-    required this.onJumpedToPosition,
-    required this.pullDistanceNotifier,
-    required this.isPullingDownNotifier,
-    required this.scrollProgressNotifier,
-    required this.showControls,
-    required this.onHideControls,
-    required this.pullTriggerDistance,
-    required this.pullDeadzone,
-    required this.chapters,
-    required this.pageController,
-    required this.autoScrollSpeedNotifier,
-    this.searchQuery,
-  });
-
-  @override
-  State<_EpubChapterPage> createState() => _EpubChapterPageState();
-}
-
-class _EpubChapterPageState extends State<_EpubChapterPage>
-    with SingleTickerProviderStateMixin {
-  late ScrollController _scrollController;
-  bool _isNavigating = false;
-  double _currentPeakOverscroll = 0.0;
-  bool? _isPullingDown;
-  Timer? _debounceTimer;
-  Ticker? _ticker;
-  Duration _lastElapsed = Duration.zero;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController();
-    if (widget.shouldJumpToBottom) {
-      _checkAndJump();
-    } else if (widget.initialScrollProgress > 0) {
-      _checkAndJumpToPosition();
-    }
-
-    _ticker = createTicker((elapsed) {
-      final speed = widget.autoScrollSpeedNotifier.value;
-      if (speed > 0 && _scrollController.hasClients) {
-        final deltaTime = (elapsed - _lastElapsed).inMilliseconds / 1000.0;
-        _lastElapsed = elapsed;
-
-        if (deltaTime <= 0) return;
-
-        final currentPos = _scrollController.offset;
-        final maxPos = _scrollController.position.maxScrollExtent;
-        if (currentPos < maxPos) {
-          // Speed is in pixels per second.
-          // settings.autoScrollSpeed (e.g. 2.0) * multiplier
-          final increment = speed * 30.0 * deltaTime;
-          _scrollController.jumpTo(currentPos + increment);
-        }
-      } else {
-        _lastElapsed = elapsed;
-      }
-    });
-
-    widget.autoScrollSpeedNotifier.addListener(_handleSpeedChange);
-    if (widget.autoScrollSpeedNotifier.value > 0) {
-      _ticker?.start();
-    }
-  }
-
-  void _handleSpeedChange() {
-    if (widget.autoScrollSpeedNotifier.value > 0) {
-      if (!(_ticker?.isActive ?? false)) {
-        _ticker?.start();
-      }
-    } else {
-      _ticker?.stop();
-    }
-  }
-
-  @override
-  void didUpdateWidget(_EpubChapterPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.shouldJumpToBottom && !oldWidget.shouldJumpToBottom) {
-      _checkAndJump();
-    } else if (widget.initialScrollProgress !=
-            oldWidget.initialScrollProgress &&
-        widget.initialScrollProgress > 0) {
-      _checkAndJumpToPosition();
-    }
-  }
-
-  void _checkAndJump() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        widget.onJumpedToBottom();
-      }
-    });
-  }
-
-  void _checkAndJumpToPosition() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scrollController.hasClients) {
-        final double maxScroll = _scrollController.position.maxScrollExtent;
-        if (maxScroll > 0) {
-          _scrollController.animateTo(
-            maxScroll * widget.initialScrollProgress,
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
-          );
-          widget.onJumpedToPosition();
-        } else {
-          // If maxScroll is 0, layout might not be fully ready or content is small
-          // Try again once more after a small delay if it's the first attempt
-          Future.delayed(const Duration(milliseconds: 50), () {
-            if (mounted && _scrollController.hasClients) {
-              final double newMaxScroll =
-                  _scrollController.position.maxScrollExtent;
-              if (newMaxScroll > 0) {
-                _scrollController.animateTo(
-                  newMaxScroll * widget.initialScrollProgress,
-                  duration: const Duration(milliseconds: 600),
-                  curve: Curves.easeOutCubic,
-                );
-              }
-              widget.onJumpedToPosition();
-            }
-          });
-        }
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    widget.autoScrollSpeedNotifier.removeListener(_handleSpeedChange);
-    _ticker?.dispose();
-    _scrollController.dispose();
-    _debounceTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollStartNotification) {
-          _currentPeakOverscroll = 0.0;
-        }
-
-        if (notification is UserScrollNotification) {
-          if (notification.direction != ScrollDirection.idle &&
-              widget.showControls) {
-            widget.onHideControls();
-          }
-
-          // Trigger navigation on FINGER RELEASE (Direction transitions to idle)
-          if (notification.direction == ScrollDirection.idle &&
-              !_isNavigating) {
-            if (_currentPeakOverscroll > 40) {
-              if (_isPullingDown == false &&
-                  widget.index < widget.chapters.length - 1) {
-                // Reached bottom
-                _isNavigating = true;
-                HapticFeedback.mediumImpact();
-                widget.pageController
-                    ?.nextPage(
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOutQuart,
-                    )
-                    .then((_) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        if (mounted) _isNavigating = false;
-                      });
-                    });
-                _resetPullState();
-              } else if (_isPullingDown == true && widget.index > 0) {
-                // Reached top
-                _isNavigating = true;
-                HapticFeedback.mediumImpact();
-                widget.pageController
-                    ?.previousPage(
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOutQuart,
-                    )
-                    .then((_) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        if (mounted) _isNavigating = false;
-                      });
-                    });
-                _resetPullState();
-              }
-            }
-            _currentPeakOverscroll = 0.0;
-          }
-        }
-
-        if (notification.metrics.axis == Axis.vertical) {
-          final metrics = notification.metrics;
-          final double currentProgress = metrics.maxScrollExtent > 0
-              ? (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0)
-              : 1.0;
-
-          // Track the maximum overscroll reached during this gesture
-          if (metrics.pixels > metrics.maxScrollExtent) {
-            final overscroll = metrics.pixels - metrics.maxScrollExtent;
-            if (overscroll > _currentPeakOverscroll) {
-              _currentPeakOverscroll = overscroll;
-              _isPullingDown = false;
-            }
-          } else if (metrics.pixels < 0) {
-            final overscroll = -metrics.pixels;
-            if (overscroll > _currentPeakOverscroll) {
-              _currentPeakOverscroll = overscroll;
-              _isPullingDown = true;
-            }
-          }
-
-          if (widget.scrollProgressNotifier.value != currentProgress) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                widget.scrollProgressNotifier.value = currentProgress;
-              }
-            });
-          }
-        }
-        return false;
-      },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            physics: const BouncingScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(height: 100), // Top padding
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (widget.chapter.Title != null) ...[
-                        Text(
-                          widget.chapter.Title!.toUpperCase(),
-                          style: TextStyle(
-                            color: widget.settings.secondaryTextColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      Html(
-                        data: () {
-                          String content = widget.chapter.HtmlContent ?? '';
-                          if (widget.searchQuery != null &&
-                              widget.searchQuery!.isNotEmpty) {
-                            final escapedQuery = RegExp.escape(
-                              widget.searchQuery!,
-                            );
-                            // Highlight while avoiding matching inside HTML tags
-                            final regex = RegExp(
-                              '(?![^<]*>)$escapedQuery',
-                              caseSensitive: false,
-                            );
-                            content = content.replaceAllMapped(regex, (match) {
-                              return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
-                            });
-                          }
-                          return content;
-                        }(),
-                        style: {
-                          "body": Style(
-                            margin: Margins.zero,
-                            padding: HtmlPaddings.zero,
-                            fontSize: FontSize(
-                              widget.settings.textSize,
-                              Unit.px,
-                            ),
-                            lineHeight: LineHeight(
-                              widget.settings.lineHeight,
-                              units: "",
-                            ),
-                            color: widget.settings.textColor,
-                            textAlign: _convertTextAlign(
-                              widget.settings.textAlign,
-                            ),
-                            fontFamily: widget.settings.typeface == 'System'
-                                ? null
-                                : widget.settings.typeface,
-                          ),
-                          "p": Style(margin: Margins.only(bottom: 16)),
-                          "img": Style(
-                            width: Width(
-                              MediaQuery.of(context).size.width - 40,
-                              Unit.px,
-                            ),
-                            alignment: Alignment.center,
-                          ),
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 100), // Bottom padding
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _resetPullState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.pullDistanceNotifier.value = 0.0;
-        widget.isPullingDownNotifier.value = false;
-        widget.scrollProgressNotifier.value = 0.0;
-      }
-    });
-  }
-
-  TextAlign _convertTextAlign(TextAlign? textAlign) {
-    switch (textAlign) {
-      case TextAlign.left:
-        return TextAlign.left;
-      case TextAlign.center:
-        return TextAlign.center;
-      case TextAlign.right:
-        return TextAlign.right;
-      case TextAlign.justify:
-        return TextAlign.justify;
-      default:
-        return TextAlign.left;
-    }
   }
 }
