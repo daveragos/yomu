@@ -1,4 +1,4 @@
-package com.example.yomu
+package com.ragoose.yomu
 
 import io.flutter.embedding.android.FlutterActivity
 
