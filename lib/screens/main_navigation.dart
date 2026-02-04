@@ -1,3 +1,4 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
@@ -7,14 +8,24 @@ import 'library_screen.dart';
 import 'stats_screen.dart';
 import 'settings_screen.dart';
 
-final selectedIndexProvider = StateProvider<int>((ref) => 0);
+class NavigationState {
+  final int current;
+  final int previous;
+  NavigationState({required this.current, required this.previous});
+}
+
+final navigationStateProvider = StateProvider<NavigationState>(
+  (ref) => NavigationState(current: 0, previous: 0),
+);
 
 class MainNavigation extends ConsumerWidget {
   const MainNavigation({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedIndex = ref.watch(selectedIndexProvider);
+    final navState = ref.watch(navigationStateProvider);
+    final selectedIndex = navState.current;
+    final isReverse = navState.current < navState.previous;
 
     final List<Widget> screens = [
       const DashboardScreen(), // Home
@@ -24,7 +35,23 @@ class MainNavigation extends ConsumerWidget {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: selectedIndex, children: screens),
+      body: PageTransitionSwitcher(
+        duration: const Duration(milliseconds: 300),
+        reverse: isReverse,
+        transitionBuilder: (child, animation, secondaryAnimation) {
+          return SharedAxisTransition(
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            transitionType: SharedAxisTransitionType.horizontal,
+            fillColor: Colors.transparent,
+            child: child,
+          );
+        },
+        child: Container(
+          key: ValueKey<int>(selectedIndex),
+          child: screens[selectedIndex],
+        ),
+      ),
       extendBody: true,
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -73,12 +100,20 @@ class MainNavigation extends ConsumerWidget {
     required IconData icon,
     required String label,
   }) {
-    final selectedIndex = ref.watch(selectedIndexProvider);
+    final navState = ref.watch(navigationStateProvider);
+    final selectedIndex = navState.current;
     final isSelected = selectedIndex == index;
 
     return Expanded(
       child: GestureDetector(
-        onTap: () => ref.read(selectedIndexProvider.notifier).state = index,
+        onTap: () {
+          if (selectedIndex != index) {
+            ref.read(navigationStateProvider.notifier).state = NavigationState(
+              current: index,
+              previous: selectedIndex,
+            );
+          }
+        },
         behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

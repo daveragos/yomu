@@ -11,12 +11,31 @@ import './dashboard/widgets/dashboard_header.dart';
 import './dashboard/widgets/continue_reading_card.dart';
 import './dashboard/widgets/shelf_item.dart';
 
-class DashboardScreen extends ConsumerWidget {
+final hasDashboardAnimatedProvider = StateProvider<bool>((ref) => false);
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(hasDashboardAnimatedProvider.notifier).state = true;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryProvider);
+    final hasAnimated = ref.watch(hasDashboardAnimatedProvider);
+
     final recentBooks =
         libraryState.allBooks.where((b) => b.lastReadAt != null).toList()
           ..sort((a, b) => b.lastReadAt!.compareTo(a.lastReadAt!));
@@ -32,28 +51,44 @@ class DashboardScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              const DashboardHeader()
-                  .animate()
-                  .fadeIn(duration: 600.ms)
-                  .slideY(begin: 0.1, end: 0),
+              _animateIf(
+                const DashboardHeader(),
+                hasAnimated,
+                (w) => w
+                    .animate()
+                    .fadeIn(duration: 600.ms)
+                    .slideY(begin: 0.1, end: 0),
+              ),
               const SizedBox(height: 30),
               if (recentBooks.isNotEmpty) ...[
-                ContinueReadingCard(book: recentBooks.first)
-                    .animate()
-                    .fadeIn(delay: 200.ms, duration: 600.ms)
-                    .slideY(begin: 0.1, end: 0),
+                _animateIf(
+                  ContinueReadingCard(book: recentBooks.first),
+                  hasAnimated,
+                  (w) => w
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 600.ms)
+                      .slideY(begin: 0.1, end: 0),
+                ),
                 const SizedBox(height: 30),
               ],
-              _buildQuickStats(context, libraryState)
-                  .animate()
-                  .fadeIn(delay: 400.ms, duration: 600.ms)
-                  .slideY(begin: 0.1, end: 0),
+              _animateIf(
+                _buildQuickStats(context, libraryState),
+                hasAnimated,
+                (w) => w
+                    .animate()
+                    .fadeIn(delay: 400.ms, duration: 600.ms)
+                    .slideY(begin: 0.1, end: 0),
+              ),
               const SizedBox(height: 30),
               if (recentBooks.length > 1) ...[
-                Text(
-                  'My Shelf',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ).animate().fadeIn(delay: 500.ms),
+                _animateIf(
+                  Text(
+                    'My Shelf',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  hasAnimated,
+                  (w) => w.animate().fadeIn(delay: 500.ms),
+                ),
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 180,
@@ -64,46 +99,74 @@ class DashboardScreen extends ConsumerWidget {
                         const SizedBox(width: 16),
                     itemBuilder: (context, index) {
                       final book = recentBooks[index + 1];
-                      return ShelfItem(book: book)
-                          .animate()
-                          .fadeIn(delay: (600 + (index * 100)).ms)
-                          .scale(begin: const Offset(0.9, 0.9));
+                      return _animateIf(
+                        ShelfItem(book: book),
+                        hasAnimated,
+                        (w) => w
+                            .animate()
+                            .fadeIn(delay: (600 + (index * 100)).ms)
+                            .scale(begin: const Offset(0.9, 0.9)),
+                      );
                     },
                   ),
                 ),
                 const SizedBox(height: 30),
               ],
-              Text(
-                'Reading Activity',
-                style: Theme.of(context).textTheme.titleLarge,
-              ).animate().fadeIn(delay: 800.ms),
+              _animateIf(
+                Text(
+                  'Reading Activity',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                hasAnimated,
+                (w) => w.animate().fadeIn(delay: 800.ms),
+              ),
               const SizedBox(height: 4),
-              Text(
-                'Current Month',
-                style: TextStyle(
-                  color: YomuConstants.textSecondary,
-                  fontSize: 12,
+              _animateIf(
+                Text(
+                  'Current Month',
+                  style: TextStyle(
+                    color: YomuConstants.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
-              ).animate().fadeIn(delay: 850.ms),
+                hasAnimated,
+                (w) => w.animate().fadeIn(delay: 850.ms),
+              ),
               const SizedBox(height: 12),
-              ActivityGraph(
-                dailyValues: libraryState.dailyReadingValues,
-                selectedMonth: DateFormat('MMMM yyyy').format(DateTime.now()),
-                weeklyGoalType: libraryState.weeklyGoalType,
-                weeklyGoalValue: libraryState.weeklyGoalValue,
-                onDateTapped: (date, value) => _showDailyActivityDetail(
-                  context,
-                  libraryState,
-                  date,
-                  value,
+              _animateIf(
+                ActivityGraph(
+                  dailyValues: libraryState.dailyReadingValues,
+                  selectedMonth: DateFormat('MMMM yyyy').format(DateTime.now()),
+                  weeklyGoalType: libraryState.weeklyGoalType,
+                  weeklyGoalValue: libraryState.weeklyGoalValue,
+                  onDateTapped: (date, value) => _showDailyActivityDetail(
+                    context,
+                    libraryState,
+                    date,
+                    value,
+                  ),
                 ),
-              ).animate().fadeIn(delay: 900.ms).slideY(begin: 0.05, end: 0),
+                hasAnimated,
+                (w) => w
+                    .animate()
+                    .fadeIn(delay: 900.ms)
+                    .slideY(begin: 0.05, end: 0),
+              ),
               const SizedBox(height: 100),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _animateIf(
+    Widget widget,
+    bool hasAnimated,
+    Widget Function(Widget) animator,
+  ) {
+    if (hasAnimated) return widget;
+    return animator(widget);
   }
 
   Widget _buildQuickStats(BuildContext context, LibraryState state) {
