@@ -83,10 +83,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   bool _isAutoScrolling = false;
   final ValueNotifier<double> _autoScrollSpeedNotifier = ValueNotifier(0.0);
   Ticker? _pdfAutoScrollTicker;
+  Duration _lastPdfElapsed = Duration.zero;
   bool _isNavigationSheetOpen = false;
   bool _isDraggingSlider = false;
   double _sliderDragValue = 0.0;
   bool _isSearching = false;
+  PdfTextSearcher? _pdfSearcher;
   final TextEditingController _searchController = TextEditingController();
   List<SearchResult> _searchResults = [];
   bool _isSearchLoading = false;
@@ -105,9 +107,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     _pdfAutoScrollTicker = createTicker((elapsed) {
       if (_isAutoScrolling && _pdfController != null) {
-        // NOTE: PdfViewerController API varies across versions.
-        // We'll implement smooth scrolling once we verify the standard scroll controller access.
-        // For now, auto-scroll is primarily optimized for EPUBS.
+        final speed = _autoScrollSpeedNotifier.value;
+        if (speed <= 0) return;
+
+        final deltaTime = (elapsed - _lastPdfElapsed).inMilliseconds / 1000.0;
+        _lastPdfElapsed = elapsed;
+        if (deltaTime <= 0) return;
+
+        // In pdfrx, we scroll by manipulating the matrix
+        final currentMatrix = _pdfController!.value;
+        final dy = speed * 30.0 * deltaTime;
+
+        // Content moves UP, so we translate by -dy in Y
+        final nextMatrix = currentMatrix.clone()
+          ..translateByDouble(0.0, -dy, 0.0, 1.0);
+        _pdfController!.value = nextMatrix;
+      } else {
+        _lastPdfElapsed = elapsed;
       }
     });
     _autoScrollSpeedNotifier.addListener(_handleGlobalSpeedChange);
@@ -907,8 +923,61 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     try {
       final List<SearchResult> results = [];
       if (book.filePath.toLowerCase().endsWith('.pdf')) {
-        // PDF Search is partially handled by built-in pdfrx features
-        // but we can add basic results if needed. For now, EPUB is priority.
+        // PDF Search mirroring EPUB behavior
+        final doc = _pdfController?.document;
+        if (doc != null && _pdfSearcher != null) {
+          // Track the query for highlighting in the PDF view
+          _pdfSearcher!.startTextSearch(
+            query,
+            goToFirstMatch: false,
+            searchImmediately: true,
+          );
+
+          for (int i = 0; i < doc.pages.length; i++) {
+            final page = doc.pages[i];
+            final pageText = await page.loadText();
+            final plainText = pageText.fullText;
+            final lowerText = plainText.toLowerCase();
+            final lowerQuery = query.toLowerCase();
+
+            int startIndex = 0;
+            while (true) {
+              final index = lowerText.indexOf(lowerQuery, startIndex);
+              if (index == -1) break;
+
+              final snippetStart = (index - 40).clamp(0, plainText.length);
+              final snippetEnd = (index + query.length + 60).clamp(
+                0,
+                plainText.length,
+              );
+              final snippet = plainText
+                  .substring(snippetStart, snippetEnd)
+                  .replaceAll('\n', ' ')
+                  .trim();
+
+              // Create a match object for precise navigation later
+              final match = PdfTextRangeWithFragments.fromTextRange(
+                pageText,
+                index,
+                index + query.length,
+              );
+
+              results.add(
+                SearchResult(
+                  pageIndex: i,
+                  title: 'Page ${i + 1}',
+                  snippet: '...$snippet...',
+                  query: query,
+                  metadata: match,
+                ),
+              );
+
+              startIndex = index + query.length;
+              if (results.length >= 30) break;
+            }
+            if (results.length >= 30) break;
+          }
+        }
       } else {
         // EPUB Search
         for (int i = 0; i < _chapters.length; i++) {
@@ -1030,7 +1099,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     });
 
     if (book.filePath.toLowerCase().endsWith('.pdf')) {
-      _pdfController?.goToPage(pageNumber: result.pageIndex + 1);
+      if (result.metadata is PdfTextMatch) {
+        _pdfSearcher?.goToMatch(result.metadata as PdfTextMatch);
+      } else {
+        _pdfController?.goToPage(pageNumber: result.pageIndex + 1);
+      }
     } else {
       _pageController?.jumpToPage(result.pageIndex);
     }
@@ -1098,7 +1171,65 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     );
   }
 
+  ColorFilter? _getPdfColorFilter(ReaderTheme theme) {
+    switch (theme) {
+      case ReaderTheme.darkBlue:
+      case ReaderTheme.black:
+        // Inversion filter for dark modes
+        return const ColorFilter.matrix([
+          -0.9,
+          0,
+          0,
+          0,
+          255,
+          0,
+          -0.9,
+          0,
+          0,
+          255,
+          0,
+          0,
+          -0.9,
+          0,
+          255,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]);
+      case ReaderTheme.cream:
+        // Sepia-like filter for cream theme
+        return const ColorFilter.matrix([
+          0.393,
+          0.769,
+          0.189,
+          0,
+          0,
+          0.349,
+          0.686,
+          0.168,
+          0,
+          0,
+          0.272,
+          0.534,
+          0.131,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]);
+      case ReaderTheme.white:
+        return null;
+    }
+  }
+
   Widget _buildPdfContent(Book book, ReaderSettings settings) {
+    final colorFilter = _getPdfColorFilter(settings.theme);
+
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is UserScrollNotification &&
@@ -1118,31 +1249,49 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         onPointerDown: (_) => _recordInteraction(),
         child: Container(
           color: settings.backgroundColor,
-          child: PdfViewer.file(
-            book.filePath,
-            controller: _pdfController ??= PdfViewerController(),
-            params: PdfViewerParams(
-              backgroundColor: settings.backgroundColor,
-              onViewerReady: (document, controller) async {
-                final outline = await document.loadOutline();
-                setState(() {
-                  _pdfPages = document.pages.length;
-                  _pdfOutline = _flattenPdfOutline(outline);
-                  _isPdfReady = true;
-                });
-                if (!_initialized) {
-                  final initialPage = (book.progress * (_pdfPages - 1)).toInt();
-                  controller.goToPage(pageNumber: initialPage + 1);
-                  _startHeartbeat(book);
-                  _initialized = true;
-                }
-              },
-              onPageChanged: (pageNumber) {
-                _recordInteraction();
-                if (pageNumber != null) {
-                  _handlePdfPageChange(pageNumber - 1, _pdfPages, book);
-                }
-              },
+          child: ColorFiltered(
+            colorFilter:
+                colorFilter ??
+                const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+            child: PdfViewer.file(
+              book.filePath,
+              controller: _pdfController ??= PdfViewerController(),
+              params: PdfViewerParams(
+                backgroundColor: settings.backgroundColor,
+                onViewerReady: (document, controller) async {
+                  _pdfSearcher = PdfTextSearcher(controller);
+                  _pdfSearcher!.addListener(() => setState(() {}));
+
+                  final outline = await document.loadOutline();
+                  setState(() {
+                    _pdfPages = document.pages.length;
+                    _pdfOutline = _flattenPdfOutline(outline);
+                    _isPdfReady = true;
+                  });
+                  if (!_initialized) {
+                    final initialPage = (book.progress * (_pdfPages - 1))
+                        .toInt();
+                    controller.goToPage(pageNumber: initialPage + 1);
+                    _startHeartbeat(book);
+                    _initialized = true;
+                  }
+                },
+                pagePaintCallbacks: [
+                  (canvas, pageRect, page) {
+                    _pdfSearcher?.pageTextMatchPaintCallback(
+                      canvas,
+                      pageRect,
+                      page,
+                    );
+                  },
+                ],
+                onPageChanged: (pageNumber) {
+                  _recordInteraction();
+                  if (pageNumber != null) {
+                    _handlePdfPageChange(pageNumber - 1, _pdfPages, book);
+                  }
+                },
+              ),
             ),
           ),
         ),

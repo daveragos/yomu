@@ -327,7 +327,7 @@ class DisplaySettingsSheet extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Publisher Defaults',
+            'Defaults',
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
           Switch(

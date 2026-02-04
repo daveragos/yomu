@@ -4,6 +4,7 @@ class SearchResult {
   final String snippet;
   final String query;
   final double? scrollProgress; // For EPUB scrolling estimation
+  final dynamic metadata; // For extra info like PDF match objects
 
   SearchResult({
     required this.pageIndex,
@@ -11,5 +12,6 @@ class SearchResult {
     required this.snippet,
     required this.query,
     this.scrollProgress,
+    this.metadata,
   });
 }
