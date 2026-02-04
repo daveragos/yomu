@@ -3,13 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants.dart';
 import '../../../providers/library_provider.dart';
 
-class LibraryHeader extends ConsumerWidget {
+class LibraryHeader extends ConsumerStatefulWidget {
   final TextEditingController searchController;
 
   const LibraryHeader({super.key, required this.searchController});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryHeader> createState() => _LibraryHeaderState();
+}
+
+class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
+  bool _isExpanded = false;
+
+  String _getShortPath(String path) {
+    if (path == 'All') return 'All';
+    final parts = path.split(RegExp(r'[/\\]'));
+    if (parts.length <= 2) return path;
+    return parts.sublist(parts.length - 2).join('/');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
     final notifier = ref.read(libraryProvider.notifier);
 
@@ -23,7 +37,7 @@ class LibraryHeader extends ConsumerWidget {
             children: [
               Expanded(
                 child: TextField(
-                  controller: searchController,
+                  controller: widget.searchController,
                   decoration: InputDecoration(
                     hintText: 'Search titles, authors...',
                     hintStyle: TextStyle(
@@ -33,6 +47,17 @@ class LibraryHeader extends ConsumerWidget {
                       Icons.search_rounded,
                       color: YomuConstants.textSecondary,
                       size: 20,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isExpanded ? Icons.expand_less : Icons.tune_rounded,
+                        color: _isExpanded
+                            ? YomuConstants.accent
+                            : YomuConstants.textSecondary,
+                        size: 20,
+                      ),
+                      onPressed: () =>
+                          setState(() => _isExpanded = !_isExpanded),
                     ),
                     filled: true,
                     fillColor: YomuConstants.surface,
@@ -47,100 +72,135 @@ class LibraryHeader extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
 
-          // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _FilterChip(
-                  label: 'All',
-                  isSelected:
-                      state.selectedGenre == 'All' &&
-                      state.selectedAuthor == 'All' &&
-                      state.selectedFolder == 'All' &&
-                      !state.onlyFavorites,
-                  onTap: () => notifier.clearFilters(),
-                ),
-                _FilterChip(
-                  label: 'Favorites',
-                  isSelected: state.onlyFavorites,
-                  icon: state.onlyFavorites
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  onTap: () => notifier.toggleFavoriteOnly(),
-                ),
-                _FilterChip(
-                  label: state.selectedGenre == 'All'
-                      ? 'Genre'
-                      : state.selectedGenre,
-                  isSelected: state.selectedGenre != 'All',
-                  hasDropdown: true,
-                  dropdownOptions: [
-                    'All',
-                    ...state.allBooks.map((b) => b.genre ?? 'Unknown').toSet(),
-                  ].toList(),
-                  onSelected: (val) => notifier.setGenreFilter(val),
-                  onTap: () {},
-                ),
-                _FilterChip(
-                  label: state.selectedAuthor == 'All'
-                      ? 'Author'
-                      : state.selectedAuthor,
-                  isSelected: state.selectedAuthor != 'All',
-                  hasDropdown: true,
-                  dropdownOptions: [
-                    'All',
-                    ...state.allBooks.map((b) => b.author).toSet(),
-                  ].toList(),
-                  onSelected: (val) => notifier.setAuthorFilter(val),
-                  onTap: () {},
-                ),
-                _FilterChip(
-                  label: state.sortBy.name.toUpperCase(),
-                  isSelected: state.sortBy != BookSortBy.recent,
-                  icon: Icons.sort_rounded,
-                  hasDropdown: true,
-                  dropdownOptions: BookSortBy.values
-                      .map((v) => v.name.toUpperCase())
-                      .toList(),
-                  onSelected: (val) {
-                    notifier.setSortBy(
-                      BookSortBy.values.firstWhere(
-                        (e) => e.name.toUpperCase() == val,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: Container(
+              height: _isExpanded ? null : 0,
+              clipBehavior: Clip.hardEdge,
+              decoration: const BoxDecoration(),
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  // Filter Chips
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _FilterChip(
+                          label: 'All',
+                          isSelected:
+                              state.selectedGenre == 'All' &&
+                              state.selectedAuthor == 'All' &&
+                              state.selectedFolder == 'All' &&
+                              !state.onlyFavorites,
+                          onTap: () => notifier.clearFilters(),
+                        ),
+                        _FilterChip(
+                          label: 'Favorites',
+                          isSelected: state.onlyFavorites,
+                          icon: state.onlyFavorites
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          onTap: () => notifier.toggleFavoriteOnly(),
+                        ),
+                        _FilterChip(
+                          label: state.selectedGenre == 'All'
+                              ? 'Genre'
+                              : state.selectedGenre,
+                          isSelected: state.selectedGenre != 'All',
+                          hasDropdown: true,
+                          dropdownOptions: [
+                            'All',
+                            ...state.allBooks
+                                .map((b) => b.genre ?? 'Unknown')
+                                .toSet(),
+                          ].toList(),
+                          onSelected: (val) => notifier.setGenreFilter(val),
+                          onTap: () {},
+                        ),
+                        _FilterChip(
+                          label: state.selectedAuthor == 'All'
+                              ? 'Author'
+                              : state.selectedAuthor,
+                          isSelected: state.selectedAuthor != 'All',
+                          hasDropdown: true,
+                          dropdownOptions: [
+                            'All',
+                            ...state.allBooks.map((b) => b.author).toSet(),
+                          ].toList(),
+                          onSelected: (val) => notifier.setAuthorFilter(val),
+                          onTap: () {},
+                        ),
+                        _FilterChip(
+                          label: state.selectedFolder == 'All'
+                              ? 'Folder'
+                              : _getShortPath(state.selectedFolder),
+                          isSelected: state.selectedFolder != 'All',
+                          hasDropdown: true,
+                          dropdownOptions: [
+                            'All',
+                            ...state.allBooks
+                                .map((b) => b.folderPath)
+                                .whereType<String>()
+                                .toSet(),
+                          ].toList(),
+                          labelMapper: _getShortPath,
+                          onSelected: (val) => notifier.setFolderFilter(val),
+                          onTap: () {},
+                        ),
+                        _FilterChip(
+                          label: state.sortBy.name.toUpperCase(),
+                          isSelected: state.sortBy != BookSortBy.recent,
+                          icon: Icons.sort_rounded,
+                          hasDropdown: true,
+                          dropdownOptions: BookSortBy.values
+                              .map((v) => v.name.toUpperCase())
+                              .toList(),
+                          onSelected: (val) {
+                            notifier.setSortBy(
+                              BookSortBy.values.firstWhere(
+                                (e) => e.name.toUpperCase() == val,
+                              ),
+                            );
+                          },
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Status Tabs
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _StatusTab(
+                        'Reading',
+                        state.statusFilter == BookStatusFilter.reading,
+                        () =>
+                            notifier.setStatusFilter(BookStatusFilter.reading),
                       ),
-                    );
-                  },
-                  onTap: () {},
-                ),
-              ],
+                      _StatusTab(
+                        'To Read',
+                        state.statusFilter == BookStatusFilter.unread,
+                        () => notifier.setStatusFilter(BookStatusFilter.unread),
+                      ),
+                      _StatusTab(
+                        'Finished',
+                        state.statusFilter == BookStatusFilter.finished,
+                        () =>
+                            notifier.setStatusFilter(BookStatusFilter.finished),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-
-          // Status Tabs
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _StatusTab(
-                'Reading',
-                state.statusFilter == BookStatusFilter.reading,
-                () => notifier.setStatusFilter(BookStatusFilter.reading),
-              ),
-              _StatusTab(
-                'To Read',
-                state.statusFilter == BookStatusFilter.unread,
-                () => notifier.setStatusFilter(BookStatusFilter.unread),
-              ),
-              _StatusTab(
-                'Finished',
-                state.statusFilter == BookStatusFilter.finished,
-                () => notifier.setStatusFilter(BookStatusFilter.finished),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
         ],
       ),
     );
@@ -153,6 +213,7 @@ class _FilterChip extends StatelessWidget {
   final IconData? icon;
   final bool hasDropdown;
   final List<String>? dropdownOptions;
+  final String Function(String)? labelMapper;
   final Function(String)? onSelected;
   final VoidCallback onTap;
 
@@ -162,6 +223,7 @@ class _FilterChip extends StatelessWidget {
     this.icon,
     this.hasDropdown = false,
     this.dropdownOptions,
+    this.labelMapper,
     this.onSelected,
     required this.onTap,
   });
@@ -221,7 +283,7 @@ class _FilterChip extends StatelessWidget {
           return PopupMenuItem<String>(
             value: opt,
             child: Text(
-              opt,
+              labelMapper?.call(opt) ?? opt,
               style: TextStyle(
                 color: YomuConstants.textPrimary,
                 fontSize: 14,
