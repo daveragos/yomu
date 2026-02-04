@@ -31,7 +31,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 200),
     );
   }
 

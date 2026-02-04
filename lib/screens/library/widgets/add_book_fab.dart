@@ -19,37 +19,64 @@ class AddBookFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isMenuOpen) ...[
-          FloatingActionButton.small(
-            onPressed: onScanFolder,
-            backgroundColor: YomuConstants.surface,
-            child: const Icon(Icons.folder_open, color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.small(
-            onPressed: onImportFiles,
-            backgroundColor: YomuConstants.surface,
-            child: const Icon(Icons.file_open, color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-        ],
-        FloatingActionButton(
-          onPressed: onToggleMenu,
-          backgroundColor: YomuConstants.accent,
-          child: AnimatedBuilder(
-            animation: animationController,
-            builder: (context, child) {
-              return Transform.rotate(
+    return AnimatedBuilder(
+      animation: animationController,
+      builder: (context, child) {
+        final isOpening = animationController.status == AnimationStatus.forward;
+        final isClosing = animationController.status == AnimationStatus.reverse;
+        final isOpened =
+            animationController.status == AnimationStatus.completed;
+        final shouldShowSubMenu = animationController.value > 0;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (shouldShowSubMenu) ...[
+              FadeTransition(
+                opacity: animationController,
+                child: ScaleTransition(
+                  scale: CurvedAnimation(
+                    parent: animationController,
+                    curve: Curves.easeOutBack,
+                  ),
+                  child: FloatingActionButton.small(
+                    heroTag: 'fab-scan',
+                    onPressed: onScanFolder,
+                    backgroundColor: YomuConstants.surface,
+                    child: const Icon(Icons.folder_open, color: Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              FadeTransition(
+                opacity: animationController,
+                child: ScaleTransition(
+                  scale: CurvedAnimation(
+                    parent: animationController,
+                    curve: Curves.easeOutBack,
+                  ),
+                  child: FloatingActionButton.small(
+                    heroTag: 'fab-import',
+                    onPressed: onImportFiles,
+                    backgroundColor: YomuConstants.surface,
+                    child: const Icon(Icons.file_open, color: Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            FloatingActionButton(
+              heroTag: 'fab-add',
+              onPressed: onToggleMenu,
+              backgroundColor: YomuConstants.accent,
+              child: Transform.rotate(
                 angle: animationController.value * (3.14159 / 4), // 45 degrees
                 child: const Icon(Icons.add, color: Colors.black, size: 28),
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
