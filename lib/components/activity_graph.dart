@@ -29,7 +29,8 @@ class ActivityGraph extends StatelessWidget {
     final DateTime firstDayOfMonth = DateTime(year, month, 1);
     final DateTime lastDayOfMonth = DateTime(year, month + 1, 0);
     final int daysInMonth = lastDayOfMonth.day;
-    final int firstWeekday = firstDayOfMonth.weekday; // 1 = Mon, 7 = Sun
+    final int leadingEmptyDays =
+        firstDayOfMonth.weekday % 7; // 0 = Sun, 1 = Mon, etc.
 
     // GitHub/Finance style: 7 columns (Mon-Sun)
     return Column(
@@ -37,7 +38,7 @@ class ActivityGraph extends StatelessWidget {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) {
+          children: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) {
             return Expanded(
               child: Center(
                 child: Text(
@@ -58,9 +59,9 @@ class ActivityGraph extends StatelessWidget {
             crossAxisSpacing: 8,
             childAspectRatio: 0.85,
           ),
-          itemCount: daysInMonth + (firstWeekday - 1),
+          itemCount: daysInMonth + leadingEmptyDays,
           itemBuilder: (context, index) {
-            final int dayIndex = index - (firstWeekday - 1);
+            final int dayIndex = index - leadingEmptyDays;
             if (dayIndex < 0) return const SizedBox.shrink();
 
             final DateTime date = DateTime(year, month, dayIndex + 1);
