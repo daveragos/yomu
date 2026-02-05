@@ -49,30 +49,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
-  audio_service:
-    dependency: "direct main"
-    description:
-      name: audio_service
-      sha256: cb122c7c2639d2a992421ef96b67948ad88c5221da3365ccef1031393a76e044
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.18.18"
-  audio_service_platform_interface:
-    dependency: transitive
-    description:
-      name: audio_service_platform_interface
-      sha256: "6283782851f6c8b501b60904a32fc7199dc631172da0629d7301e66f672ab777"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.3"
-  audio_service_web:
-    dependency: transitive
-    description:
-      name: audio_service_web
-      sha256: b8ea9243201ee53383157fbccf13d5d2a866b5dda922ec19d866d1d5d70424df
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.4"
   audio_session:
     dependency: transitive
     description:
@@ -209,14 +185,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
-  cupertino_icons:
-    dependency: "direct main"
-    description:
-      name: cupertino_icons
-      sha256: ba631d1c7f7bef6b729a622b7b752645a2d076dba9976925b8f25725a30e1ee6
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.8"
   dart_pubspec_licenses:
     dependency: transitive
     description:
@@ -342,14 +310,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
-  flutter_pdfview:
-    dependency: "direct main"
-    description:
-      name: flutter_pdfview
-      sha256: "5b80e89f3ba6e478d1e897543c9634508284ad73476807febc188378986b69ee"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.4"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -384,14 +344,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  font_awesome_flutter:
-    dependency: "direct main"
-    description:
-      name: font_awesome_flutter
-      sha256: b9011df3a1fa02993630b8fb83526368cf2206a711259830325bab2f1d2a4eb0
-      url: "https://pub.dev"
-    source: hosted
-    version: "10.12.0"
   frontend_server_client:
     dependency: transitive
     description:
@@ -720,14 +672,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.5"
-  percent_indicator:
-    dependency: "direct main"
-    description:
-      name: percent_indicator
-      sha256: "157d29133bbc6ecb11f923d36e7960a96a3f28837549a20b65e5135729f0f9fd"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.2.5"
   permission_handler:
     dependency: "direct main"
     description:
@@ -1253,6 +1197,38 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  webview_flutter:
+    dependency: "direct main"
+    description:
+      name: webview_flutter
+      sha256: a3da219916aba44947d3a5478b1927876a09781174b5a2b67fa5be0555154bf9
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.13.1"
+  webview_flutter_android:
+    dependency: transitive
+    description:
+      name: webview_flutter_android
+      sha256: eeeb3fcd5f0ff9f8446c9f4bbc18a99b809e40297528a3395597d03aafb9f510
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.10.11"
+  webview_flutter_platform_interface:
+    dependency: transitive
+    description:
+      name: webview_flutter_platform_interface
+      sha256: "63d26ee3aca7256a83ccb576a50272edd7cfc80573a4305caa98985feb493ee0"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.14.0"
+  webview_flutter_wkwebview:
+    dependency: transitive
+    description:
+      name: webview_flutter_wkwebview
+      sha256: e49f378ed066efb13fc36186bbe0bd2425630d4ea0dbc71a18fdd0e4d8ed8ebc
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.23.5"
   win32:
     dependency: transitive
     description:

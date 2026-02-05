@@ -5,7 +5,7 @@ import '../models/book_model.dart';
 import '../providers/library_provider.dart';
 import '../services/database_service.dart';
 import '../core/constants.dart';
-import 'cover_search_screen.dart';
+import 'google_image_search_screen.dart';
 import '../services/book_service.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -138,19 +138,25 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      final result = await Navigator.push<String>(
+                      final selectedUrl = await Navigator.push<String>(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => CoverSearchScreen(
-                            initialQuery:
+                          builder: (context) => GoogleImageSearchScreen(
+                            query:
                                 '${_titleController.text} ${_authorController.text}',
                           ),
                         ),
                       );
-                      if (result != null) {
-                        setState(() {
-                          _newCoverPath = result;
-                        });
+                      if (selectedUrl != null && mounted) {
+                        setState(() {}); // Show loading indicator if needed
+                        final newPath = await BookService().downloadCover(
+                          selectedUrl,
+                        );
+                        if (newPath.isNotEmpty && mounted) {
+                          setState(() {
+                            _newCoverPath = newPath;
+                          });
+                        }
                       }
                     },
                     icon: const Icon(Icons.image_search),
