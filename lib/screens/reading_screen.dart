@@ -36,6 +36,7 @@ class ReadingScreen extends ConsumerStatefulWidget {
 class _ReadingScreenState extends ConsumerState<ReadingScreen>
     with TickerProviderStateMixin {
   EpubController? _epubController;
+  EpubBook? _epubBook;
   int _pdfPages = 0;
   int _pdfCurrentPage = 0;
   final ValueNotifier<double> _pullDistanceNotifier = ValueNotifier(0.0);
@@ -346,6 +347,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     controller.document.then((document) {
       final flattenedChapters = _flattenChapters(document.Chapters ?? []);
       setState(() {
+        _epubBook = document;
         _chapters = flattenedChapters;
 
         // Find initial chapter index and scroll progress from overall progress
@@ -665,6 +667,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onHideControls: () =>
                               setState(() => _showControls = false),
                           searchQuery: _activeSearchQuery,
+                          epubBook: _epubBook,
                         )
                       else
                         ReadingPdfView(

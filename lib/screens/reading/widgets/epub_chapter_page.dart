@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:epub_view/epub_view.dart' show EpubChapter;
+import 'package:epub_view/epub_view.dart'
+    show EpubChapter, EpubBook, EpubByteContentFile;
 import 'package:flutter_html/flutter_html.dart';
 import '../../../models/reader_settings_model.dart';
 
@@ -26,6 +28,7 @@ class EpubChapterPage extends StatefulWidget {
   final PageController? pageController;
   final ValueNotifier<double> autoScrollSpeedNotifier;
   final String? searchQuery;
+  final EpubBook? epubBook;
 
   const EpubChapterPage({
     super.key,
@@ -47,6 +50,7 @@ class EpubChapterPage extends StatefulWidget {
     required this.pageController,
     required this.autoScrollSpeedNotifier,
     this.searchQuery,
+    this.epubBook,
   });
 
   @override
@@ -280,6 +284,24 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                       Html(
                         data: () {
                           String content = widget.chapter.HtmlContent ?? '';
+
+                          // Inject EPUB CSS if publisher defaults are on
+                          if (widget.settings.usePublisherDefaults &&
+                              widget.epubBook != null) {
+                            final cssFiles = widget.epubBook!.Content?.Css;
+                            if (cssFiles != null && cssFiles.isNotEmpty) {
+                              final buffer = StringBuffer();
+                              buffer.write('<style>');
+                              for (final cssFile in cssFiles.values) {
+                                if (cssFile.Content != null) {
+                                  buffer.write(cssFile.Content!);
+                                }
+                              }
+                              buffer.write('</style>');
+                              content = buffer.toString() + content;
+                            }
+                          }
+
                           if (widget.searchQuery != null &&
                               widget.searchQuery!.isNotEmpty) {
                             final escapedQuery = RegExp.escape(
@@ -295,6 +317,58 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                           }
                           return content;
                         }(),
+                        extensions: [
+                          TagExtension(
+                            tagsToExtend: {"img"},
+                            builder: (extensionContext) {
+                              final src = extensionContext.attributes['src'];
+                              if (src == null || widget.epubBook == null) {
+                                return const SizedBox.shrink();
+                              }
+
+                              // Normalize path
+                              String path = src;
+                              while (path.startsWith('../')) {
+                                path = path.substring(3);
+                              }
+                              if (path.startsWith('/')) {
+                                path = path.substring(1);
+                              }
+                              // URL decode just in case
+                              path = Uri.decodeFull(path);
+
+                              final images = widget.epubBook!.Content?.Images;
+                              if (images == null) {
+                                return const SizedBox.shrink();
+                              }
+
+                              // Try exact match first, then by filename
+                              EpubByteContentFile? imageFile = images[path];
+                              if (imageFile == null) {
+                                final fileName = path.split('/').last;
+                                for (final file in images.values) {
+                                  if (file.FileName == fileName) {
+                                    imageFile = file;
+                                    break;
+                                  }
+                                }
+                              }
+
+                              if (imageFile != null &&
+                                  imageFile.Content != null) {
+                                return Center(
+                                  child: Image.memory(
+                                    Uint8List.fromList(imageFile.Content!),
+                                    width:
+                                        MediaQuery.of(context).size.width - 40,
+                                    fit: BoxFit.contain,
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ],
                         style: {
                           "body": Style(
                             margin: Margins.zero,
@@ -315,7 +389,65 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                                 ? null
                                 : widget.settings.typeface,
                           ),
-                          "p": Style(margin: Margins.only(bottom: 16)),
+                          "p": Style(
+                            margin: Margins.only(bottom: 16),
+                            lineHeight: LineHeight(
+                              widget.settings.lineHeight,
+                              units: "",
+                            ),
+                          ),
+                          "h1": Style(
+                            fontSize: FontSize(
+                              widget.settings.textSize * 1.5,
+                              Unit.px,
+                            ),
+                            fontWeight: FontWeight.bold,
+                            margin: Margins.only(top: 24, bottom: 12),
+                          ),
+                          "h2": Style(
+                            fontSize: FontSize(
+                              widget.settings.textSize * 1.3,
+                              Unit.px,
+                            ),
+                            fontWeight: FontWeight.bold,
+                            margin: Margins.only(top: 20, bottom: 10),
+                          ),
+                          "h3": Style(
+                            fontSize: FontSize(
+                              widget.settings.textSize * 1.1,
+                              Unit.px,
+                            ),
+                            fontWeight: FontWeight.bold,
+                            margin: Margins.only(top: 16, bottom: 8),
+                          ),
+                          "blockquote": Style(
+                            margin: Margins.only(
+                              left: 20,
+                              right: 20,
+                              bottom: 16,
+                            ),
+                            padding: HtmlPaddings.only(left: 12),
+                            border: Border(
+                              left: BorderSide(
+                                color: widget.settings.secondaryTextColor,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                          "code": Style(
+                            fontFamily: "monospace",
+                            backgroundColor: widget.settings.textColor
+                                .withValues(alpha: 0.1),
+                            padding: HtmlPaddings.symmetric(horizontal: 4),
+                          ),
+                          "pre": Style(
+                            margin: Margins.only(bottom: 16),
+                            padding: HtmlPaddings.all(12),
+                            backgroundColor: widget.settings.textColor
+                                .withValues(alpha: 0.1),
+                            fontFamily: "monospace",
+                            display: Display.block,
+                          ),
                           "img": Style(
                             width: Width(
                               MediaQuery.of(context).size.width - 40,

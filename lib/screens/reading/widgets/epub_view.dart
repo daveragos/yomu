@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:epub_view/epub_view.dart' show EpubChapter;
+import 'package:epub_view/epub_view.dart' show EpubChapter, EpubBook;
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 import './epub_chapter_page.dart';
@@ -8,6 +8,7 @@ class ReadingEpubView extends StatelessWidget {
   final Book book;
   final ReaderSettings settings;
   final List<EpubChapter> chapters;
+  final EpubBook? epubBook;
   final PageController? pageController;
   final int currentChapterIndex;
   final bool shouldJumpToBottom;
@@ -42,6 +43,7 @@ class ReadingEpubView extends StatelessWidget {
     required this.onJumpedToPosition,
     required this.onHideControls,
     this.searchQuery,
+    this.epubBook,
   });
 
   @override
@@ -51,6 +53,7 @@ class ReadingEpubView extends StatelessWidget {
     }
 
     return PageView.builder(
+      scrollDirection: Axis.vertical,
       controller: pageController,
       itemCount: chapters.length,
       onPageChanged: onPageChanged,
@@ -74,6 +77,7 @@ class ReadingEpubView extends StatelessWidget {
           pageController: pageController,
           autoScrollSpeedNotifier: autoScrollSpeedNotifier,
           searchQuery: searchQuery,
+          epubBook: epubBook,
         );
       },
     );
