@@ -283,7 +283,9 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                       ],
                       Html(
                         data: () {
-                          String content = widget.chapter.HtmlContent ?? '';
+                          String content = _cleanHtml(
+                            widget.chapter.HtmlContent ?? '',
+                          );
 
                           // Inject EPUB CSS if publisher defaults are on
                           if (widget.settings.usePublisherDefaults &&
@@ -315,6 +317,8 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                               return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
                             });
                           }
+                          // Debug logging
+
                           return content;
                         }(),
                         extensions: [
@@ -322,6 +326,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                             tagsToExtend: {"img"},
                             builder: (extensionContext) {
                               final src = extensionContext.attributes['src'];
+
                               if (src == null || widget.epubBook == null) {
                                 return const SizedBox.shrink();
                               }
@@ -344,6 +349,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
                               // Try exact match first, then by filename
                               EpubByteContentFile? imageFile = images[path];
+
                               if (imageFile == null) {
                                 final fileName = path.split('/').last;
                                 for (final file in images.values) {
@@ -477,6 +483,54 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         widget.scrollProgressNotifier.value = 0.0;
       }
     });
+  }
+
+  String _cleanHtml(String html) {
+    if (html.isEmpty) return html;
+
+    // Remove XML declarations
+    html = html.replaceAll(RegExp(r'<\?xml[^>]*\?>'), '');
+
+    // Remove DOCTYPE declarations
+    html = html.replaceAll(RegExp(r'<!DOCTYPE[^>]*>'), '');
+
+    final svgImageRegex = RegExp(
+      r'<svg[^>]*>.*?(<image[^>]*>).*?</svg>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    html = html.replaceAllMapped(svgImageRegex, (match) {
+      final imageTag = match.group(1);
+      if (imageTag != null) {
+        final hrefRegex = RegExp(
+          r'''(?:xlink:)?href=["']([^"']*)["']''',
+          caseSensitive: false,
+        );
+        final hrefMatch = hrefRegex.firstMatch(imageTag);
+        if (hrefMatch != null) {
+          final src = hrefMatch.group(1);
+          return '<img src="$src" style="width:100%; object-fit: contain;" />';
+        }
+      }
+      return match.group(0)!;
+    });
+
+    final bodyRegex = RegExp(
+      r'(<body[^>]*>.*?</body>)',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final match = bodyRegex.firstMatch(html);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!;
+    }
+
+    if (!html.toLowerCase().contains('<body')) {
+      return '<body>$html</body>';
+    }
+
+    return html;
   }
 
   TextAlign _convertTextAlign(TextAlign? textAlign) {

@@ -409,18 +409,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _recordInteraction();
 
     final progress = _calculateCurrentProgress(book);
-    final now = DateTime.now();
-    final duration = now.difference(_lastSyncTime).inMinutes;
 
+    // Don't report duration on page change - let the heartbeat handle it
     ref
         .read(libraryProvider.notifier)
         .updateBookProgress(
           book.id!,
           progress,
           pagesRead: 0,
-          durationMinutes: duration > 0 ? duration : 0,
+          durationMinutes: 0,
+          estimateReadingTime: false,
         );
-    _lastSyncTime = now;
   }
 
   void _startHeartbeat(Book book) {
@@ -432,6 +431,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       if (_accumulatedSeconds >= 60) {
         _accumulatedSeconds = 0;
         final progress = _calculateCurrentProgress(book);
+
+        // Update last sync time so we don't double count on exit/pause
+        _lastSyncTime = DateTime.now();
+
         ref
             .read(libraryProvider.notifier)
             .updateBookProgress(
@@ -470,6 +473,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             durationMinutes: 0,
             currentPage: page,
             totalPages: total,
+            estimateReadingTime: false,
           );
       return;
     }
@@ -482,22 +486,21 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       final int pagesRead = (page - _lastSyncPage).clamp(0, 1000);
-      final int duration = DateTime.now().difference(_lastSyncTime).inMinutes;
       final progress = _calculateCurrentProgress(book);
 
-      if (pagesRead > 0 || duration >= 1) {
+      if (pagesRead > 0) {
         ref
             .read(libraryProvider.notifier)
             .updateBookProgress(
               book.id!,
               progress,
               pagesRead: pagesRead,
-              durationMinutes: duration,
+              durationMinutes: 0, // Don't report duration here
               currentPage: page,
               totalPages: total,
+              estimateReadingTime: false,
             );
         _lastSyncPage = page;
-        _lastSyncTime = DateTime.now();
       } else {
         ref
             .read(libraryProvider.notifier)
@@ -508,6 +511,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               durationMinutes: 0,
               currentPage: page,
               totalPages: total,
+              estimateReadingTime: false,
             );
       }
     });
@@ -533,6 +537,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final now = DateTime.now();
     int duration = now.difference(_lastSyncTime).inMinutes;
 
+    // Check partial minute progress - if user read for > 30s since last sync
+    // AND accumulated seconds supports it (or close to it), count it.
+    // Using simple logic consistent with heartbeat:
+    // If we have accumulated > 30s since last heartbeat, add a minute.
     if (_accumulatedSeconds >= 30) {
       duration += 1;
     }
@@ -560,6 +568,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             durationMinutes: duration,
             currentPage: currentPage,
             totalPages: totalPages,
+            estimateReadingTime: false,
           );
       _lastSyncTime = now;
       if (book.filePath.toLowerCase().endsWith('.pdf')) {

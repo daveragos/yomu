@@ -534,6 +534,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int? currentPage,
     int? totalPages,
     String? lastPosition,
+    bool estimateReadingTime = true,
   }) async {
     final book = state.allBooks.firstWhereOrNull((b) => b.id == bookId);
     if (book == null) return;
@@ -565,12 +566,17 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int finalPages = pagesRead ?? 0;
     int finalMinutes = durationMinutes ?? 0;
 
-    // Fallback to estimation ONLY if no exact data provided AND progress moved significantly
-    if (finalPages == 0 && finalMinutes == 0 && progress > oldProgress) {
+    // 1. Estimate Pages if not provided, based on progress
+    // We always want to track pages read if progress moved, even if we don't estimate time.
+    if (finalPages == 0 && progress > oldProgress) {
       final effectiveTotalPages = book.totalPages > 0 ? book.totalPages : 300;
       finalPages = ((progress - oldProgress) * effectiveTotalPages)
           .round()
           .clamp(1, 100);
+    }
+
+    // 2. Estimate Minutes ONLY if allowed and not provided
+    if (estimateReadingTime && finalMinutes == 0 && finalPages > 0) {
       // Estimate minutes based on a standard reading speed (e.g., 200 words/min -> ~2 mins per page)
       // but make it distinct from pages.
       finalMinutes = (finalPages * 1.2).ceil().clamp(1, 60);

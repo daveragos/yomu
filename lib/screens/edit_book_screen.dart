@@ -115,11 +115,29 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                             _newCoverPath!,
                             height: 200,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Image.asset(
+                                    'assets/icon.png',
+                                    height: 200,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                           )
                         : Image.file(
                             File(_newCoverPath!),
                             height: 200,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Image.asset(
+                                    'assets/icon.png',
+                                    height: 200,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                           ),
                   ),
                 ],

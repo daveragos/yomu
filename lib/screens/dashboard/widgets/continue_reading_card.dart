@@ -32,13 +32,34 @@ class ContinueReadingCard extends ConsumerWidget {
               height: 120,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(
-                  image: book.coverPath.startsWith('assets')
-                      ? AssetImage(book.coverPath) as ImageProvider
-                      : FileImage(File(book.coverPath)),
-                  fit: BoxFit.cover,
-                ),
+                color: YomuConstants.surface,
                 boxShadow: YomuConstants.cardShadow,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: book.coverPath.startsWith('assets')
+                    ? Image.asset(
+                        book.coverPath,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      )
+                    : Image.file(
+                        File(book.coverPath),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 20),

@@ -39,21 +39,32 @@ class BookCard extends StatelessWidget {
                             fit: BoxFit.cover,
                             placeholder: (context, url) =>
                                 Container(color: YomuConstants.surface),
-                            errorWidget: (context, url, error) =>
-                                const Icon(Icons.book),
+                            errorWidget: (context, url, error) => Padding(
+                              padding: const EdgeInsets.all(50.0),
+                              child: Image.asset(
+                                'assets/icon.png',
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           )
                         : book.coverPath.isNotEmpty
                         ? Image.file(
                             File(book.coverPath),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.book),
+                                Padding(
+                                  padding: const EdgeInsets.all(50.0),
+                                  child: Image.asset(
+                                    'assets/icon.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                           )
-                        : Container(
-                            color: YomuConstants.surface,
-                            child: const Icon(
-                              Icons.book,
-                              color: Colors.white24,
+                        : Padding(
+                            padding: const EdgeInsets.all(40.0),
+                            child: Image.asset(
+                              'assets/icon.png',
+                              fit: BoxFit.contain,
                             ),
                           ),
                     // New Tag
