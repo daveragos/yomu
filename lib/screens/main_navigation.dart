@@ -53,41 +53,44 @@ class MainNavigation extends ConsumerWidget {
         ),
       ),
       extendBody: true,
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: GlassContainer(
-          height: 70,
-          blur: 20,
-          opacity: 0.1,
-          borderRadius: 35,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(
-                ref,
-                index: 0,
-                icon: Icons.dashboard_rounded,
-                label: 'Home',
-              ),
-              _buildNavItem(
-                ref,
-                index: 1,
-                icon: Icons.menu_book_rounded,
-                label: 'Library',
-              ),
-              _buildNavItem(
-                ref,
-                index: 2,
-                icon: Icons.bar_chart_rounded,
-                label: 'Stats',
-              ),
-              _buildNavItem(
-                ref,
-                index: 3,
-                icon: Icons.settings_rounded,
-                label: 'Settings',
-              ),
-            ],
+      bottomNavigationBar: SafeArea(
+        bottom: true,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: GlassContainer(
+            height: 70,
+            blur: 20,
+            opacity: 0.1,
+            borderRadius: 35,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(
+                  ref,
+                  index: 0,
+                  icon: Icons.dashboard_rounded,
+                  label: 'Home',
+                ),
+                _buildNavItem(
+                  ref,
+                  index: 1,
+                  icon: Icons.menu_book_rounded,
+                  label: 'Library',
+                ),
+                _buildNavItem(
+                  ref,
+                  index: 2,
+                  icon: Icons.bar_chart_rounded,
+                  label: 'Stats',
+                ),
+                _buildNavItem(
+                  ref,
+                  index: 3,
+                  icon: Icons.settings_rounded,
+                  label: 'Settings',
+                ),
+              ],
+            ),
           ),
         ),
       ),

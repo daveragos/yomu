@@ -65,6 +65,51 @@ class ReadingPdfView extends StatelessWidget {
                   },
                 ],
                 onPageChanged: onPageChanged,
+                errorBannerBuilder: (context, error, stackTrace, documentRef) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 64,
+                            color: settings.textColor.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load PDF',
+                            style: TextStyle(
+                              color: settings.textColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'The file may be corrupted or missing.',
+                            style: TextStyle(
+                              color: settings.secondaryTextColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            error.toString().replaceAll('PdfException: ', ''),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: settings.secondaryTextColor.withValues(
+                                alpha: 0.7,
+                              ),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
