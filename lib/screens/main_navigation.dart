@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:animations/animations.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -71,30 +70,21 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     if (files.isEmpty) return;
 
     final paths = files.map((f) => f.path).toList();
-    // Import files
-    await ref.read(libraryProvider.notifier).importFiles(paths);
+    // Import files and get the list of imported/matching books
+    final books = await ref.read(libraryProvider.notifier).importFiles(paths);
 
     // After import, try to open the first one
-    if (paths.isNotEmpty) {
-      final firstPath = paths.first;
-      // We need to find the book in the library to open it
-      // importFiles waits for loadBooks(), so state should be updated
-      final book = ref
-          .read(libraryProvider)
-          .allBooks
-          .firstWhereOrNull((b) => b.filePath == firstPath);
+    if (books.isNotEmpty) {
+      final book = books.first;
+      ref.read(currentlyReadingProvider.notifier).state = book;
+      ref.read(libraryProvider.notifier).markBookAsOpened(book);
 
-      if (book != null) {
-        ref.read(currentlyReadingProvider.notifier).state = book;
-        ref.read(libraryProvider.notifier).markBookAsOpened(book);
-
-        // Navigate to ReadingScreen
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ReadingScreen()),
-          );
-        }
+      // Navigate to ReadingScreen
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ReadingScreen()),
+        );
       }
     }
   }

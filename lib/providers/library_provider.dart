@@ -1,4 +1,5 @@
 import 'dart:io' as io;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -510,20 +511,33 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     return filtered;
   }
 
-  Future<void> importFiles(List<String> paths) async {
+  Future<List<Book>> importFiles(List<String> paths) async {
     state = state.copyWith(isLoading: true);
+    final List<Book> result = [];
+    final existing = await _dbService.getBooks();
+
     for (var path in paths) {
       final file = io.File(path);
       final book = await _bookService.processFile(file);
       if (book != null) {
-        final existing = await _dbService.getBooks();
-        if (!existing.any((b) => b.filePath == book.filePath)) {
+        final duplicate = existing.firstWhereOrNull(
+          (b) =>
+              b.filePath == book.filePath ||
+              (book.contentHash != null && b.contentHash == book.contentHash),
+        );
+
+        if (duplicate == null) {
           final bookToInsert = book.copyWith(folderPath: p.dirname(path));
-          await _dbService.insertBook(bookToInsert);
+          final id = await _dbService.insertBook(bookToInsert);
+          result.add(bookToInsert.copyWith(id: id));
+        } else {
+          debugPrint('Duplicate book found, skipping: ${book.title}');
+          result.add(duplicate);
         }
       }
     }
     await loadBooks();
+    return result;
   }
 
   Future<void> updateBookProgress(

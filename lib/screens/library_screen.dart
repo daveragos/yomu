@@ -111,7 +111,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               ],
             ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 80),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.paddingOf(context).bottom - 30,
+        ),
         child: AddBookFab(
           isMenuOpen: _isMenuOpen,
           animationController: _animationController,

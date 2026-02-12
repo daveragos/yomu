@@ -20,6 +20,7 @@ class Book {
   lastPosition; // Granular position string (e.g., CFI for EPUB, offset for PDF)
   final String? audioPath; // Local path to associated audio file
   final int? audioLastPosition; // Last playback position in milliseconds
+  final String? contentHash; // MD5 hash of the file content
 
   Book({
     this.id,
@@ -41,6 +42,7 @@ class Book {
     this.lastPosition,
     this.audioPath,
     this.audioLastPosition,
+    this.contentHash,
   });
 
   Map<String, dynamic> toMap() {
@@ -64,6 +66,7 @@ class Book {
       'lastPosition': lastPosition,
       'audioPath': audioPath,
       'audioLastPosition': audioLastPosition,
+      'contentHash': contentHash,
     };
   }
 
@@ -90,6 +93,7 @@ class Book {
       lastPosition: map['lastPosition'],
       audioPath: map['audioPath'],
       audioLastPosition: map['audioLastPosition'] as int?,
+      contentHash: map['contentHash'],
     );
   }
 
@@ -113,6 +117,7 @@ class Book {
     String? lastPosition,
     String? audioPath,
     int? audioLastPosition,
+    String? contentHash,
   }) {
     return Book(
       id: id ?? this.id,
@@ -135,6 +140,7 @@ class Book {
       lastPosition: lastPosition ?? this.lastPosition,
       audioPath: audioPath ?? this.audioPath,
       audioLastPosition: audioLastPosition ?? this.audioLastPosition,
+      contentHash: contentHash ?? this.contentHash,
     );
   }
 }

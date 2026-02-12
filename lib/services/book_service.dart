@@ -10,6 +10,7 @@ import 'database_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:crypto/crypto.dart';
 
 class BookService {
   final DatabaseService _dbService = DatabaseService();
@@ -118,11 +119,23 @@ class BookService {
               book = await _processPdf(entity);
             }
 
-            if (book != null) {
-              final bookToInsert = book.copyWith(folderPath: p.dirname(path));
-              final id = await _dbService.insertBook(bookToInsert);
-              importedBooks.add(bookToInsert.copyWith(id: id));
-              debugPrint('Imported: ${book.title}');
+            final bck = book;
+            if (bck != null) {
+              final isDuplicate = existingBooks.any(
+                (b) =>
+                    b.filePath == bck.filePath ||
+                    (bck.contentHash != null &&
+                        b.contentHash == bck.contentHash),
+              );
+
+              if (!isDuplicate) {
+                final bookToInsert = bck.copyWith(folderPath: p.dirname(path));
+                final id = await _dbService.insertBook(bookToInsert);
+                importedBooks.add(bookToInsert.copyWith(id: id));
+                debugPrint('Imported: ${bck.title}');
+              } else {
+                debugPrint('Duplicate book found, skipping: ${bck.title}');
+              }
             }
           }
         }
@@ -165,12 +178,22 @@ class BookService {
               book = await _processPdf(entity);
             }
 
-            if (book != null) {
-              final bookToInsert = book.copyWith(
-                folderPath: p.dirname(filePath),
+            final bck = book;
+            if (bck != null) {
+              final isDuplicate = existingBooks.any(
+                (b) =>
+                    b.filePath == bck.filePath ||
+                    (bck.contentHash != null &&
+                        b.contentHash == bck.contentHash),
               );
-              final id = await _dbService.insertBook(bookToInsert);
-              importedBooks.add(bookToInsert.copyWith(id: id));
+
+              if (!isDuplicate) {
+                final bookToInsert = bck.copyWith(
+                  folderPath: p.dirname(filePath),
+                );
+                final id = await _dbService.insertBook(bookToInsert);
+                importedBooks.add(bookToInsert.copyWith(id: id));
+              }
             }
           }
         }
@@ -214,6 +237,7 @@ class BookService {
         filePath: file.path,
         addedAt: DateTime.now(),
         folderPath: p.dirname(file.path),
+        contentHash: await _calculateFileHash(file),
       );
     } catch (e) {
       debugPrint('Error processing epub: $e');
@@ -231,6 +255,7 @@ class BookService {
         filePath: file.path,
         addedAt: DateTime.now(),
         folderPath: p.dirname(file.path),
+        contentHash: await _calculateFileHash(file),
       );
     } catch (e) {
       debugPrint('Error processing pdf: $e');
@@ -276,5 +301,15 @@ class BookService {
       debugPrint('Error saving local cover: $e');
     }
     return '';
+  }
+
+  Future<String> _calculateFileHash(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      return md5.convert(bytes).toString();
+    } catch (e) {
+      debugPrint('Error calculating file hash: $e');
+      return '';
+    }
   }
 }
