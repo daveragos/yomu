@@ -126,8 +126,24 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   void _checkAndJump() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        widget.onJumpedToBottom();
+        final double maxScroll = _scrollController.position.maxScrollExtent;
+        if (maxScroll > 0) {
+          _scrollController.jumpTo(maxScroll);
+          widget.onJumpedToBottom();
+        } else {
+          // If maxScroll is 0, the content might not be laid out yet.
+          // Retry after a short delay.
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted && _scrollController.hasClients) {
+              final double newMaxScroll =
+                  _scrollController.position.maxScrollExtent;
+              if (newMaxScroll > 0) {
+                _scrollController.jumpTo(newMaxScroll);
+              }
+              widget.onJumpedToBottom();
+            }
+          });
+        }
       }
     });
   }

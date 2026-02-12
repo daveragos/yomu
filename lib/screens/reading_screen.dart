@@ -101,6 +101,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   String? _activeSearchQuery;
   bool _isSearchResultsCollapsed = false;
   bool _isOrientationLandscape = false;
+  bool _isJumpingFromToc = false;
 
   @override
   void initState() {
@@ -399,11 +400,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     if (index == _currentChapterIndex) return;
 
     setState(() {
-      _shouldJumpToBottom = index < _currentChapterIndex;
+      _shouldJumpToBottom = !_isJumpingFromToc && index < _currentChapterIndex;
       _currentChapterIndex = index;
       _currentChapter = _chapters[index].Title ?? 'Chapter ${index + 1}';
       // Reset scroll progress for new chapter
       _scrollProgressNotifier.value = 0.0;
+      _isJumpingFromToc = false; // Reset flag after use
     });
 
     _recordInteraction();
@@ -1078,6 +1080,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           currentChapterIndex: _currentChapterIndex,
           onChapterTap: (index) {
             Navigator.pop(context);
+            setState(() {
+              _isJumpingFromToc = true;
+            });
             _pageController?.jumpToPage(index);
           },
           onPdfOutlineTap: (node) {
