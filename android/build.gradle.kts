@@ -3,6 +3,7 @@ allprojects {
         google()
         mavenCentral()
     }
+    // Standard repository configuration
 }
 
 val newBuildDir: Directory =

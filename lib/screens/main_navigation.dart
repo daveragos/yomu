@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'package:animations/animations.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../core/constants.dart';
 import '../components/glass_container.dart';
+import '../providers/library_provider.dart';
 import 'dashboard_screen.dart';
 import 'library_screen.dart';
 import 'stats_screen.dart';
 import 'settings_screen.dart';
+import 'reading_screen.dart';
 
 class NavigationState {
   final int current;
@@ -18,11 +23,84 @@ final navigationStateProvider = StateProvider<NavigationState>(
   (ref) => NavigationState(current: 0, previous: 0),
 );
 
-class MainNavigation extends ConsumerWidget {
+class MainNavigation extends ConsumerStatefulWidget {
   const MainNavigation({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainNavigation> createState() => _MainNavigationState();
+}
+
+class _MainNavigationState extends ConsumerState<MainNavigation> {
+  StreamSubscription? _intentDataStreamSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // For sharing or opening while app is running
+    _intentDataStreamSubscription = ReceiveSharingIntent.instance
+        .getMediaStream()
+        .listen(
+          (List<SharedMediaFile> value) {
+            if (mounted) {
+              _handleSharedFiles(value);
+            }
+          },
+          onError: (err) {
+            debugPrint("getIntentDataStream error: $err");
+          },
+        );
+
+    // For sharing or opening when app is closed
+    ReceiveSharingIntent.instance.getInitialMedia().then((
+      List<SharedMediaFile> value,
+    ) {
+      if (mounted) {
+        _handleSharedFiles(value);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _intentDataStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handleSharedFiles(List<SharedMediaFile> files) async {
+    if (files.isEmpty) return;
+
+    final paths = files.map((f) => f.path).toList();
+    // Import files
+    await ref.read(libraryProvider.notifier).importFiles(paths);
+
+    // After import, try to open the first one
+    if (paths.isNotEmpty) {
+      final firstPath = paths.first;
+      // We need to find the book in the library to open it
+      // importFiles waits for loadBooks(), so state should be updated
+      final book = ref
+          .read(libraryProvider)
+          .allBooks
+          .firstWhereOrNull((b) => b.filePath == firstPath);
+
+      if (book != null) {
+        ref.read(currentlyReadingProvider.notifier).state = book;
+        ref.read(libraryProvider.notifier).markBookAsOpened(book);
+
+        // Navigate to ReadingScreen
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ReadingScreen()),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final navState = ref.watch(navigationStateProvider);
     final selectedIndex = navState.current;
     final isReverse = navState.current < navState.previous;
