@@ -22,7 +22,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -50,7 +50,8 @@ class DatabaseService {
         lastPosition TEXT,
         audioPath TEXT,
         audioLastPosition INTEGER,
-        contentHash TEXT
+        contentHash TEXT,
+        isDeleted INTEGER DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -134,6 +135,11 @@ class DatabaseService {
     if (oldVersion < 10) {
       await db.execute('ALTER TABLE books ADD COLUMN contentHash TEXT');
     }
+    if (oldVersion < 11) {
+      await db.execute(
+        'ALTER TABLE books ADD COLUMN isDeleted INTEGER DEFAULT 0',
+      );
+    }
   }
 
   // Book CRUD
@@ -162,8 +168,40 @@ class DatabaseService {
   }
 
   Future<int> deleteBook(int id) async {
+    return await softDeleteBook(id);
+  }
+
+  Future<int> softDeleteBook(int id) async {
     final db = await database;
-    return await db.delete('books', where: 'id = ?', whereArgs: [id]);
+    return await db.update(
+      'books',
+      {'isDeleted': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> hardDeleteBook(int id) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'reading_sessions',
+        where: 'bookId = ?',
+        whereArgs: [id],
+      );
+      await txn.delete('bookmarks', where: 'bookId = ?', whereArgs: [id]);
+      await txn.delete('books', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  Future<int> restoreBook(int id) async {
+    final db = await database;
+    return await db.update(
+      'books',
+      {'isDeleted': 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   // Bookmark CRUD

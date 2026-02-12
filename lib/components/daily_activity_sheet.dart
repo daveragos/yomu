@@ -142,11 +142,51 @@ class DailyActivitySheet extends StatelessWidget {
                     // Book might have been deleted but session history remains
                   }
 
-                  if (book == null) return const SizedBox.shrink();
-
                   final val = goalType == 'pages'
                       ? session['pagesRead']
                       : session['durationMinutes'];
+
+                  if (book == null) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white10,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(
+                              Icons.book,
+                              color: Colors.white24,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Unknown Book (Removed)',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '+$val',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),

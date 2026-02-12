@@ -21,6 +21,7 @@ class Book {
   final String? audioPath; // Local path to associated audio file
   final int? audioLastPosition; // Last playback position in milliseconds
   final String? contentHash; // MD5 hash of the file content
+  final bool isDeleted;
 
   Book({
     this.id,
@@ -43,6 +44,7 @@ class Book {
     this.audioPath,
     this.audioLastPosition,
     this.contentHash,
+    this.isDeleted = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -67,6 +69,7 @@ class Book {
       'audioPath': audioPath,
       'audioLastPosition': audioLastPosition,
       'contentHash': contentHash,
+      'isDeleted': isDeleted ? 1 : 0,
     };
   }
 
@@ -94,6 +97,7 @@ class Book {
       audioPath: map['audioPath'],
       audioLastPosition: map['audioLastPosition'] as int?,
       contentHash: map['contentHash'],
+      isDeleted: (map['isDeleted'] as int? ?? 0) == 1,
     );
   }
 
@@ -118,6 +122,7 @@ class Book {
     String? audioPath,
     int? audioLastPosition,
     String? contentHash,
+    bool? isDeleted,
   }) {
     return Book(
       id: id ?? this.id,
@@ -141,6 +146,7 @@ class Book {
       audioPath: audioPath ?? this.audioPath,
       audioLastPosition: audioLastPosition ?? this.audioLastPosition,
       contentHash: contentHash ?? this.contentHash,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 }

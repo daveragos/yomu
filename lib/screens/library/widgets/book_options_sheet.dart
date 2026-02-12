@@ -48,30 +48,56 @@ class BookOptionsSheet extends ConsumerWidget {
               style: TextStyle(color: Colors.red),
             ),
             onTap: () async {
+              bool deleteHistory = false;
               final confirm = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Remove Book'),
-                  content: Text(
-                    'Are you sure you want to remove "${book.title}"?',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text(
-                        'Remove',
-                        style: TextStyle(color: Colors.red),
+                builder: (context) => StatefulBuilder(
+                  builder: (context, setDialogState) {
+                    return AlertDialog(
+                      title: const Text('Remove Book'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Are you sure you want to remove "${book.title}" from your library?',
+                          ),
+                          const SizedBox(height: 16),
+                          CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text(
+                              'Remove reading history (minutes, pages, etc.)',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            value: deleteHistory,
+                            onChanged: (val) {
+                              setDialogState(() {
+                                deleteHistory = val ?? false;
+                              });
+                            },
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            'Remove',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               );
               if (confirm == true) {
-                ref.read(libraryProvider.notifier).deleteBook(book.id!);
+                ref
+                    .read(libraryProvider.notifier)
+                    .deleteBook(book.id!, deleteHistory: deleteHistory);
                 if (context.mounted) Navigator.pop(context);
               }
             },

@@ -177,9 +177,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final activity = _calculateActivity(sessions, state.weeklyGoalType);
     final stats = _calculateStats(sessions, books);
 
+    final visibleBooks = books.where((b) => !b.isDeleted).toList();
+
     state = state.copyWith(
-      allBooks: books,
-      filteredBooks: _applyFilters(books, state),
+      allBooks: visibleBooks,
+      filteredBooks: _applyFilters(visibleBooks, state),
       isLoading: false,
       currentStreak: streak,
       activityData: activity.levels,
@@ -530,6 +532,16 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           final bookToInsert = book.copyWith(folderPath: p.dirname(path));
           final id = await _dbService.insertBook(bookToInsert);
           result.add(bookToInsert.copyWith(id: id));
+        } else if (duplicate.isDeleted) {
+          debugPrint('Restoring soft-deleted book: ${duplicate.title}');
+          final bookToUpdate = duplicate.copyWith(
+            isDeleted: false,
+            folderPath: p.dirname(path),
+            filePath: path, // Path might have changed
+          );
+          await _dbService.updateBook(bookToUpdate);
+          await _dbService.restoreBook(duplicate.id!);
+          result.add(bookToUpdate);
         } else {
           debugPrint('Duplicate book found, skipping: ${book.title}');
           result.add(duplicate);
@@ -688,8 +700,12 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     );
   }
 
-  Future<void> deleteBook(int id) async {
-    await _dbService.deleteBook(id);
+  Future<void> deleteBook(int id, {bool deleteHistory = false}) async {
+    if (deleteHistory) {
+      await _dbService.hardDeleteBook(id);
+    } else {
+      await _dbService.softDeleteBook(id);
+    }
     await loadBooks();
   }
 
