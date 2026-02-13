@@ -1,16 +1,70 @@
-# yomu
+# 📖 Yomu
 
-A new Flutter project.
+**Yomu** is a premium, all-in-one reading companion designed for book lovers and audiobook enthusiasts. Whether you're diving into an EPUB, studying a PDF, or listening on the go, Yomu tracks your progress and gamifies your reading journey to help you reach your goals.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## ✨ Key Features
 
-A few resources to get you started if this is your first Flutter project:
+### 📚 Versatile Reader
+- **Multi-Format Support**: Seamlessly read **EPUB** and **PDF** files with a smooth, optimized interface.
+- **Audiobook Integration**: Enjoy your favorite audiobooks with built-in playback controls.
+- **Smart Loading**: Efficiently handle large files with intelligent caching and background rendering.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 📊 Intelligent Tracking
+- **Progress Monitoring**: Track exactly how many pages and minutes you've read.
+- **Time-Based Accuracy**: Advanced logic differentiates between active reading and skimming.
+- **Goal Setting**: Set weekly reading goals (by pages) to stay consistent.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### 🎮 Gamified Experience
+- **Ranks & Levels**: Progress from *Kohai* to *Yomite* and beyond as you read.
+- **Level-Up Celebrations**: Visually stunning rewards and celebrations when you hit new milestones.
+- **Activity Visualizations**: Beautiful charts and insights into your reading habits.
+
+### 🗂️ Library Management
+- **Shelf Organization**: Keep your collection tidy with customizable shelves.
+- **Duplicate Prevention**: Automatic content-based hashing ensures your library stays unique.
+- **History Preservation**: Choose to keep your reading stats even if you remove a book.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: [Flutter](https://flutter.dev)
+- **State Management**: [Riverpod](https://riverpod.dev)
+- **Database**: [SQLite](https://pub.dev/packages/sqflite)
+- **E-Book Rendering**: `epub_view`, `pdfrx`
+- **Audio Playback**: `just_audio`
+- **Animations**: `flutter_animate`, `animations`
+
+---
+
+## 📁 Project Structure
+
+```text
+lib/
+├── components/ # Reusable UI widgets (cards, charts, etc.)
+├── core/       # App themes, constants, and utilities
+├── models/     # Data models (Book, History, Goal)
+├── providers/  # Riverpod providers for state management
+├── screens/    # Feature-specific screens (Library, Reader, Dashboard)
+└── services/   # Database and file system services
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
