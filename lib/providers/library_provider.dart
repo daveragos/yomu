@@ -601,9 +601,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int finalPages = pagesRead ?? 0;
     int finalMinutes = durationMinutes ?? 0;
 
-    // 1. Estimate Pages if not provided, based on progress
-    // We always want to track pages read if progress moved, even if we don't estimate time.
-    if (finalPages == 0 && progress > oldProgress) {
+    // 1. Estimate Pages if null, based on progress
+    // We only want to track pages read if progress moved and pagesRead wasn't provided.
+    if (finalPages == 0 && pagesRead == null && progress > oldProgress) {
       final effectiveTotalPages = book.totalPages > 0 ? book.totalPages : 300;
       finalPages = ((progress - oldProgress) * effectiveTotalPages)
           .round()
@@ -612,8 +612,6 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
     // 2. Estimate Minutes ONLY if allowed and not provided
     if (estimateReadingTime && finalMinutes == 0 && finalPages > 0) {
-      // Estimate minutes based on a standard reading speed (e.g., 200 words/min -> ~2 mins per page)
-      // but make it distinct from pages.
       finalMinutes = (finalPages * 1.2).ceil().clamp(1, 60);
     }
 

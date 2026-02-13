@@ -50,12 +50,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   bool _isPdfReady = false;
   final String _pdfErrorMessage = '';
   DateTime _lastSyncTime = DateTime.now();
-  int _lastSyncPage = 0;
   bool _initialized = false;
   int _accumulatedSeconds = 0;
   DateTime _lastInteractionTime = DateTime.now();
   PdfViewerController? _pdfController;
   final Duration _idlenessTimeout = const Duration(minutes: 2);
+  final Duration _readThreshold = const Duration(seconds: 5);
+  DateTime? _pageEntryTime;
+  final Set<int> _pagesReadThisSession = {};
+  DateTime? _epubPageEntryTime;
+  final Set<int> _epubChaptersReadThisSession = {};
 
   // Audio state
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -364,6 +368,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         _currentChapter =
             flattenedChapters[_currentChapterIndex].Title ??
             'Chapter ${_currentChapterIndex + 1}';
+        _epubPageEntryTime = DateTime.now();
         _initialized = true;
       });
     });
@@ -400,6 +405,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   void _handleChapterPageChange(int index, Book book) {
     if (index == _currentChapterIndex) return;
 
+    final now = DateTime.now();
+    final int previousChapter = _currentChapterIndex;
+
+    // Check if the chapter we are LEAVING was read
+    if (_epubPageEntryTime != null) {
+      final timeOnChapter = now.difference(_epubPageEntryTime!);
+      if (timeOnChapter >= _readThreshold &&
+          !_isJumpingFromToc &&
+          !_epubChaptersReadThisSession.contains(previousChapter)) {
+        _epubChaptersReadThisSession.add(previousChapter);
+      }
+    }
+
+    // Reset entry time for the new chapter
+    _epubPageEntryTime = now;
+
     setState(() {
       _shouldJumpToBottom = !_isJumpingFromToc && index < _currentChapterIndex;
       _currentChapterIndex = index;
@@ -412,17 +433,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _recordInteraction();
 
     final progress = _calculateCurrentProgress(book);
+    final int pagesRead = _epubChaptersReadThisSession.length;
 
-    // Don't report duration on page change - let the heartbeat handle it
+    // Report pages read if any were accumulated
     ref
         .read(libraryProvider.notifier)
         .updateBookProgress(
           book.id!,
           progress,
-          pagesRead: 0,
+          pagesRead: pagesRead > 0 ? pagesRead : 0,
           durationMinutes: 0,
           estimateReadingTime: false,
         );
+
+    if (pagesRead > 0) {
+      _epubChaptersReadThisSession.clear();
+    }
   }
 
   void _startHeartbeat(Book book) {
@@ -459,8 +485,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     if (page == null || total == null || total == 0) return;
 
     if (!_initialized) {
-      _lastSyncPage = (book.progress * (total - 1)).toInt();
       _lastSyncTime = DateTime.now();
+      _pageEntryTime = DateTime.now();
       _initialized = true;
       setState(() {
         _pdfCurrentPage = page;
@@ -481,6 +507,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       return;
     }
 
+    final now = DateTime.now();
+    final int previousPage = _pdfCurrentPage;
+
+    // Check if the page we are LEAVING was read
+    if (_pageEntryTime != null) {
+      final timeOnPage = now.difference(_pageEntryTime!);
+      if (timeOnPage >= _readThreshold &&
+          previousPage != page &&
+          !_pagesReadThisSession.contains(previousPage)) {
+        _pagesReadThisSession.add(previousPage);
+      }
+    }
+
+    // Reset entry time for the new page
+    _pageEntryTime = now;
+
     setState(() {
       _pdfCurrentPage = page;
       _pdfPages = total;
@@ -488,7 +530,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      final int pagesRead = (page - _lastSyncPage).clamp(0, 1000);
+      // Use _pagesReadThisSession to determine actual pages read since last sync
+      final int pagesRead = _pagesReadThisSession.length;
       final progress = _calculateCurrentProgress(book);
 
       if (pagesRead > 0) {
@@ -498,12 +541,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               book.id!,
               progress,
               pagesRead: pagesRead,
-              durationMinutes: 0, // Don't report duration here
+              durationMinutes: 0,
               currentPage: page,
               totalPages: total,
               estimateReadingTime: false,
             );
-        _lastSyncPage = page;
+        _pagesReadThisSession.clear();
       } else {
         ref
             .read(libraryProvider.notifier)
@@ -540,12 +583,25 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final now = DateTime.now();
     int duration = now.difference(_lastSyncTime).inMinutes;
 
-    // Check partial minute progress - if user read for > 30s since last sync
-    // AND accumulated seconds supports it (or close to it), count it.
-    // Using simple logic consistent with heartbeat:
-    // If we have accumulated > 30s since last heartbeat, add a minute.
     if (_accumulatedSeconds >= 30) {
       duration += 1;
+    }
+
+    // Check if the CURRENT page/chapter was read before exiting
+    if (_pageEntryTime != null) {
+      final timeOnPage = now.difference(_pageEntryTime!);
+      if (timeOnPage >= _readThreshold &&
+          !_pagesReadThisSession.contains(_pdfCurrentPage)) {
+        _pagesReadThisSession.add(_pdfCurrentPage);
+      }
+    }
+
+    if (_epubPageEntryTime != null) {
+      final timeOnChapter = now.difference(_epubPageEntryTime!);
+      if (timeOnChapter >= _readThreshold &&
+          !_epubChaptersReadThisSession.contains(_currentChapterIndex)) {
+        _epubChaptersReadThisSession.add(_currentChapterIndex);
+      }
     }
 
     int pagesRead = 0;
@@ -555,10 +611,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     if (book.filePath.toLowerCase().endsWith('.pdf')) {
       if (_pdfPages > 0) {
-        pagesRead = (_pdfCurrentPage - _lastSyncPage).clamp(0, 1000);
+        pagesRead = _pagesReadThisSession.length;
         currentPage = _pdfCurrentPage;
         totalPages = _pdfPages;
       }
+    } else if (book.filePath.toLowerCase().endsWith('.epub')) {
+      pagesRead = _epubChaptersReadThisSession.length;
     }
 
     if (pagesRead > 0 || duration > 0 || progress != book.progress) {
@@ -573,10 +631,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             totalPages: totalPages,
             estimateReadingTime: false,
           );
+      _pagesReadThisSession.clear();
+      _epubChaptersReadThisSession.clear();
       _lastSyncTime = now;
-      if (book.filePath.toLowerCase().endsWith('.pdf')) {
-        _lastSyncPage = _pdfCurrentPage;
-      }
     }
     _accumulatedSeconds = 0;
   }
