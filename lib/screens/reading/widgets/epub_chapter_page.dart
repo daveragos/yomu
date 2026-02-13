@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +7,9 @@ import 'package:epub_view/epub_view.dart'
     show EpubChapter, EpubBook, EpubByteContentFile;
 import 'package:flutter_html/flutter_html.dart';
 import '../../../models/reader_settings_model.dart';
+import '../../../models/highlight_model.dart';
+import 'package:html/parser.dart' as html_parser;
+import 'package:html/dom.dart' as dom;
 
 class EpubChapterPage extends StatefulWidget {
   final int index;
@@ -29,6 +31,9 @@ class EpubChapterPage extends StatefulWidget {
   final ValueNotifier<double> autoScrollSpeedNotifier;
   final String? searchQuery;
   final EpubBook? epubBook;
+  final List<Highlight> highlights;
+  final Function(Highlight) onHighlight;
+  final Function(int) onDeleteHighlight;
 
   const EpubChapterPage({
     super.key,
@@ -51,6 +56,9 @@ class EpubChapterPage extends StatefulWidget {
     required this.autoScrollSpeedNotifier,
     this.searchQuery,
     this.epubBook,
+    required this.highlights,
+    required this.onHighlight,
+    required this.onDeleteHighlight,
   });
 
   @override
@@ -65,6 +73,8 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   bool? _isPullingDown;
   Ticker? _ticker;
   Duration _lastElapsed = Duration.zero;
+  SelectedContent? _selectedContent;
+  String _processedHtml = '';
 
   @override
   void initState() {
@@ -99,6 +109,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     if (widget.autoScrollSpeedNotifier.value > 0) {
       _ticker?.start();
     }
+    _updateProcessedHtml();
   }
 
   void _handleSpeedChange() {
@@ -121,6 +132,14 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         widget.initialScrollProgress > 0) {
       _checkAndJumpToPosition();
     }
+
+    if (widget.chapter != oldWidget.chapter ||
+        widget.highlights != oldWidget.highlights ||
+        widget.searchQuery != oldWidget.searchQuery ||
+        widget.settings.usePublisherDefaults !=
+            oldWidget.settings.usePublisherDefaults) {
+      _updateProcessedHtml();
+    }
   }
 
   void _checkAndJump() {
@@ -131,8 +150,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           _scrollController.jumpTo(maxScroll);
           widget.onJumpedToBottom();
         } else {
-          // If maxScroll is 0, the content might not be laid out yet.
-          // Retry after a short delay.
           Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted && _scrollController.hasClients) {
               final double newMaxScroll =
@@ -271,223 +288,260 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            physics: const BouncingScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(height: 100),
-                  Column(
+          return GestureDetector(
+            onTap: () {
+              if (widget.showControls) {
+                widget.onHideControls();
+              }
+            },
+            behavior: HitTestBehavior.translucent,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: SelectionArea(
+                  onSelectionChanged: (content) {
+                    setState(() {
+                      _selectedContent = content;
+                    });
+                  },
+                  contextMenuBuilder: (context, selectableRegionState) {
+                    return _buildHighlightContextMenu(
+                      context,
+                      selectableRegionState,
+                    );
+                  },
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      if (widget.chapter.Title != null) ...[
-                        Text(
-                          widget.chapter.Title!.toUpperCase(),
-                          style: TextStyle(
-                            color: widget.settings.secondaryTextColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      Html(
-                        data: () {
-                          String content = _cleanHtml(
-                            widget.chapter.HtmlContent ?? '',
-                          );
+                      const SizedBox(height: 100),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (widget.chapter.Title != null) ...[
+                            Text(
+                              widget.chapter.Title!.toUpperCase(),
+                              style: TextStyle(
+                                color: widget.settings.secondaryTextColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                          Html(
+                            data: _processedHtml,
+                            extensions: [
+                              TagExtension(
+                                tagsToExtend: {"img"},
+                                builder: (extensionContext) {
+                                  final src =
+                                      extensionContext.attributes['src'];
 
-                          // Inject EPUB CSS if publisher defaults are on
-                          if (widget.settings.usePublisherDefaults &&
-                              widget.epubBook != null) {
-                            final cssFiles = widget.epubBook!.Content?.Css;
-                            if (cssFiles != null && cssFiles.isNotEmpty) {
-                              final buffer = StringBuffer();
-                              buffer.write('<style>');
-                              for (final cssFile in cssFiles.values) {
-                                if (cssFile.Content != null) {
-                                  buffer.write(cssFile.Content!);
-                                }
-                              }
-                              buffer.write('</style>');
-                              content = buffer.toString() + content;
-                            }
-                          }
-
-                          if (widget.searchQuery != null &&
-                              widget.searchQuery!.isNotEmpty) {
-                            final escapedQuery = RegExp.escape(
-                              widget.searchQuery!,
-                            );
-                            final regex = RegExp(
-                              '(?![^<]*>)$escapedQuery',
-                              caseSensitive: false,
-                            );
-                            content = content.replaceAllMapped(regex, (match) {
-                              return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
-                            });
-                          }
-                          // Debug logging
-
-                          return content;
-                        }(),
-                        extensions: [
-                          TagExtension(
-                            tagsToExtend: {"img"},
-                            builder: (extensionContext) {
-                              final src = extensionContext.attributes['src'];
-
-                              if (src == null || widget.epubBook == null) {
-                                return const SizedBox.shrink();
-                              }
-
-                              // Normalize path
-                              String path = src;
-                              while (path.startsWith('../')) {
-                                path = path.substring(3);
-                              }
-                              if (path.startsWith('/')) {
-                                path = path.substring(1);
-                              }
-                              // URL decode just in case
-                              path = Uri.decodeFull(path);
-
-                              final images = widget.epubBook!.Content?.Images;
-                              if (images == null) {
-                                return const SizedBox.shrink();
-                              }
-
-                              // Try exact match first, then by filename
-                              EpubByteContentFile? imageFile = images[path];
-
-                              if (imageFile == null) {
-                                final fileName = path.split('/').last;
-                                for (final file in images.values) {
-                                  if (file.FileName == fileName) {
-                                    imageFile = file;
-                                    break;
+                                  if (src == null || widget.epubBook == null) {
+                                    return const SizedBox.shrink();
                                   }
-                                }
-                              }
 
-                              if (imageFile != null &&
-                                  imageFile.Content != null) {
-                                return Center(
-                                  child: Image.memory(
-                                    Uint8List.fromList(imageFile.Content!),
-                                    width:
-                                        MediaQuery.of(context).size.width - 40,
-                                    fit: BoxFit.contain,
+                                  // Normalize path
+                                  String path = src;
+                                  while (path.startsWith('../')) {
+                                    path = path.substring(3);
+                                  }
+                                  if (path.startsWith('/')) {
+                                    path = path.substring(1);
+                                  }
+                                  // URL decode just in case
+                                  path = Uri.decodeFull(path);
+
+                                  final images =
+                                      widget.epubBook!.Content?.Images;
+                                  if (images == null) {
+                                    return const SizedBox.shrink();
+                                  }
+
+                                  // Try exact match first, then by filename
+                                  EpubByteContentFile? imageFile = images[path];
+
+                                  if (imageFile == null) {
+                                    final fileName = path.split('/').last;
+                                    for (final file in images.values) {
+                                      if (file.FileName == fileName) {
+                                        imageFile = file;
+                                        break;
+                                      }
+                                    }
+                                  }
+
+                                  if (imageFile != null &&
+                                      imageFile.Content != null) {
+                                    return Center(
+                                      child: Image.memory(
+                                        Uint8List.fromList(imageFile.Content!),
+                                        width:
+                                            MediaQuery.of(context).size.width -
+                                            40,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            ],
+                            style: {
+                              "body": Style(
+                                margin: Margins.zero,
+                                padding: HtmlPaddings.zero,
+                                fontSize: FontSize(
+                                  widget.settings.textSize,
+                                  Unit.px,
+                                ),
+                                lineHeight: LineHeight(
+                                  widget.settings.lineHeight,
+                                  units: "",
+                                ),
+                                color: widget.settings.textColor,
+                                textAlign: _convertTextAlign(
+                                  widget.settings.textAlign,
+                                ),
+                                fontFamily: widget.settings.typeface == 'System'
+                                    ? null
+                                    : widget.settings.typeface,
+                              ),
+                              "p": Style(
+                                margin: Margins.only(bottom: 16),
+                                lineHeight: LineHeight(
+                                  widget.settings.lineHeight,
+                                  units: "",
+                                ),
+                              ),
+                              "h1": Style(
+                                fontSize: FontSize(
+                                  widget.settings.textSize * 1.5,
+                                  Unit.px,
+                                ),
+                                fontWeight: FontWeight.bold,
+                                margin: Margins.only(top: 24, bottom: 12),
+                              ),
+                              "h2": Style(
+                                fontSize: FontSize(
+                                  widget.settings.textSize * 1.3,
+                                  Unit.px,
+                                ),
+                                fontWeight: FontWeight.bold,
+                                margin: Margins.only(top: 20, bottom: 10),
+                              ),
+                              "h3": Style(
+                                fontSize: FontSize(
+                                  widget.settings.textSize * 1.1,
+                                  Unit.px,
+                                ),
+                                fontWeight: FontWeight.bold,
+                                margin: Margins.only(top: 16, bottom: 8),
+                              ),
+                              "blockquote": Style(
+                                margin: Margins.only(
+                                  left: 20,
+                                  right: 20,
+                                  bottom: 16,
+                                ),
+                                padding: HtmlPaddings.only(left: 12),
+                                border: Border(
+                                  left: BorderSide(
+                                    color: widget.settings.secondaryTextColor,
+                                    width: 3,
                                   ),
-                                );
-                              }
-                              return const SizedBox.shrink();
+                                ),
+                              ),
+                              "code": Style(
+                                fontFamily: "monospace",
+                                backgroundColor: widget.settings.textColor
+                                    .withValues(alpha: 0.1),
+                                padding: HtmlPaddings.symmetric(horizontal: 4),
+                              ),
+                              "pre": Style(
+                                margin: Margins.only(bottom: 16),
+                                padding: HtmlPaddings.all(12),
+                                backgroundColor: widget.settings.textColor
+                                    .withValues(alpha: 0.1),
+                                fontFamily: "monospace",
+                                display: Display.block,
+                              ),
+                              "img": Style(
+                                width: Width(
+                                  MediaQuery.of(context).size.width - 40,
+                                  Unit.px,
+                                ),
+                                alignment: Alignment.center,
+                              ),
                             },
                           ),
                         ],
-                        style: {
-                          "body": Style(
-                            margin: Margins.zero,
-                            padding: HtmlPaddings.zero,
-                            fontSize: FontSize(
-                              widget.settings.textSize,
-                              Unit.px,
-                            ),
-                            lineHeight: LineHeight(
-                              widget.settings.lineHeight,
-                              units: "",
-                            ),
-                            color: widget.settings.textColor,
-                            textAlign: _convertTextAlign(
-                              widget.settings.textAlign,
-                            ),
-                            fontFamily: widget.settings.typeface == 'System'
-                                ? null
-                                : widget.settings.typeface,
-                          ),
-                          "p": Style(
-                            margin: Margins.only(bottom: 16),
-                            lineHeight: LineHeight(
-                              widget.settings.lineHeight,
-                              units: "",
-                            ),
-                          ),
-                          "h1": Style(
-                            fontSize: FontSize(
-                              widget.settings.textSize * 1.5,
-                              Unit.px,
-                            ),
-                            fontWeight: FontWeight.bold,
-                            margin: Margins.only(top: 24, bottom: 12),
-                          ),
-                          "h2": Style(
-                            fontSize: FontSize(
-                              widget.settings.textSize * 1.3,
-                              Unit.px,
-                            ),
-                            fontWeight: FontWeight.bold,
-                            margin: Margins.only(top: 20, bottom: 10),
-                          ),
-                          "h3": Style(
-                            fontSize: FontSize(
-                              widget.settings.textSize * 1.1,
-                              Unit.px,
-                            ),
-                            fontWeight: FontWeight.bold,
-                            margin: Margins.only(top: 16, bottom: 8),
-                          ),
-                          "blockquote": Style(
-                            margin: Margins.only(
-                              left: 20,
-                              right: 20,
-                              bottom: 16,
-                            ),
-                            padding: HtmlPaddings.only(left: 12),
-                            border: Border(
-                              left: BorderSide(
-                                color: widget.settings.secondaryTextColor,
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                          "code": Style(
-                            fontFamily: "monospace",
-                            backgroundColor: widget.settings.textColor
-                                .withValues(alpha: 0.1),
-                            padding: HtmlPaddings.symmetric(horizontal: 4),
-                          ),
-                          "pre": Style(
-                            margin: Margins.only(bottom: 16),
-                            padding: HtmlPaddings.all(12),
-                            backgroundColor: widget.settings.textColor
-                                .withValues(alpha: 0.1),
-                            fontFamily: "monospace",
-                            display: Display.block,
-                          ),
-                          "img": Style(
-                            width: Width(
-                              MediaQuery.of(context).size.width - 40,
-                              Unit.px,
-                            ),
-                            alignment: Alignment.center,
-                          ),
-                        },
                       ),
+                      const SizedBox(height: 100),
                     ],
                   ),
-                  const SizedBox(height: 100),
-                ],
+                ),
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildHighlightContextMenu(
+    BuildContext context,
+    SelectableRegionState selectableRegionState,
+  ) {
+    final selectedText = _selectedContent?.plainText;
+    if (selectedText == null || selectedText.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final List<Color> colors = [
+      const Color(0xFFE74C3C), // Red
+      const Color(0xFFF1C40F), // Yellow
+      const Color(0xFF2ECC71), // Green
+      const Color(0xFF3498DB), // Blue
+      const Color(0xFF9B59B6), // Purple
+    ];
+
+    return AdaptiveTextSelectionToolbar(
+      anchors: selectableRegionState.contextMenuAnchors,
+      children: [
+        ...colors.map(
+          (color) => IconButton(
+            icon: Icon(Icons.circle, color: color),
+            onPressed: () {
+              final hexColor =
+                  '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+              widget.onHighlight(
+                Highlight(
+                  bookId: 0, // Will be set in ReadingScreen
+                  text: selectedText,
+                  color: hexColor,
+                  createdAt: DateTime.now(),
+                  position: '', // TODO: Position string for EPUB if needed
+                  chapterTitle: widget.chapter.Title,
+                ),
+              );
+              selectableRegionState.hideToolbar();
+            },
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.copy),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: selectedText));
+            selectableRegionState.hideToolbar();
+          },
+        ),
+      ],
     );
   }
 
@@ -499,6 +553,124 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         widget.scrollProgressNotifier.value = 0.0;
       }
     });
+  }
+
+  String _processContent() {
+    String content = widget.chapter.HtmlContent ?? '';
+    // 1. Basic string cleanup (XML, DOCTYPE, SVG)
+    content = _cleanHtml(content);
+
+    // 2. Parse to DOM
+    var document = html_parser.parseFragment(content);
+
+    // 3. Inject CSS
+    if (widget.settings.usePublisherDefaults && widget.epubBook != null) {
+      final cssFiles = widget.epubBook!.Content?.Css;
+      if (cssFiles != null && cssFiles.isNotEmpty) {
+        final buffer = StringBuffer();
+        for (final cssFile in cssFiles.values) {
+          if (cssFile.Content != null) {
+            buffer.write(cssFile.Content!);
+          }
+        }
+        if (buffer.isNotEmpty) {
+          final styleElement = dom.Element.tag('style');
+          styleElement.text = buffer.toString();
+          document.insertBefore(styleElement, document.nodes.firstOrNull);
+        }
+      }
+    }
+
+    // 4. Handle Highlights
+    final chapterHighlights = widget.highlights.where(
+      (h) => h.chapterTitle == widget.chapter.Title,
+    );
+    // Sort highlights by length (descending) to prefer longer matches if they overlap?
+    // Or just apply them.
+    for (final highlight in chapterHighlights) {
+      _highlightTextInDom(document, highlight.text, highlight.color);
+    }
+
+    // 5. Handle Search Query
+    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+      _highlightTextInDom(
+        document,
+        widget.searchQuery!,
+        '#2ECC71',
+        isSearch: true,
+      );
+    }
+
+    return document.outerHtml;
+  }
+
+  void _updateProcessedHtml() {
+    _processedHtml = _processContent();
+  }
+
+  void _highlightTextInDom(
+    dom.Node node,
+    String text,
+    String color, {
+    bool isSearch = false,
+  }) {
+    if (node.nodeType == dom.Node.TEXT_NODE) {
+      final nodeText = node.text!;
+      if (nodeText.isEmpty) return;
+
+      // Simple case-sensitive check for now, can make it cleaner.
+      // Search query is currently case-insensitive in the old code, so let's support that.
+      final matches = isSearch
+          ? RegExp(
+              RegExp.escape(text),
+              caseSensitive: false,
+            ).allMatches(nodeText)
+          : RegExp(RegExp.escape(text)).allMatches(nodeText);
+
+      if (matches.isEmpty) return;
+
+      // We found matches. We need to split this text node.
+
+      List<dom.Node> newNodes = [];
+      int lastIndex = 0;
+
+      for (final match in matches) {
+        if (match.start > lastIndex) {
+          newNodes.add(dom.Text(nodeText.substring(lastIndex, match.start)));
+        }
+
+        final span = dom.Element.tag('span');
+        if (isSearch) {
+          span.attributes['style'] =
+              "background-color: $color; color: #000000; border-radius: 2px; padding: 0 2px;";
+        } else {
+          span.attributes['style'] =
+              "background-color: ${color}B3; border-bottom: 2px solid $color;";
+        }
+        span.text = match.group(0)!;
+        newNodes.add(span);
+
+        lastIndex = match.end;
+      }
+
+      if (lastIndex < nodeText.length) {
+        newNodes.add(dom.Text(nodeText.substring(lastIndex)));
+      }
+
+      // Replace the old text node with the new nodes
+      final parent = node.parentNode;
+      if (parent != null) {
+        final index = parent.nodes.indexOf(node);
+        if (index != -1) {
+          parent.nodes.removeAt(index);
+          parent.nodes.insertAll(index, newNodes);
+        }
+      }
+    } else if (node.hasChildNodes()) {
+      for (var child in List<dom.Node>.from(node.nodes)) {
+        _highlightTextInDom(child, text, color, isSearch: isSearch);
+      }
+    }
   }
 
   String _cleanHtml(String html) {

@@ -3,6 +3,7 @@ import 'package:epub_view/epub_view.dart' show EpubChapter;
 import 'package:pdfrx/pdfrx.dart' show PdfOutlineNode;
 import '../../../models/book_model.dart';
 import '../../../models/bookmark_model.dart';
+import '../../../models/highlight_model.dart';
 import '../../../core/constants.dart';
 
 class NavigationSheet extends StatelessWidget {
@@ -15,6 +16,9 @@ class NavigationSheet extends StatelessWidget {
   final Future<List<Bookmark>> Function() getBookmarks;
   final Function(Bookmark) onDeleteBookmark;
   final Function(Bookmark) onBookmarkTap;
+  final List<Highlight> highlights;
+  final Function(int) onDeleteHighlight;
+  final Function(Highlight) onHighlightTap;
   final String Function(DateTime) formatDate;
 
   const NavigationSheet({
@@ -28,13 +32,16 @@ class NavigationSheet extends StatelessWidget {
     required this.getBookmarks,
     required this.onDeleteBookmark,
     required this.onBookmarkTap,
+    required this.highlights,
+    required this.onDeleteHighlight,
+    required this.onHighlightTap,
     required this.formatDate,
   });
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Container(
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: const BoxDecoration(
@@ -61,11 +68,16 @@ class NavigationSheet extends StatelessWidget {
               tabs: [
                 Tab(text: 'CHAPTERS'),
                 Tab(text: 'BOOKMARKS'),
+                Tab(text: 'HIGHLIGHTS'),
               ],
             ),
             Expanded(
               child: TabBarView(
-                children: [_buildChaptersList(), _buildBookmarksList()],
+                children: [
+                  _buildChaptersList(),
+                  _buildBookmarksList(),
+                  _buildHighlightsList(),
+                ],
               ),
             ),
           ],
@@ -162,6 +174,51 @@ class NavigationSheet extends StatelessWidget {
               },
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildHighlightsList() {
+    if (highlights.isEmpty) {
+      return const Center(
+        child: Text(
+          'No highlights found',
+          style: TextStyle(color: Colors.white54),
+        ),
+      );
+    }
+
+    // Sort highlights by date descending
+    final sortedHighlights = List<Highlight>.from(highlights)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: sortedHighlights.length,
+      itemBuilder: (context, index) {
+        final highlight = sortedHighlights[index];
+        final color = Color(
+          int.parse(highlight.color.replaceFirst('#', '0xFF')),
+        );
+
+        return ListTile(
+          leading: Icon(Icons.circle, color: color, size: 16),
+          title: Text(
+            highlight.text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+          subtitle: Text(
+            '${highlight.chapterTitle ?? "Unknown Chapter"} • ${formatDate(highlight.createdAt)}',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white38),
+            onPressed: () => onDeleteHighlight(highlight.id!),
+          ),
+          onTap: () => onHighlightTap(highlight),
         );
       },
     );

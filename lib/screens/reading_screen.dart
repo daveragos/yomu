@@ -679,6 +679,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               setState(() => _showControls = false),
                           searchQuery: _activeSearchQuery,
                           epubBook: _epubBook,
+                          highlights: ref
+                              .watch(libraryProvider)
+                              .highlights
+                              .where((h) => h.bookId == book.id)
+                              .toList(),
+                          onHighlight: (highlight) {
+                            ref
+                                .read(libraryProvider.notifier)
+                                .addHighlight(
+                                  highlight.copyWith(bookId: book.id),
+                                );
+                          },
+                          onDeleteHighlight: (id) {
+                            ref
+                                .read(libraryProvider.notifier)
+                                .deleteHighlight(id);
+                          },
                         )
                       else
                         ReadingPdfView(
@@ -717,6 +734,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onHideControls: () =>
                               setState(() => _showControls = false),
                           showControls: _showControls,
+                          highlights: ref
+                              .watch(libraryProvider)
+                              .highlights
+                              .where((h) => h.bookId == book.id)
+                              .toList(),
+                          onHighlight: (highlight) {
+                            ref
+                                .read(libraryProvider.notifier)
+                                .addHighlight(
+                                  highlight.copyWith(bookId: book.id),
+                                );
+                          },
+                          onDeleteHighlight: (id) {
+                            ref
+                                .read(libraryProvider.notifier)
+                                .deleteHighlight(id);
+                          },
                         ),
                       _buildAnimatedControlsOverlay(context, book, settings),
                       if (_pdfErrorMessage.isNotEmpty)
@@ -924,8 +958,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       final List<SearchResult> results = [];
       if (book.filePath.toLowerCase().endsWith('.pdf')) {
         // PDF Search mirroring EPUB behavior
-        final doc = _pdfController?.document;
-        if (doc != null && _pdfSearcher != null) {
+        if (_pdfController != null && _pdfSearcher != null) {
           // Track the query for highlighting in the PDF view
           _pdfSearcher!.startTextSearch(
             query,
@@ -933,50 +966,52 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             searchImmediately: true,
           );
 
-          for (int i = 0; i < doc.pages.length; i++) {
-            final page = doc.pages[i];
-            final pageText = await page.loadText();
-            final plainText = pageText.fullText;
-            final lowerText = plainText.toLowerCase();
-            final lowerQuery = query.toLowerCase();
+          await _pdfController!.useDocument((doc) async {
+            for (int i = 0; i < doc.pages.length; i++) {
+              final page = doc.pages[i];
+              final pageText = await page.loadText();
+              final plainText = pageText.fullText;
+              final lowerText = plainText.toLowerCase();
+              final lowerQuery = query.toLowerCase();
 
-            int startIndex = 0;
-            while (true) {
-              final index = lowerText.indexOf(lowerQuery, startIndex);
-              if (index == -1) break;
+              int startIndex = 0;
+              while (true) {
+                final index = lowerText.indexOf(lowerQuery, startIndex);
+                if (index == -1) break;
 
-              final snippetStart = (index - 40).clamp(0, plainText.length);
-              final snippetEnd = (index + query.length + 60).clamp(
-                0,
-                plainText.length,
-              );
-              final snippet = plainText
-                  .substring(snippetStart, snippetEnd)
-                  .replaceAll('\n', ' ')
-                  .trim();
+                final snippetStart = (index - 40).clamp(0, plainText.length);
+                final snippetEnd = (index + query.length + 60).clamp(
+                  0,
+                  plainText.length,
+                );
+                final snippet = plainText
+                    .substring(snippetStart, snippetEnd)
+                    .replaceAll('\n', ' ')
+                    .trim();
 
-              // Create a match object for precise navigation later
-              final match = PdfTextRangeWithFragments.fromTextRange(
-                pageText,
-                index,
-                index + query.length,
-              );
+                // Create a match object for precise navigation later
+                final match = PdfTextRangeWithFragments.fromTextRange(
+                  pageText,
+                  index,
+                  index + query.length,
+                );
 
-              results.add(
-                SearchResult(
-                  pageIndex: i,
-                  title: 'Page ${i + 1}',
-                  snippet: '...$snippet...',
-                  query: query,
-                  metadata: match,
-                ),
-              );
+                results.add(
+                  SearchResult(
+                    pageIndex: i,
+                    title: 'Page ${i + 1}',
+                    snippet: '...$snippet...',
+                    query: query,
+                    metadata: match,
+                  ),
+                );
 
-              startIndex = index + query.length;
+                startIndex = index + query.length;
+                if (results.length >= 30) break;
+              }
               if (results.length >= 30) break;
             }
-            if (results.length >= 30) break;
-          }
+          });
         }
       } else {
         // EPUB Search
@@ -1089,6 +1124,56 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             if (node.dest?.pageNumber != null) {
               Navigator.pop(context);
               _pdfController?.goToPage(pageNumber: node.dest!.pageNumber);
+            }
+          },
+          highlights: ref
+              .watch(libraryProvider)
+              .highlights
+              .where((h) => h.bookId == book.id)
+              .toList(),
+          onDeleteHighlight: (id) =>
+              ref.read(libraryProvider.notifier).deleteHighlight(id),
+          onHighlightTap: (highlight) {
+            Navigator.pop(context);
+            if (book.filePath.toLowerCase().endsWith('.epub')) {
+              final index = _chapters.indexWhere(
+                (c) => c.Title == highlight.chapterTitle,
+              );
+              if (index != -1) {
+                _pageController?.jumpToPage(index);
+              }
+            } else if (book.filePath.toLowerCase().endsWith('.pdf')) {
+              if (highlight.position.contains(':')) {
+                final parts = highlight.position.split(':');
+                final pageNum = int.tryParse(parts[0]) ?? 1;
+
+                if (parts.length > 1) {
+                  final rectStrings = parts[1].split(';');
+                  final rectList = <PdfRect>[];
+                  for (final rs in rectStrings) {
+                    final coords = rs.split(',');
+                    if (coords.length == 4) {
+                      rectList.add(
+                        PdfRect(
+                          double.parse(coords[0]),
+                          double.parse(coords[1]),
+                          double.parse(coords[2]),
+                          double.parse(coords[3]),
+                        ),
+                      );
+                    }
+                  }
+                  if (rectList.isNotEmpty) {
+                    final bounds = rectList.boundingRect();
+                    _pdfController?.goToRectInsidePage(
+                      pageNumber: pageNum,
+                      rect: bounds,
+                    );
+                    return;
+                  }
+                }
+                _pdfController?.goToPage(pageNumber: pageNum);
+              }
             }
           },
           getBookmarks: () =>

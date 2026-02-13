@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
 import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
+import '../models/highlight_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
 
@@ -41,6 +42,7 @@ class LibraryState {
   final String weeklyGoalType; // 'minutes' or 'pages'
   final Set<String> unlockedAchievements;
   final List<Map<String, dynamic>> sessionHistory;
+  final List<Highlight> highlights;
 
   LibraryState({
     required this.allBooks,
@@ -67,6 +69,7 @@ class LibraryState {
     this.weeklyGoalType = 'minutes',
     this.unlockedAchievements = const {},
     this.sessionHistory = const [],
+    this.highlights = const [],
   });
 
   LibraryState copyWith({
@@ -94,6 +97,7 @@ class LibraryState {
     String? weeklyGoalType,
     Set<String>? unlockedAchievements,
     List<Map<String, dynamic>>? sessionHistory,
+    List<Highlight>? highlights,
   }) {
     return LibraryState(
       allBooks: allBooks ?? this.allBooks,
@@ -120,6 +124,7 @@ class LibraryState {
       weeklyGoalType: weeklyGoalType ?? this.weeklyGoalType,
       unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
       sessionHistory: sessionHistory ?? this.sessionHistory,
+      highlights: highlights ?? this.highlights,
     );
   }
 }
@@ -151,6 +156,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           selectedTag: 'All',
           sortBy: BookSortBy.recent,
           sortAscending: false,
+          highlights: [],
         ),
       ) {
     _init();
@@ -176,6 +182,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final streak = _calculateStreak(sessions);
     final activity = _calculateActivity(sessions, state.weeklyGoalType);
     final stats = _calculateStats(sessions, books);
+    final highlights = await _dbService.getAllHighlights();
 
     final visibleBooks = books.where((b) => !b.isDeleted).toList();
 
@@ -192,6 +199,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       totalMinutesRead: stats.totalMinutes,
       unlockedAchievements: stats.achievements,
       sessionHistory: sessions,
+      highlights: highlights,
     );
   }
 
@@ -759,6 +767,25 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
   Future<void> deleteBookmark(int bookmarkId) async {
     await _dbService.deleteBookmark(bookmarkId);
+  }
+
+  Future<void> addHighlight(Highlight highlight) async {
+    await _dbService.insertHighlight(highlight);
+    await loadBooks(); // Refresh all state
+  }
+
+  Future<List<Highlight>> getHighlights(int bookId) async {
+    return await _dbService.getHighlights(bookId);
+  }
+
+  Future<void> updateHighlight(Highlight highlight) async {
+    await _dbService.updateHighlight(highlight);
+    await loadBooks();
+  }
+
+  Future<void> deleteHighlight(int highlightId) async {
+    await _dbService.deleteHighlight(highlightId);
+    await loadBooks();
   }
 
   void _updateStateAndSync(Book updatedBook) {

@@ -37,6 +37,8 @@ dependencies:
       url: https://github.com/KasemJaffer/receive_sharing_intent
       ref: 2cea396843cd3ab1b5ec4334be4233864637874e
   crypto: ^3.0.7
+  image: ^3.0.8
+  html: ^0.15.6
 
 dev_dependencies:
   flutter_test:
