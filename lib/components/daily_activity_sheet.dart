@@ -158,10 +158,12 @@ class DailyActivitySheet extends StatelessWidget {
                               color: Colors.white10,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Icon(
-                              Icons.book,
-                              color: Colors.white24,
-                              size: 16,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Image.asset(
+                                'assets/icon.png',
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -197,12 +199,34 @@ class DailyActivitySheet extends StatelessWidget {
                           height: 48,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(4),
-                            image: DecorationImage(
-                              image: book.coverPath.startsWith('assets')
-                                  ? AssetImage(book.coverPath) as ImageProvider
-                                  : FileImage(File(book.coverPath)),
-                              fit: BoxFit.cover,
-                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: book.coverPath.startsWith('assets')
+                                ? Image.asset(
+                                    book.coverPath,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Image.asset(
+                                            'assets/icon.png',
+                                            fit: BoxFit.contain,
+                                          ),
+                                        ),
+                                  )
+                                : Image.file(
+                                    File(book.coverPath),
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Image.asset(
+                                            'assets/icon.png',
+                                            fit: BoxFit.contain,
+                                          ),
+                                        ),
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 12),

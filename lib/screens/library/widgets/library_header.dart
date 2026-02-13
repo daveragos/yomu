@@ -106,21 +106,7 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
                               : Icons.favorite_border_rounded,
                           onTap: () => notifier.toggleFavoriteOnly(),
                         ),
-                        _FilterChip(
-                          label: state.selectedGenre == 'All'
-                              ? 'Genre'
-                              : state.selectedGenre,
-                          isSelected: state.selectedGenre != 'All',
-                          hasDropdown: true,
-                          dropdownOptions: [
-                            'All',
-                            ...state.allBooks
-                                .map((b) => b.genre ?? 'Unknown')
-                                .toSet(),
-                          ].toList(),
-                          onSelected: (val) => notifier.setGenreFilter(val),
-                          onTap: () {},
-                        ),
+
                         _FilterChip(
                           label: state.selectedAuthor == 'All'
                               ? 'Author'

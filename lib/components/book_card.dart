@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constants.dart';
+import '../components/glass_container.dart';
 
 import '../models/book_model.dart';
 
@@ -17,19 +18,18 @@ class BookCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Container(
+      child: GlassContainer(
         width: 150,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(YomuConstants.borderRadius),
-          boxShadow: YomuConstants.cardShadow,
-        ),
+        padding: const EdgeInsets.all(8),
+        borderRadius: YomuConstants.borderRadius,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(YomuConstants.borderRadius),
+                borderRadius: BorderRadius.circular(
+                  YomuConstants.borderRadius - 4,
+                ),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

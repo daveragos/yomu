@@ -73,6 +73,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   String _currentChapter = 'Chapter 1';
   List<EpubChapter> _chapters = [];
   List<PdfOutlineNode> _pdfOutline = [];
+  List<PdfOutlineNode> _tocPdfOutline = [];
   PageController? _pageController;
   int _currentChapterIndex = 0;
 
@@ -690,11 +691,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             _pdfSearcher = PdfTextSearcher(controller);
                             _pdfSearcher!.addListener(() => setState(() {}));
                             final outline = await document.loadOutline();
-                            setState(() {
-                              _pdfPages = document.pages.length;
-                              _pdfOutline = _flattenPdfOutline(outline);
-                              _isPdfReady = true;
-                            });
+                            if (mounted) {
+                              setState(() {
+                                _pdfPages = document.pages.length;
+                                _tocPdfOutline = outline;
+                                _pdfOutline = _flattenPdfOutline(outline);
+                                _isPdfReady = true;
+                              });
+                            }
                             if (!_initialized) {
                               final initialPage =
                                   (book.progress * (_pdfPages - 1)).toInt();
@@ -1076,7 +1080,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         return NavigationSheet(
           book: book,
           chapters: _chapters,
+          tocChapters: _epubBook?.Chapters ?? [],
           pdfOutline: _pdfOutline,
+          tocPdfOutline: _tocPdfOutline,
           currentChapterIndex: _currentChapterIndex,
           onChapterTap: (index) {
             Navigator.pop(context);

@@ -133,7 +133,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildBookGrid(List<Book> books) {
     return GridView.builder(
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 0.65,

@@ -8,7 +8,9 @@ import '../../../core/constants.dart';
 class NavigationSheet extends StatelessWidget {
   final Book book;
   final List<EpubChapter> chapters;
+  final List<EpubChapter> tocChapters;
   final List<PdfOutlineNode> pdfOutline;
+  final List<PdfOutlineNode> tocPdfOutline;
   final int currentChapterIndex;
   final Function(int) onChapterTap;
   final Function(PdfOutlineNode) onPdfOutlineTap;
@@ -21,7 +23,9 @@ class NavigationSheet extends StatelessWidget {
     super.key,
     required this.book,
     required this.chapters,
+    required this.tocChapters,
     required this.pdfOutline,
+    required this.tocPdfOutline,
     required this.currentChapterIndex,
     required this.onChapterTap,
     required this.onPdfOutlineTap,
@@ -76,43 +80,24 @@ class NavigationSheet extends StatelessWidget {
 
   Widget _buildChaptersList() {
     if (book.filePath.toLowerCase().endsWith('.epub')) {
-      return ListView.builder(
+      return ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: chapters.length,
-        itemBuilder: (context, index) {
-          final chapter = chapters[index];
-          final isCurrent = currentChapterIndex == index;
-
-          return ListTile(
-            title: Text(
-              chapter.Title ?? 'Chapter ${index + 1}',
-              style: TextStyle(
-                color: isCurrent ? YomuConstants.accent : Colors.white,
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            onTap: () => onChapterTap(index),
+        children: tocChapters.map((chapter) {
+          return _ChapterTreeItem(
+            chapter: chapter,
+            depth: 0,
+            currentChapterIndex: currentChapterIndex,
+            flattenedChapters: chapters,
+            onTap: onChapterTap,
           );
-        },
+        }).toList(),
       );
     } else {
-      return ListView.builder(
+      return ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: pdfOutline.length,
-        itemBuilder: (context, index) {
-          final node = pdfOutline[index];
-          return ListTile(
-            contentPadding: EdgeInsets.only(
-              left: 16.0 + (node.dest?.pageNumber != null ? 0 : 16),
-              right: 16,
-            ),
-            title: Text(
-              node.title,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-            onTap: () => onPdfOutlineTap(node),
-          );
-        },
+        children: tocPdfOutline.map((node) {
+          return _PdfTreeItem(node: node, depth: 0, onTap: onPdfOutlineTap);
+        }).toList(),
       );
     }
   }
@@ -164,6 +149,194 @@ class NavigationSheet extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _ChapterTreeItem extends StatefulWidget {
+  final EpubChapter chapter;
+  final int depth;
+  final int currentChapterIndex;
+  final List<EpubChapter> flattenedChapters;
+  final Function(int) onTap;
+
+  const _ChapterTreeItem({
+    required this.chapter,
+    required this.depth,
+    required this.currentChapterIndex,
+    required this.flattenedChapters,
+    required this.onTap,
+  });
+
+  @override
+  State<_ChapterTreeItem> createState() => _ChapterTreeItemState();
+}
+
+class _ChapterTreeItemState extends State<_ChapterTreeItem> {
+  bool _isExpanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSubChapters =
+        widget.chapter.SubChapters != null &&
+        widget.chapter.SubChapters!.isNotEmpty;
+    final index = widget.flattenedChapters.indexOf(widget.chapter);
+    final isCurrent = widget.currentChapterIndex == index;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              if (index != -1) {
+                widget.onTap(index);
+              }
+            },
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16.0 + (widget.depth * 16.0),
+                top: 12,
+                bottom: 12,
+                right: 8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.chapter.Title?.trim() ?? 'Chapter',
+                      style: TextStyle(
+                        color: isCurrent ? YomuConstants.accent : Colors.white,
+                        fontWeight: isCurrent
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  if (hasSubChapters)
+                    IconButton(
+                      icon: Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isExpanded = !_isExpanded;
+                        });
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      style: const ButtonStyle(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isExpanded && hasSubChapters)
+          Column(
+            children: widget.chapter.SubChapters!.map((subChapter) {
+              return _ChapterTreeItem(
+                chapter: subChapter,
+                depth: widget.depth + 1,
+                currentChapterIndex: widget.currentChapterIndex,
+                flattenedChapters: widget.flattenedChapters,
+                onTap: widget.onTap,
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+}
+
+class _PdfTreeItem extends StatefulWidget {
+  final PdfOutlineNode node;
+  final int depth;
+  final Function(PdfOutlineNode) onTap;
+
+  const _PdfTreeItem({
+    required this.node,
+    required this.depth,
+    required this.onTap,
+  });
+
+  @override
+  State<_PdfTreeItem> createState() => _PdfTreeItemState();
+}
+
+class _PdfTreeItemState extends State<_PdfTreeItem> {
+  bool _isExpanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasChildren = widget.node.children.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => widget.onTap(widget.node),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16.0 + (widget.depth * 16.0),
+                top: 12,
+                bottom: 12,
+                right: 8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.node.title,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  if (hasChildren)
+                    IconButton(
+                      icon: Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isExpanded = !_isExpanded;
+                        });
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      style: const ButtonStyle(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isExpanded && hasChildren)
+          Column(
+            children: widget.node.children.map((child) {
+              return _PdfTreeItem(
+                node: child,
+                depth: widget.depth + 1,
+                onTap: widget.onTap,
+              );
+            }).toList(),
+          ),
+      ],
     );
   }
 }
