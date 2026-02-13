@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
+import '../core/constants.dart';
 import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
@@ -42,6 +43,8 @@ class LibraryState {
   final Set<String> unlockedAchievements;
   final List<Map<String, dynamic>> sessionHistory;
 
+  final int lastCelebratedLevel;
+
   LibraryState({
     required this.allBooks,
     required this.filteredBooks,
@@ -61,13 +64,16 @@ class LibraryState {
     this.dailyReadingValues = const {},
     this.totalXP = 0,
     this.level = 1,
+    this.lastCelebratedLevel = 1,
     this.totalPagesRead = 0,
     this.totalMinutesRead = 0,
-    this.weeklyGoalValue = 300,
-    this.weeklyGoalType = 'minutes',
+    this.weeklyGoalValue = 100,
+    this.weeklyGoalType = 'pages',
     this.unlockedAchievements = const {},
     this.sessionHistory = const [],
   });
+
+  String get rankName => YomuConstants.getRankForLevel(level).name;
 
   LibraryState copyWith({
     List<Book>? allBooks,
@@ -88,6 +94,7 @@ class LibraryState {
     Map<String, int>? dailyReadingValues,
     int? totalXP,
     int? level,
+    int? lastCelebratedLevel,
     int? totalPagesRead,
     int? totalMinutesRead,
     double? weeklyGoalValue,
@@ -114,6 +121,7 @@ class LibraryState {
       dailyReadingValues: dailyReadingValues ?? this.dailyReadingValues,
       totalXP: totalXP ?? this.totalXP,
       level: level ?? this.level,
+      lastCelebratedLevel: lastCelebratedLevel ?? this.lastCelebratedLevel,
       totalPagesRead: totalPagesRead ?? this.totalPagesRead,
       totalMinutesRead: totalMinutesRead ?? this.totalMinutesRead,
       weeklyGoalValue: weeklyGoalValue ?? this.weeklyGoalValue,
@@ -163,9 +171,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
   Future<void> _loadGoal() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getDouble('weeklyGoalValue') ?? 300.0;
-    final type = prefs.getString('weeklyGoalType') ?? 'minutes';
-    state = state.copyWith(weeklyGoalValue: value, weeklyGoalType: type);
+    final value = prefs.getDouble('weeklyGoalValue') ?? 100.0;
+    final type = prefs.getString('weeklyGoalType') ?? 'pages';
+    final celebrated = prefs.getInt('lastCelebratedLevel') ?? 1;
+    state = state.copyWith(
+      weeklyGoalValue: value,
+      weeklyGoalType: type,
+      lastCelebratedLevel: celebrated,
+    );
+  }
+
+  Future<void> markLevelCelebrated(int level) async {
+    state = state.copyWith(lastCelebratedLevel: level);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('lastCelebratedLevel', level);
   }
 
   Future<void> loadBooks() async {
@@ -212,19 +231,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     // XP calculation: 10 per page, 5 per minute
     int xp = (totalPages * 10) + (totalMinutes * 5);
 
-    // Level calculation based on user requirements
-    int level = 1;
-    if (finishedBooks >= 50) {
-      level = 50;
-    } else if (totalPages >= 10000) {
-      level = 40;
-    } else if (finishedBooks >= 10) {
-      level = 20;
-    } else if (streak >= 14) {
-      level = 10;
-    } else if (finishedBooks >= 3) {
-      level = 5;
-    }
+    // Level calculation: 1 level per 1000 XP
+    int level = (xp ~/ 1000) + 1;
+    if (level > 99) level = 99;
 
     // Achievements check
     final achievements = <String>{};

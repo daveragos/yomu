@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../core/constants.dart';
 import './glass_container.dart';
 import '../models/book_model.dart';
+import '../providers/library_provider.dart';
+import '../screens/reading_screen.dart';
 
-class DailyActivitySheet extends StatelessWidget {
+class DailyActivitySheet extends ConsumerWidget {
   final DateTime date;
   final int totalValue;
   final String goalType;
@@ -22,7 +25,7 @@ class DailyActivitySheet extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dateStr = date.toIso8601String().split('T')[0];
     final daySessions = sessionHistory
         .where((s) => s['date'] == dateStr)
@@ -191,78 +194,106 @@ class DailyActivitySheet extends StatelessWidget {
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: () {
+                        // Close bottom sheet before navigation
+                        Navigator.pop(context);
+
+                        ref.read(currentlyReadingProvider.notifier).state =
+                            book;
+                        ref
+                            .read(libraryProvider.notifier)
+                            .markBookAsOpened(book!);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReadingScreen(),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: book.coverPath.startsWith('assets')
-                                ? Image.asset(
-                                    book.coverPath,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) => Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Image.asset(
-                                            'assets/icon.png',
-                                            fit: BoxFit.contain,
-                                          ),
-                                        ),
-                                  )
-                                : Image.file(
-                                    File(book.coverPath),
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) => Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Image.asset(
-                                            'assets/icon.png',
-                                            fit: BoxFit.contain,
-                                          ),
-                                        ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: book.coverPath.startsWith('assets')
+                                    ? Image.asset(
+                                        book.coverPath,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    8.0,
+                                                  ),
+                                                  child: Image.asset(
+                                                    'assets/icon.png',
+                                                    fit: BoxFit.contain,
+                                                  ),
+                                                ),
+                                      )
+                                    : Image.file(
+                                        File(book.coverPath),
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    8.0,
+                                                  ),
+                                                  child: Image.asset(
+                                                    'assets/icon.png',
+                                                    fit: BoxFit.contain,
+                                                  ),
+                                                ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    book.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                book.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                  Text(
+                                    book.author,
+                                    style: TextStyle(
+                                      color: YomuConstants.textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                book.author,
-                                style: TextStyle(
-                                  color: YomuConstants.textSecondary,
-                                  fontSize: 11,
-                                ),
+                            ),
+                            Text(
+                              '+$val',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          '+$val',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   );
                 },

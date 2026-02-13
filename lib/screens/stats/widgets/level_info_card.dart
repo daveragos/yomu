@@ -11,19 +11,7 @@ class LevelInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titles = {
-      1: 'Kohai (後輩)',
-      5: 'Yomite (読み手)',
-      10: 'Senpai (先輩)',
-      20: 'Chousha (著者)',
-      40: 'Sensei (先生)',
-      50: 'Tatsujin (達人)',
-    };
-
-    String currentTitle = 'Kohai (後輩)';
-    for (var entry in titles.entries) {
-      if (state.level >= entry.key) currentTitle = entry.value;
-    }
+    final currentTitle = YomuConstants.getRankForLevel(state.level).name;
 
     return GestureDetector(
       onTap: onTap,
@@ -97,6 +85,27 @@ class LevelInfoCard extends StatelessWidget {
                       ),
                       minHeight: 6,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${state.totalXP % 1000} / 1000 XP',
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${1000 - (state.totalXP % 1000)} XP to level up',
+                        style: TextStyle(
+                          color: YomuConstants.accent.withValues(alpha: 0.5),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

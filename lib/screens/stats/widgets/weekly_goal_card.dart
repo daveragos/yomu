@@ -12,9 +12,7 @@ class WeeklyGoalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double goal = state.weeklyGoalValue;
-    final double current = state.weeklyGoalType == 'minutes'
-        ? state.totalMinutesRead.toDouble()
-        : state.totalPagesRead.toDouble();
+    final double current = state.totalPagesRead.toDouble();
     final double progress = (current / goal).clamp(0.0, 1.0);
 
     final bool isGoalMet = progress >= 1.0;
@@ -66,7 +64,7 @@ class WeeklyGoalCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${current.toInt()} / ${goal.toInt()} ${state.weeklyGoalType}',
+            '${current.toInt()} / ${goal.toInt()} pages',
             style: const TextStyle(color: Colors.white38, fontSize: 12),
           ),
         ],

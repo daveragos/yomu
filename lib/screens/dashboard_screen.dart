@@ -10,6 +10,8 @@ import '../providers/library_provider.dart';
 import './dashboard/widgets/dashboard_header.dart';
 import './dashboard/widgets/continue_reading_card.dart';
 import './dashboard/widgets/shelf_item.dart';
+import '../components/rank_up_dialog.dart';
+import 'main_navigation.dart';
 
 final hasDashboardAnimatedProvider = StateProvider<bool>((ref) => false);
 
@@ -33,6 +35,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(libraryProvider.select((s) => s.level), (previous, next) {
+      final state = ref.read(libraryProvider);
+      if (next > state.lastCelebratedLevel) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) =>
+              RankUpDialog(level: next, rankName: state.rankName),
+        );
+        ref.read(libraryProvider.notifier).markLevelCelebrated(next);
+      }
+    });
+
     final libraryState = ref.watch(libraryProvider);
     final hasAnimated = ref.watch(hasDashboardAnimatedProvider);
 
@@ -82,9 +97,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 30),
               if (recentBooks.length > 1) ...[
                 _animateIf(
-                  Text(
-                    'My Shelf',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'My Shelf',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          ref.read(navigationStateProvider.notifier).state =
+                              NavigationState(current: 1, previous: 0);
+                        },
+                        child: Text(
+                          'See More',
+                          style: TextStyle(
+                            color: YomuConstants.accent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   hasAnimated,
                   (w) => w.animate().fadeIn(delay: 500.ms),
@@ -94,7 +127,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   height: 180,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: (recentBooks.length - 1).clamp(0, 10),
+                    itemCount: (recentBooks.length - 1).clamp(0, 5),
                     separatorBuilder: (context, index) =>
                         const SizedBox(width: 16),
                     itemBuilder: (context, index) {

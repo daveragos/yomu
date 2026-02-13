@@ -123,7 +123,7 @@ class ActivityGraph extends StatelessWidget {
           ),
           if (hasActivity)
             Text(
-              '$label${weeklyGoalType == 'pages' ? 'p' : 'm'}',
+              '$label${"p"}',
               style: const TextStyle(
                 color: Colors.black87,
                 fontSize: 8,

@@ -21,7 +21,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
     super.initState();
     final state = ref.read(libraryProvider);
     _value = state.weeklyGoalValue;
-    _type = state.weeklyGoalType;
+    _type = 'pages';
     _controller = TextEditingController(text: _value.toInt().toString());
   }
 
@@ -53,21 +53,13 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Set Weekly Goal',
+                'Weekly Page Goal',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
               const Text(
                 'I want to read...',
                 style: TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildTypeChip('minutes', Icons.timer),
-                  const SizedBox(width: 12),
-                  _buildTypeChip('pages', Icons.menu_book),
-                ],
               ),
               const SizedBox(height: 24),
               Row(
@@ -151,43 +143,6 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
               const SizedBox(height: 20),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypeChip(String type, IconData icon) {
-    final isSelected = _type == type;
-    return GestureDetector(
-      onTap: () => setState(() => _type = type),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? YomuConstants.accent.withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? YomuConstants.accent : Colors.transparent,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? YomuConstants.accent : Colors.white54,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              type.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected ? YomuConstants.accent : Colors.white54,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
         ),
       ),
     );

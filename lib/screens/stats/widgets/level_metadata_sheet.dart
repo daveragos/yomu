@@ -10,34 +10,7 @@ class LevelMetadataSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titles = [
-      {
-        'level': 1,
-        'name': 'Kohai (後輩)',
-        'desc': 'Getting started on the journey.',
-      },
-      {'level': 5, 'name': 'Yomite (読み手)', 'desc': 'A dedicated reader.'},
-      {
-        'level': 10,
-        'name': 'Senpai (先輩)',
-        'desc': 'Experienced and knowledgeable.',
-      },
-      {
-        'level': 20,
-        'name': 'Chousha (著者)',
-        'desc': 'Deeply connected to the words.',
-      },
-      {
-        'level': 40,
-        'name': 'Sensei (先生)',
-        'desc': 'A master of the literary arts.',
-      },
-      {
-        'level': 50,
-        'name': 'Tatsujin (達人)',
-        'desc': 'Absolute mastery reached.',
-      },
-    ];
+    final ranks = YomuConstants.ranks;
 
     return GlassContainer(
       borderRadius: 24,
@@ -54,14 +27,36 @@ class LevelMetadataSheet extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Earn XP by reading to rank up!',
-            style: TextStyle(color: YomuConstants.textSecondary, fontSize: 13),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: YomuConstants.accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: YomuConstants.accent.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.bolt, color: YomuConstants.accent, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Earn 10 XP/page and 5 XP/min. Every 1000 XP = 1 Level!',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
-          ...titles.map((t) {
-            final bool isReached = state.level >= (t['level'] as int);
+          ...ranks.map((t) {
+            final bool isReached = state.level >= t.level;
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Row(
@@ -82,7 +77,7 @@ class LevelMetadataSheet extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        '${t['level']}',
+                        '${t.level}',
                         style: TextStyle(
                           color: isReached ? Colors.white : Colors.white54,
                           fontWeight: FontWeight.bold,
@@ -97,7 +92,7 @@ class LevelMetadataSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          t['name'] as String,
+                          t.name,
                           style: TextStyle(
                             color: isReached ? Colors.white : Colors.white54,
                             fontWeight: FontWeight.bold,
@@ -105,7 +100,7 @@ class LevelMetadataSheet extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          t['desc'] as String,
+                          t.description,
                           style: TextStyle(
                             color: isReached
                                 ? YomuConstants.textSecondary

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants.dart';
+import '../../../providers/library_provider.dart';
 
-class DashboardHeader extends StatelessWidget {
+class DashboardHeader extends ConsumerWidget {
   const DashboardHeader({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
+    final libraryState = ref.watch(libraryProvider);
+    final rankName = libraryState.rankName;
 
     return Stack(
       children: [
@@ -57,7 +61,7 @@ class DashboardHeader extends StatelessWidget {
                     ),
                   ),
                   TextSpan(
-                    text: 'Yomite',
+                    text: rankName,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
                       fontSize: 36,
                       fontWeight: FontWeight.w900,

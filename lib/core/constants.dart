@@ -32,4 +32,62 @@ class YomuConstants {
     const Color(0xFF26A641), // level 3
     const Color(0xFF39D353), // level 4
   ];
+
+  // Ranks
+  static const List<YomuRank> ranks = [
+    YomuRank(
+      level: 1,
+      name: 'Kohai (後輩)',
+      description: 'Getting started on the journey.',
+    ),
+    YomuRank(
+      level: 5,
+      name: 'Yomite (読み手)',
+      description: 'A dedicated reader.',
+    ),
+    YomuRank(
+      level: 10,
+      name: 'Senpai (先輩)',
+      description: 'Experienced and knowledgeable.',
+    ),
+    YomuRank(
+      level: 20,
+      name: 'Chousha (著者)',
+      description: 'Deeply connected to the words.',
+    ),
+    YomuRank(
+      level: 40,
+      name: 'Sensei (先生)',
+      description: 'A master of the literary arts.',
+    ),
+    YomuRank(
+      level: 50,
+      name: 'Tatsujin (達人)',
+      description: 'Absolute mastery reached.',
+    ),
+  ];
+
+  static YomuRank getRankForLevel(int level) {
+    YomuRank current = ranks.first;
+    for (final rank in ranks) {
+      if (level >= rank.level) {
+        current = rank;
+      } else {
+        break;
+      }
+    }
+    return current;
+  }
+}
+
+class YomuRank {
+  final int level;
+  final String name;
+  final String description;
+
+  const YomuRank({
+    required this.level,
+    required this.name,
+    required this.description,
+  });
 }
