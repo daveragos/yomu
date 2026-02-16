@@ -98,6 +98,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     .slideY(begin: 0.1, end: 0),
               ),
               const SizedBox(height: 30),
+              _animateIf(
+                Text(
+                  'Reading Activity',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                hasAnimated,
+                (w) => w.animate().fadeIn(delay: 500.ms),
+              ),
+              const SizedBox(height: 4),
+              _animateIf(
+                Text(
+                  'Current Month',
+                  style: TextStyle(
+                    color: YomuConstants.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                hasAnimated,
+                (w) => w.animate().fadeIn(delay: 550.ms),
+              ),
+              const SizedBox(height: 12),
+              _animateIf(
+                ActivityGraph(
+                  dailyValues: libraryState.dailyReadingValues,
+                  selectedMonth: DateFormat('MMMM yyyy').format(DateTime.now()),
+                  weeklyGoalType: libraryState.weeklyGoalType,
+                  weeklyGoalValue: libraryState.weeklyGoalValue,
+                  onDateTapped: (date, value) => _showDailyActivityDetail(
+                    context,
+                    libraryState,
+                    date,
+                    value,
+                  ),
+                ),
+                hasAnimated,
+                (w) => w
+                    .animate()
+                    .fadeIn(delay: 600.ms)
+                    .slideY(begin: 0.05, end: 0),
+              ),
+              const SizedBox(height: 30),
               if (recentBooks.length > 1) ...[
                 _animateIf(
                   Row(
@@ -123,7 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ],
                   ),
                   hasAnimated,
-                  (w) => w.animate().fadeIn(delay: 500.ms),
+                  (w) => w.animate().fadeIn(delay: 800.ms),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -140,7 +181,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         hasAnimated,
                         (w) => w
                             .animate()
-                            .fadeIn(delay: (600 + (index * 100)).ms)
+                            .fadeIn(delay: (900 + (index * 100)).ms)
                             .scale(begin: const Offset(0.9, 0.9)),
                       );
                     },
@@ -148,46 +189,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 30),
               ],
-              _animateIf(
-                Text(
-                  'Reading Activity',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                hasAnimated,
-                (w) => w.animate().fadeIn(delay: 800.ms),
-              ),
-              const SizedBox(height: 4),
-              _animateIf(
-                Text(
-                  'Current Month',
-                  style: TextStyle(
-                    color: YomuConstants.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-                hasAnimated,
-                (w) => w.animate().fadeIn(delay: 850.ms),
-              ),
-              const SizedBox(height: 12),
-              _animateIf(
-                ActivityGraph(
-                  dailyValues: libraryState.dailyReadingValues,
-                  selectedMonth: DateFormat('MMMM yyyy').format(DateTime.now()),
-                  weeklyGoalType: libraryState.weeklyGoalType,
-                  weeklyGoalValue: libraryState.weeklyGoalValue,
-                  onDateTapped: (date, value) => _showDailyActivityDetail(
-                    context,
-                    libraryState,
-                    date,
-                    value,
-                  ),
-                ),
-                hasAnimated,
-                (w) => w
-                    .animate()
-                    .fadeIn(delay: 900.ms)
-                    .slideY(begin: 0.05, end: 0),
-              ),
               const SizedBox(height: 100),
             ],
           ),

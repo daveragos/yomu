@@ -147,6 +147,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           book: book,
           onTap: () => _showBookDetails(book),
           onLongPress: () => _showBookOptions(book),
+          onMenuPressed: () => _showBookOptions(book),
         );
       },
     );

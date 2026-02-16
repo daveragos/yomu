@@ -4,7 +4,7 @@ import '../core/constants.dart';
 
 class ActivityGraph extends StatelessWidget {
   final Map<String, int> dailyValues;
-  final String selectedMonth; // e.g., "January 2026"
+  final String selectedMonth;
   final String weeklyGoalType;
   final double weeklyGoalValue;
   final Function(DateTime, int)? onDateTapped;
@@ -123,7 +123,7 @@ class ActivityGraph extends StatelessWidget {
           ),
           if (hasActivity)
             Text(
-              '$label${"p"}',
+              '$label${weeklyGoalType == 'pages' ? 'p' : (weeklyGoalType == 'minutes' ? 'm' : 'x')}',
               style: const TextStyle(
                 color: Colors.black87,
                 fontSize: 8,

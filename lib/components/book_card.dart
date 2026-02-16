@@ -10,8 +10,15 @@ class BookCard extends StatelessWidget {
   final Book book;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onMenuPressed;
 
-  const BookCard({super.key, required this.book, this.onTap, this.onLongPress});
+  const BookCard({
+    super.key,
+    required this.book,
+    this.onTap,
+    this.onLongPress,
+    this.onMenuPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -106,23 +113,46 @@ class BookCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              book.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.2,
-              ),
-            ),
-            Text(
-              book.author,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: YomuConstants.textSecondary,
-                fontSize: 12,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        book.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      Text(
+                        book.author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: YomuConstants.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (onMenuPressed != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.more_vert,
+                      size: 20,
+                      color: YomuConstants.textSecondary.withValues(alpha: 0.6),
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: onMenuPressed,
+                  ),
+              ],
             ),
             // Progress information for books in progress
             if (book.progress > 0 && book.progress < 1.0) ...[

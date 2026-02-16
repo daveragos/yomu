@@ -145,9 +145,19 @@ class DailyActivitySheet extends ConsumerWidget {
                     // Book might have been deleted but session history remains
                   }
 
-                  final val = goalType == 'pages'
-                      ? session['pagesRead']
-                      : session['durationMinutes'];
+                  final int val;
+                  if (goalType == 'pages') {
+                    val = session['pagesRead'] as int? ?? 0;
+                  } else if (goalType == 'minutes') {
+                    val = session['durationMinutes'] as int? ?? 0;
+                  } else {
+                    // XP
+                    final isEpub =
+                        book?.filePath.toLowerCase().endsWith('.epub') ?? false;
+                    final p = session['pagesRead'] as int? ?? 0;
+                    final m = session['durationMinutes'] as int? ?? 0;
+                    val = isEpub ? (p * 40 + m * 5) : (p * 10 + m * 5);
+                  }
 
                   if (book == null) {
                     return Padding(

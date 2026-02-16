@@ -31,15 +31,17 @@ class LibraryState {
   final BookSortBy sortBy;
   final bool sortAscending;
   final int currentStreak;
-  final List<int>
-  activityData; // Simple list of activity counts for the heatmap
-  final Map<String, int> dailyReadingValues; // date -> value (pages/min)
   final int totalXP;
   final int level;
   final int totalPagesRead;
   final int totalMinutesRead;
-  final double weeklyGoalValue;
-  final String weeklyGoalType; // 'minutes' or 'pages'
+  final double weeklyPageGoal;
+  final double weeklyMinuteGoal;
+  final double weeklyXPGoal;
+  final String weeklyGoalType; // Kept for backward compat with ActivityGraph
+  final Map<String, int> dailyPages;
+  final Map<String, int> dailyMinutes;
+  final Map<String, int> dailyXP;
   final Set<String> unlockedAchievements;
   final List<Map<String, dynamic>> sessionHistory;
 
@@ -60,20 +62,85 @@ class LibraryState {
     this.sortBy = BookSortBy.recent,
     this.sortAscending = false,
     this.currentStreak = 0,
-    this.activityData = const [],
-    this.dailyReadingValues = const {},
     this.totalXP = 0,
     this.level = 1,
     this.lastCelebratedLevel = 1,
     this.totalPagesRead = 0,
     this.totalMinutesRead = 0,
-    this.weeklyGoalValue = 100,
+    this.weeklyPageGoal = 100,
+    this.weeklyMinuteGoal = 0,
+    this.weeklyXPGoal = 0,
     this.weeklyGoalType = 'pages',
+    this.dailyPages = const {},
+    this.dailyMinutes = const {},
+    this.dailyXP = const {},
     this.unlockedAchievements = const {},
     this.sessionHistory = const [],
   });
 
+  double get weeklyGoalValue {
+    if (weeklyGoalType == 'pages') return weeklyPageGoal;
+    if (weeklyGoalType == 'minutes') return weeklyMinuteGoal;
+    return weeklyXPGoal;
+  }
+
+  Map<String, int> get dailyReadingValues {
+    if (weeklyGoalType == 'pages') return dailyPages;
+    if (weeklyGoalType == 'minutes') return dailyMinutes;
+    return dailyXP;
+  }
+
+  List<int> get activityData {
+    final values = dailyReadingValues;
+    final activity = List<int>.filled(31, 0);
+    final now = DateTime.now();
+    final todayNormalized = DateTime(now.year, now.month, now.day);
+
+    for (var entry in values.entries) {
+      final sessionDate = DateTime.parse(entry.key);
+      final difference = todayNormalized.difference(sessionDate).inDays;
+      if (difference >= 0 && difference < 31) {
+        final val = entry.value;
+        int level = 0;
+        final double goal = weeklyGoalValue / 7.0;
+        if (val >= goal * 2.0) {
+          level = 4;
+        } else if (val >= goal) {
+          level = 3;
+        } else if (val >= goal * 0.5) {
+          level = 2;
+        } else if (val > 0) {
+          level = 1;
+        }
+        activity[30 - difference] = level;
+      }
+    }
+    return activity;
+  }
+
   String get rankName => YomuConstants.getRankForLevel(level).name;
+
+  int get weeklyPagesRead => _sumForCurrentWeek(dailyPages);
+  int get weeklyMinutesRead => _sumForCurrentWeek(dailyMinutes);
+  int get weeklyXPRead => _sumForCurrentWeek(dailyXP);
+
+  int _sumForCurrentWeek(Map<String, int> values) {
+    final now = DateTime.now();
+    final monday = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
+
+    int sum = 0;
+    values.forEach((dateStr, val) {
+      final date = DateTime.parse(dateStr);
+      if (!date.isBefore(monday)) {
+        sum += val;
+      }
+    });
+    return sum;
+  }
 
   LibraryState copyWith({
     List<Book>? allBooks,
@@ -90,15 +157,18 @@ class LibraryState {
     BookSortBy? sortBy,
     bool? sortAscending,
     int? currentStreak,
-    List<int>? activityData,
-    Map<String, int>? dailyReadingValues,
     int? totalXP,
     int? level,
     int? lastCelebratedLevel,
     int? totalPagesRead,
     int? totalMinutesRead,
-    double? weeklyGoalValue,
+    double? weeklyPageGoal,
+    double? weeklyMinuteGoal,
+    double? weeklyXPGoal,
     String? weeklyGoalType,
+    Map<String, int>? dailyPages,
+    Map<String, int>? dailyMinutes,
+    Map<String, int>? dailyXP,
     Set<String>? unlockedAchievements,
     List<Map<String, dynamic>>? sessionHistory,
   }) {
@@ -117,15 +187,18 @@ class LibraryState {
       sortBy: sortBy ?? this.sortBy,
       sortAscending: sortAscending ?? this.sortAscending,
       currentStreak: currentStreak ?? this.currentStreak,
-      activityData: activityData ?? this.activityData,
-      dailyReadingValues: dailyReadingValues ?? this.dailyReadingValues,
       totalXP: totalXP ?? this.totalXP,
       level: level ?? this.level,
       lastCelebratedLevel: lastCelebratedLevel ?? this.lastCelebratedLevel,
       totalPagesRead: totalPagesRead ?? this.totalPagesRead,
       totalMinutesRead: totalMinutesRead ?? this.totalMinutesRead,
-      weeklyGoalValue: weeklyGoalValue ?? this.weeklyGoalValue,
+      weeklyPageGoal: weeklyPageGoal ?? this.weeklyPageGoal,
+      weeklyMinuteGoal: weeklyMinuteGoal ?? this.weeklyMinuteGoal,
+      weeklyXPGoal: weeklyXPGoal ?? this.weeklyXPGoal,
       weeklyGoalType: weeklyGoalType ?? this.weeklyGoalType,
+      dailyPages: dailyPages ?? this.dailyPages,
+      dailyMinutes: dailyMinutes ?? this.dailyMinutes,
+      dailyXP: dailyXP ?? this.dailyXP,
       unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
       sessionHistory: sessionHistory ?? this.sessionHistory,
     );
@@ -171,12 +244,35 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
   Future<void> _loadGoal() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getDouble('weeklyGoalValue') ?? 100.0;
-    final type = prefs.getString('weeklyGoalType') ?? 'pages';
+    final pageGoal = prefs.getDouble('weeklyPageGoal');
+    final minuteGoal = prefs.getDouble('weeklyMinuteGoal') ?? 0.0;
+    final xpGoal = prefs.getDouble('weeklyXPGoal') ?? 0.0;
+
+    // Migration
+    double finalPageGoal = pageGoal ?? 100.0;
+    String finalType = prefs.getString('weeklyGoalType') ?? 'pages';
+
+    if (pageGoal == null) {
+      // Check for old value
+      final oldVal = prefs.getDouble('weeklyGoalValue');
+      if (oldVal != null) {
+        if (finalType == 'pages') {
+          finalPageGoal = oldVal;
+        }
+        // If it was minutes, we migrate that too if minuteGoal is still 0
+        if (finalType == 'minutes' && minuteGoal == 0) {
+          // Temporarily set it, though we now have dedicated fields
+          await prefs.setDouble('weeklyMinuteGoal', oldVal);
+        }
+      }
+    }
+
     final celebrated = prefs.getInt('lastCelebratedLevel') ?? 1;
     state = state.copyWith(
-      weeklyGoalValue: value,
-      weeklyGoalType: type,
+      weeklyPageGoal: finalPageGoal,
+      weeklyMinuteGoal: minuteGoal,
+      weeklyXPGoal: xpGoal,
+      weeklyGoalType: finalType,
       lastCelebratedLevel: celebrated,
     );
   }
@@ -193,9 +289,8 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final sessions = await _dbService.getReadingSessions();
 
     final streak = _calculateStreak(sessions);
-    final activity = _calculateActivity(sessions, state.weeklyGoalType);
+    final activity = _calculateDetailedActivity(sessions, books);
     final stats = _calculateStats(sessions, books);
-
     final visibleBooks = books.where((b) => !b.isDeleted).toList();
 
     state = state.copyWith(
@@ -203,8 +298,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       filteredBooks: _applyFilters(visibleBooks, state),
       isLoading: false,
       currentStreak: streak,
-      activityData: activity.levels,
-      dailyReadingValues: activity.values,
+      dailyPages: activity.pages,
+      dailyMinutes: activity.minutes,
+      dailyXP: activity.xp,
       totalXP: stats.xp,
       level: stats.level,
       totalPagesRead: stats.totalPages,
@@ -228,8 +324,26 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final finishedBooks = books.where((b) => b.progress >= 0.99).length;
     final streak = _calculateStreak(sessions);
 
-    // XP calculation: 10 per page, 5 per minute
-    int xp = (totalPages * 10) + (totalMinutes * 5);
+    // XP calculation:
+    // PDF: 10 per page, 5 per minute
+    // EPUB: 40 per chapter (since epubs "pages" are chapters), 5 per minute
+    int xp = 0;
+    for (var s in sessions) {
+      final bookId = s['bookId'] as int?;
+      final book = books.firstWhere(
+        (b) => b.id == bookId,
+        orElse: () => books[0],
+      );
+      final isEpub = book.filePath.toLowerCase().endsWith('.epub');
+      final p = (s['pagesRead'] as int? ?? 0);
+      final m = (s['durationMinutes'] as int? ?? 0);
+
+      if (isEpub) {
+        xp += (p * 40) + (m * 5);
+      } else {
+        xp += (p * 10) + (m * 5);
+      }
+    }
 
     // Level calculation: 1 level per 1000 XP
     int level = (xp ~/ 1000) + 1;
@@ -298,55 +412,49 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     return streak;
   }
 
-  _ActivityData _calculateActivity(
+  _DetailedActivityData _calculateDetailedActivity(
     List<Map<String, dynamic>> sessions,
-    String type,
+    List<Book> books,
   ) {
-    final values = <String, int>{};
+    final pages = <String, int>{};
+    final minutes = <String, int>{};
+    final xpMap = <String, int>{};
+
     for (var session in sessions) {
       final date = session['date'] as String;
-      final val =
-          (type == 'pages' ? session['pagesRead'] : session['durationMinutes'])
-              as int;
-      values[date] = (values[date] ?? 0) + val;
+      final bookId = session['bookId'] as int?;
+      final book = books.firstWhere(
+        (b) => b.id == bookId,
+        orElse: () => books.isNotEmpty
+            ? books[0]
+            : Book(
+                title: 'Unknown',
+                author: 'Unknown',
+                coverPath: '',
+                filePath: '',
+                addedAt: DateTime.now(),
+              ),
+      );
+      final isEpub = book.filePath.toLowerCase().endsWith('.epub');
+
+      final p = (session['pagesRead'] as int? ?? 0);
+      final m = (session['durationMinutes'] as int? ?? 0);
+
+      final xp = isEpub ? (p * 40) + (m * 5) : (p * 10) + (m * 5);
+
+      pages[date] = (pages[date] ?? 0) + p;
+      minutes[date] = (minutes[date] ?? 0) + m;
+      xpMap[date] = (xpMap[date] ?? 0) + xp;
     }
 
-    // Still need levels for backward compat or simple graph, but graph will now use values
-    final activity = List<int>.filled(31, 0);
-    final now = DateTime.now();
-    final todayNormalized = DateTime(now.year, now.month, now.day);
+    return _DetailedActivityData(pages: pages, minutes: minutes, xp: xpMap);
+  }
 
-    for (var entry in values.entries) {
-      final sessionDate = DateTime.parse(entry.key);
-      final difference = todayNormalized.difference(sessionDate).inDays;
-      if (difference >= 0 && difference < 31) {
-        final val = entry.value;
-        int level = 0;
-        if (type == 'pages') {
-          if (val > 50) {
-            level = 4;
-          } else if (val > 20) {
-            level = 3;
-          } else if (val > 10) {
-            level = 2;
-          } else if (val > 0) {
-            level = 1;
-          }
-        } else {
-          if (val > 60) {
-            level = 4;
-          } else if (val > 30) {
-            level = 3;
-          } else if (val > 15) {
-            level = 2;
-          } else if (val > 0) {
-            level = 1;
-          }
-        }
-        activity[30 - difference] = level;
-      }
-    }
-    return _ActivityData(levels: activity, values: values);
+  // Helper getters for backward compat on graph if needed
+  Map<String, int> get dailyReadingValues {
+    if (state.weeklyGoalType == 'pages') return state.dailyPages;
+    if (state.weeklyGoalType == 'minutes') return state.dailyMinutes;
+    return state.dailyXP;
   }
 
   void setSearchQuery(String query) {
@@ -623,13 +731,14 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
     // Refresh stats
     final sessions = await _dbService.getReadingSessions();
-    final activity = _calculateActivity(sessions, state.weeklyGoalType);
+    final activity = _calculateDetailedActivity(sessions, state.allBooks);
     final stats = _calculateStats(sessions, state.allBooks);
 
     state = state.copyWith(
       currentStreak: _calculateStreak(sessions),
-      activityData: activity.levels,
-      dailyReadingValues: activity.values,
+      dailyPages: activity.pages,
+      dailyMinutes: activity.minutes,
+      dailyXP: activity.xp,
       totalXP: stats.xp,
       level: stats.level,
       totalPagesRead: stats.totalPages,
@@ -689,21 +798,39 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
   }
 
-  Future<void> setWeeklyGoal(double value, String type) async {
-    state = state.copyWith(weeklyGoalValue: value, weeklyGoalType: type);
-
-    // Persist goal
+  Future<void> updateWeeklyGoals({
+    double? pages,
+    double? minutes,
+    double? xp,
+    String? activeType,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('weeklyGoalValue', value);
-    await prefs.setString('weeklyGoalType', type);
 
-    // Re-calculate activity data for the new unit
-    final sessions = await _dbService.getReadingSessions();
-    final activity = _calculateActivity(sessions, type);
+    final newPages = pages ?? state.weeklyPageGoal;
+    final newMinutes = minutes ?? state.weeklyMinuteGoal;
+    final newXP = xp ?? state.weeklyXPGoal;
+    final newType = activeType ?? state.weeklyGoalType;
+
+    if (pages != null) await prefs.setDouble('weeklyPageGoal', pages);
+    if (minutes != null) await prefs.setDouble('weeklyMinuteGoal', minutes);
+    if (xp != null) await prefs.setDouble('weeklyXPGoal', xp);
+    if (activeType != null) await prefs.setString('weeklyGoalType', activeType);
 
     state = state.copyWith(
-      activityData: activity.levels,
-      dailyReadingValues: activity.values,
+      weeklyPageGoal: newPages,
+      weeklyMinuteGoal: newMinutes,
+      weeklyXPGoal: newXP,
+      weeklyGoalType: newType,
+    );
+
+    // Re-calculate activity data
+    final sessions = await _dbService.getReadingSessions();
+    final activity = _calculateDetailedActivity(sessions, state.allBooks);
+
+    state = state.copyWith(
+      dailyPages: activity.pages,
+      dailyMinutes: activity.minutes,
+      dailyXP: activity.xp,
     );
   }
 
@@ -803,9 +930,14 @@ class _UserStats {
   });
 }
 
-class _ActivityData {
-  final List<int> levels;
-  final Map<String, int> values;
+class _DetailedActivityData {
+  final Map<String, int> pages;
+  final Map<String, int> minutes;
+  final Map<String, int> xp;
 
-  _ActivityData({required this.levels, required this.values});
+  _DetailedActivityData({
+    required this.pages,
+    required this.minutes,
+    required this.xp,
+  });
 }

@@ -43,7 +43,7 @@ class LevelMetadataSheet extends StatelessWidget {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Earn 10 XP/page and 5 XP/min. Every 1000 XP = 1 Level!',
+                    'Earn XP: PDF (10/page), EPUB (40/chapter) + 5 XP/min. Every 1000 XP = 1 Level!',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
