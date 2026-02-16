@@ -22,7 +22,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 11,
+      version: 13,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -60,7 +60,8 @@ class DatabaseService {
         bookId INTEGER,
         date TEXT,
         pagesRead INTEGER,
-        durationMinutes INTEGER
+        durationMinutes INTEGER,
+        timestamp TEXT
       )
     ''');
     await db.execute('''
@@ -71,6 +72,19 @@ class DatabaseService {
         progress REAL,
         createdAt TEXT,
         position TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE quests(
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        description TEXT,
+        type INTEGER,
+        targetValue INTEGER,
+        currentValue INTEGER,
+        xpReward INTEGER,
+        isCompleted INTEGER,
+        date TEXT
       )
     ''');
   }
@@ -138,6 +152,26 @@ class DatabaseService {
     if (oldVersion < 11) {
       await db.execute(
         'ALTER TABLE books ADD COLUMN isDeleted INTEGER DEFAULT 0',
+      );
+    }
+    if (oldVersion < 12) {
+      await db.execute('''
+        CREATE TABLE quests(
+          id TEXT PRIMARY KEY,
+          title TEXT,
+          description TEXT,
+          type INTEGER,
+          targetValue INTEGER,
+          currentValue INTEGER,
+          xpReward INTEGER,
+          isCompleted INTEGER,
+          date TEXT
+        )
+      ''');
+    }
+    if (oldVersion < 13) {
+      await db.execute(
+        'ALTER TABLE reading_sessions ADD COLUMN timestamp TEXT',
       );
     }
   }
@@ -229,17 +263,56 @@ class DatabaseService {
   // Activity CRUD
   Future<int> insertReadingSession(int bookId, int pages, int duration) async {
     final db = await database;
-    final date = DateTime.now().toIso8601String().split('T')[0];
+    final now = DateTime.now();
+    final date = now.toIso8601String().split('T')[0];
     return await db.insert('reading_sessions', {
       'bookId': bookId,
       'date': date,
       'pagesRead': pages,
       'durationMinutes': duration,
+      'timestamp': now.toIso8601String(),
     });
   }
 
   Future<List<Map<String, dynamic>>> getReadingSessions() async {
     final db = await database;
     return await db.query('reading_sessions', orderBy: 'date DESC');
+  }
+
+  // Quest CRUD
+  Future<int> insertQuest(Map<String, dynamic> quest) async {
+    final db = await database;
+    return await db.insert(
+      'quests',
+      quest,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getQuestsForDate(String date) async {
+    final db = await database;
+    return await db.query('quests', where: 'date = ?', whereArgs: [date]);
+  }
+
+  Future<int> updateQuestProgress(
+    String id,
+    int currentValue,
+    bool isCompleted,
+  ) async {
+    final db = await database;
+    return await db.update(
+      'quests',
+      {'currentValue': currentValue, 'isCompleted': isCompleted ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> getTotalQuestXP() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT SUM(xpReward) as total FROM quests WHERE isCompleted = 1',
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 }

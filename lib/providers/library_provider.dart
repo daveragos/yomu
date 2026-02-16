@@ -9,6 +9,8 @@ import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
+import '../models/quest_model.dart';
+import '../services/notification_service.dart';
 
 enum BookSortBy { title, author, recent }
 
@@ -44,6 +46,11 @@ class LibraryState {
   final Map<String, int> dailyXP;
   final Set<String> unlockedAchievements;
   final List<Map<String, dynamic>> sessionHistory;
+  final List<DailyQuest> dailyQuests;
+  final bool isStreakActiveToday;
+  final bool notificationsEnabled;
+  final int reminderHour;
+  final int reminderMinute;
 
   final int lastCelebratedLevel;
 
@@ -76,6 +83,11 @@ class LibraryState {
     this.dailyXP = const {},
     this.unlockedAchievements = const {},
     this.sessionHistory = const [],
+    this.dailyQuests = const [],
+    this.isStreakActiveToday = false,
+    this.notificationsEnabled = true,
+    this.reminderHour = 20,
+    this.reminderMinute = 0,
   });
 
   double get weeklyGoalValue {
@@ -124,6 +136,12 @@ class LibraryState {
   int get weeklyMinutesRead => _sumForCurrentWeek(dailyMinutes);
   int get weeklyXPRead => _sumForCurrentWeek(dailyXP);
 
+  bool get dailyGoalReached {
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final progress = dailyReadingValues[today] ?? 0;
+    return progress >= (weeklyGoalValue / 7.0);
+  }
+
   int _sumForCurrentWeek(Map<String, int> values) {
     final now = DateTime.now();
     final monday = DateTime(
@@ -171,6 +189,11 @@ class LibraryState {
     Map<String, int>? dailyXP,
     Set<String>? unlockedAchievements,
     List<Map<String, dynamic>>? sessionHistory,
+    List<DailyQuest>? dailyQuests,
+    bool? isStreakActiveToday,
+    bool? notificationsEnabled,
+    int? reminderHour,
+    int? reminderMinute,
   }) {
     return LibraryState(
       allBooks: allBooks ?? this.allBooks,
@@ -201,6 +224,11 @@ class LibraryState {
       dailyXP: dailyXP ?? this.dailyXP,
       unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
       sessionHistory: sessionHistory ?? this.sessionHistory,
+      dailyQuests: dailyQuests ?? this.dailyQuests,
+      isStreakActiveToday: isStreakActiveToday ?? this.isStreakActiveToday,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      reminderHour: reminderHour ?? this.reminderHour,
+      reminderMinute: reminderMinute ?? this.reminderMinute,
     );
   }
 }
@@ -240,6 +268,18 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   Future<void> _init() async {
     await _loadGoal();
     await loadBooks();
+    await _loadQuests();
+
+    if (state.notificationsEnabled) {
+      await NotificationService().scheduleDailyReminder(
+        id: 999,
+        title: 'Time to read!',
+        body: 'Keep your streak alive and dive back into your books.',
+        hour: state.reminderHour,
+        minute: state.reminderMinute,
+      );
+      await NotificationService().scheduleWeekendBoostNotifications();
+    }
   }
 
   Future<void> _loadGoal() async {
@@ -247,6 +287,10 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final pageGoal = prefs.getDouble('weeklyPageGoal');
     final minuteGoal = prefs.getDouble('weeklyMinuteGoal') ?? 0.0;
     final xpGoal = prefs.getDouble('weeklyXPGoal') ?? 0.0;
+
+    final notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
+    final reminderHour = prefs.getInt('reminderHour') ?? 20;
+    final reminderMinute = prefs.getInt('reminderMinute') ?? 0;
 
     // Migration
     double finalPageGoal = pageGoal ?? 100.0;
@@ -274,7 +318,48 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       weeklyXPGoal: xpGoal,
       weeklyGoalType: finalType,
       lastCelebratedLevel: celebrated,
+      notificationsEnabled: notificationsEnabled,
+      reminderHour: reminderHour,
+      reminderMinute: reminderMinute,
     );
+  }
+
+  Future<void> updateNotificationSettings({
+    bool? enabled,
+    int? hour,
+    int? minute,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (enabled != null) {
+      await prefs.setBool('notificationsEnabled', enabled);
+    }
+    if (hour != null) {
+      await prefs.setInt('reminderHour', hour);
+    }
+    if (minute != null) {
+      await prefs.setInt('reminderMinute', minute);
+    }
+
+    state = state.copyWith(
+      notificationsEnabled: enabled ?? state.notificationsEnabled,
+      reminderHour: hour ?? state.reminderHour,
+      reminderMinute: minute ?? state.reminderMinute,
+    );
+
+    if (state.notificationsEnabled) {
+      await NotificationService().scheduleDailyReminder(
+        id: 999,
+        title: 'Time to read!',
+        body: 'Keep your streak alive and dive back into your books.',
+        hour: state.reminderHour,
+        minute: state.reminderMinute,
+      );
+      await NotificationService().scheduleWeekendBoostNotifications();
+    } else {
+      await NotificationService().cancel(id: 999);
+      await NotificationService().cancel(id: 1000);
+      await NotificationService().cancel(id: 1001);
+    }
   }
 
   Future<void> markLevelCelebrated(int level) async {
@@ -287,10 +372,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     state = state.copyWith(isLoading: true);
     final books = await _dbService.getBooks();
     final sessions = await _dbService.getReadingSessions();
+    final questXp = await _dbService.getTotalQuestXP();
 
     final streak = _calculateStreak(sessions);
     final activity = _calculateDetailedActivity(sessions, books);
-    final stats = _calculateStats(sessions, books);
+    final stats = _calculateStats(sessions, books, questXp);
     final visibleBooks = books.where((b) => !b.isDeleted).toList();
 
     state = state.copyWith(
@@ -298,6 +384,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       filteredBooks: _applyFilters(visibleBooks, state),
       isLoading: false,
       currentStreak: streak,
+      isStreakActiveToday: _isStreakActiveToday(sessions),
       dailyPages: activity.pages,
       dailyMinutes: activity.minutes,
       dailyXP: activity.xp,
@@ -308,11 +395,74 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       unlockedAchievements: stats.achievements,
       sessionHistory: sessions,
     );
+
+    await _loadQuests();
+  }
+
+  bool _isStreakActiveToday(List<Map<String, dynamic>> sessions) {
+    if (sessions.isEmpty) return false;
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    return sessions.any((s) => s['date'] == today);
+  }
+
+  Future<void> _loadQuests() async {
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final questMaps = await _dbService.getQuestsForDate(today);
+
+    if (questMaps.isEmpty) {
+      final newQuests = _generateDailyQuests(today);
+      for (var q in newQuests) {
+        await _dbService.insertQuest(q.toMap());
+      }
+      state = state.copyWith(dailyQuests: newQuests);
+    } else {
+      state = state.copyWith(
+        dailyQuests: questMaps.map((m) => DailyQuest.fromMap(m)).toList(),
+      );
+    }
+  }
+
+  List<DailyQuest> _generateDailyQuests(String dateStr) {
+    final date = DateTime.parse(dateStr);
+    final isWeekend =
+        date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
+    final multiplier = isWeekend ? 2 : 1;
+
+    return [
+      DailyQuest(
+        id: 'pages_$dateStr',
+        title: 'Daily Reader',
+        description: 'Read 5 pages today.',
+        type: QuestType.pages,
+        targetValue: 5,
+        xpReward: 100 * multiplier,
+        date: date,
+      ),
+      DailyQuest(
+        id: 'minutes_$dateStr',
+        title: 'Deep Focus',
+        description: 'Read for 15 minutes.',
+        type: QuestType.minutes,
+        targetValue: 15,
+        xpReward: 150 * multiplier,
+        date: date,
+      ),
+      DailyQuest(
+        id: 'early_$dateStr',
+        title: 'Early Bird',
+        description: 'Read before 9:00 AM.',
+        type: QuestType.earlyBird,
+        targetValue: 1,
+        xpReward: 200 * multiplier,
+        date: date,
+      ),
+    ];
   }
 
   _UserStats _calculateStats(
     List<Map<String, dynamic>> sessions,
     List<Book> books,
+    int questXp,
   ) {
     int totalPages = 0;
     int totalMinutes = 0;
@@ -329,21 +479,37 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     // EPUB: 40 per chapter (since epubs "pages" are chapters), 5 per minute
     int xp = 0;
     for (var s in sessions) {
-      final bookId = s['bookId'] as int?;
-      final book = books.firstWhere(
-        (b) => b.id == bookId,
-        orElse: () => books[0],
-      );
-      final isEpub = book.filePath.toLowerCase().endsWith('.epub');
       final p = (s['pagesRead'] as int? ?? 0);
       final m = (s['durationMinutes'] as int? ?? 0);
 
-      if (isEpub) {
-        xp += (p * 40) + (m * 5);
-      } else {
-        xp += (p * 10) + (m * 5);
+      // Boost calculation
+      double multiplier = 1.0;
+      final sessionTimestamp = s['timestamp'] != null
+          ? DateTime.tryParse(s['timestamp']) ?? DateTime.parse(s['date'])
+          : DateTime.parse(s['date']);
+
+      // Early Bird: 6 AM - 9 AM (1.5x)
+      if (sessionTimestamp.hour >= 6 && sessionTimestamp.hour < 9) {
+        multiplier = 1.5;
       }
+      // Night Owl: 10 PM - 1 AM (1.5x)
+      else if (sessionTimestamp.hour >= 22 || sessionTimestamp.hour < 1) {
+        multiplier = 1.5;
+      }
+
+      // Weekend Warrior: 2x XP on Sat/Sun (Overrides time boosts)
+      if (sessionTimestamp.weekday == DateTime.saturday ||
+          sessionTimestamp.weekday == DateTime.sunday) {
+        multiplier = 2.0;
+      }
+
+      // Base XP: 10 per page + 5 per minute
+      // (EPUBs are normalized to 10 "pages" per chapter in updateBookProgress)
+      xp += ((p * 10 + m * 5) * multiplier).round();
     }
+
+    // Add Quest XP from historical database
+    xp += questXp;
 
     // Level calculation: 1 level per 1000 XP
     int level = (xp ~/ 1000) + 1;
@@ -731,8 +897,22 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
     // Refresh stats
     final sessions = await _dbService.getReadingSessions();
+    final questXp = await _dbService.getTotalQuestXP();
     final activity = _calculateDetailedActivity(sessions, state.allBooks);
-    final stats = _calculateStats(sessions, state.allBooks);
+    final stats = _calculateStats(sessions, state.allBooks, questXp);
+
+    // Check for new achievements
+    final newAchievements = stats.achievements.difference(
+      state.unlockedAchievements,
+    );
+    for (var achievement in newAchievements) {
+      final title = _getAchievementTitle(achievement);
+      NotificationService().showNotification(
+        id: achievement.hashCode,
+        title: 'Achievement Unlocked!',
+        body: 'You earned the "$title" badge!',
+      );
+    }
 
     state = state.copyWith(
       currentStreak: _calculateStreak(sessions),
@@ -745,7 +925,137 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       totalMinutesRead: stats.totalMinutes,
       unlockedAchievements: stats.achievements,
       sessionHistory: sessions,
+      isStreakActiveToday: _isStreakActiveToday(sessions),
     );
+
+    await _updateQuests(finalPages, finalMinutes);
+  }
+
+  String _getAchievementTitle(String key) {
+    switch (key) {
+      case 'the_first_page':
+        return 'The First Page';
+      case 'seven_day_streak':
+        return 'Weekly Goal';
+      case 'unstoppable':
+        return 'Unstoppable';
+      case 'bookworm':
+        return 'Bookworm';
+      case 'yomibito':
+        return 'Yomibito';
+      case 'sensei':
+        return 'Sensei';
+      case 'century_club':
+        return 'Century Club';
+      default:
+        return 'New Achievement';
+    }
+  }
+
+  Future<void> _updateQuests(int pagesRead, int minutesRead) async {
+    if (pagesRead <= 0 && minutesRead <= 0) return;
+
+    final now = DateTime.now();
+    final updatedQuests = <DailyQuest>[];
+    bool changed = false;
+
+    for (var quest in state.dailyQuests) {
+      if (quest.isCompleted) {
+        updatedQuests.add(quest);
+        continue;
+      }
+
+      int newVal = quest.currentValue;
+      bool newlyCompleted = false;
+
+      switch (quest.type) {
+        case QuestType.pages:
+          newVal += pagesRead;
+          break;
+        case QuestType.minutes:
+          newVal += minutesRead;
+          break;
+        case QuestType.earlyBird:
+          if (now.hour < 9) {
+            newVal = 1;
+          }
+          break;
+        case QuestType.nightOwl:
+          if (now.hour >= 22 || now.hour < 1) {
+            newVal = 1;
+          }
+          break;
+        case QuestType.bookFinished:
+          break;
+      }
+
+      if (newVal >= quest.targetValue) {
+        newVal = quest.targetValue;
+        newlyCompleted = true;
+      }
+
+      if (newVal != quest.currentValue || newlyCompleted) {
+        final updated = quest.copyWith(
+          currentValue: newVal,
+          isCompleted: newlyCompleted,
+        );
+        updatedQuests.add(updated);
+        await _dbService.updateQuestProgress(
+          updated.id,
+          updated.currentValue,
+          updated.isCompleted,
+        );
+        changed = true;
+      } else {
+        updatedQuests.add(quest);
+      }
+    }
+
+    if (changed) {
+      final oldQuests = state.dailyQuests;
+      state = state.copyWith(dailyQuests: updatedQuests);
+
+      // Notify for newly completed quests
+      for (var q in updatedQuests) {
+        final wasCompleted = oldQuests.any(
+          (oq) => oq.id == q.id && oq.isCompleted,
+        );
+        if (q.isCompleted && !wasCompleted) {
+          NotificationService().showNotification(
+            id: q.id.hashCode,
+            title: 'Quest Completed!',
+            body: 'You completed: ${q.title}. +${q.xpReward} XP earned!',
+          );
+        }
+      }
+
+      // Reload stats to reflect quest XP
+      final sessions = await _dbService.getReadingSessions();
+      final questXp = await _dbService.getTotalQuestXP();
+      final stats = _calculateStats(sessions, state.allBooks, questXp);
+
+      // Check for level up notification
+      if (stats.level > state.level) {
+        final newRank = YomuConstants.getRankForLevel(stats.level);
+        final oldRank = YomuConstants.getRankForLevel(state.level);
+
+        if (newRank.name != oldRank.name) {
+          NotificationService().showNotification(
+            id: 1001,
+            title: 'Rank Up!',
+            body: 'Congratulations! You are now a ${newRank.name}!',
+          );
+        } else {
+          NotificationService().showNotification(
+            id: 1002,
+            title: 'Level Up!',
+            body: 'You reached Level ${stats.level}!',
+          );
+        }
+      }
+
+      state = state.copyWith(totalXP: stats.xp, level: stats.level);
+    }
   }
 
   /// Calculate user's average reading speed in pages per minute

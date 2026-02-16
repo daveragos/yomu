@@ -123,27 +123,34 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       _checkAndJumpToPosition();
     }
 
+    final bool bookChanged = !identical(widget.epubBook, oldWidget.epubBook);
+
     if (widget.chapter != oldWidget.chapter ||
         widget.settings.usePublisherDefaults !=
             oldWidget.settings.usePublisherDefaults ||
         widget.searchQuery != oldWidget.searchQuery ||
-        widget.epubBook != oldWidget.epubBook) {
+        bookChanged) {
       _updateProcessedHtml();
     }
   }
 
   void _updateProcessedHtml() {
-    String content = _cleanHtml(widget.chapter.HtmlContent ?? '');
+    final book = widget.epubBook;
+    final settings = widget.settings;
+    final chapter = widget.chapter;
+
+    String content = _cleanHtml(chapter.HtmlContent ?? '');
 
     // Inject EPUB CSS if publisher defaults are on
-    if (widget.settings.usePublisherDefaults && widget.epubBook != null) {
-      final cssFiles = widget.epubBook!.Content?.Css;
+    if (settings.usePublisherDefaults && book != null) {
+      final cssFiles = book.Content?.Css;
       if (cssFiles != null && cssFiles.isNotEmpty) {
         final buffer = StringBuffer();
         buffer.write('<style>');
         for (final cssFile in cssFiles.values) {
-          if (cssFile.Content != null) {
-            buffer.write(cssFile.Content!);
+          final fileContent = cssFile.Content;
+          if (fileContent != null) {
+            buffer.write(fileContent);
           }
         }
         buffer.write('</style>');
@@ -151,8 +158,9 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       }
     }
 
-    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
-      final escapedQuery = RegExp.escape(widget.searchQuery!);
+    final query = widget.searchQuery;
+    if (query != null && query.isNotEmpty) {
+      final escapedQuery = RegExp.escape(query);
       final regex = RegExp('(?![^<]*>)$escapedQuery', caseSensitive: false);
       content = content.replaceAllMapped(regex, (match) {
         return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
@@ -320,24 +328,32 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   const SizedBox(height: 100),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.chapter.Title != null) ...[
-                        Text(
-                          widget.chapter.Title!.toUpperCase(),
-                          style: TextStyle(
-                            color: widget.settings.secondaryTextColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
+                      Builder(
+                        builder: (context) {
+                          final title = widget.chapter.Title;
+                          if (title != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: Text(
+                                title.toUpperCase(),
+                                style: TextStyle(
+                                  color: widget.settings.secondaryTextColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
                       Html(
                         key: ValueKey(
                           'epub_html_${widget.index}_${widget.chapter.Title ?? "none"}',
@@ -364,7 +380,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                               // URL decode just in case
                               path = Uri.decodeFull(path);
 
-                              final images = widget.epubBook!.Content?.Images;
+                              final images = widget.epubBook?.Content?.Images;
                               if (images == null) {
                                 return const SizedBox.shrink();
                               }
@@ -382,16 +398,19 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                                 }
                               }
 
-                              if (imageFile != null &&
-                                  imageFile.Content != null) {
-                                return Center(
-                                  child: Image.memory(
-                                    Uint8List.fromList(imageFile.Content!),
-                                    width:
-                                        MediaQuery.of(context).size.width - 40,
-                                    fit: BoxFit.contain,
-                                  ),
-                                );
+                              if (imageFile != null) {
+                                final content = imageFile.Content;
+                                if (content != null) {
+                                  return Center(
+                                    child: Image.memory(
+                                      Uint8List.fromList(content),
+                                      width:
+                                          MediaQuery.of(context).size.width -
+                                          40,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  );
+                                }
                               }
                               return const SizedBox.shrink();
                             },
@@ -535,7 +554,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           return '<img src="$src" style="width:100%; object-fit: contain;" />';
         }
       }
-      return match.group(0)!;
+      return match.group(0) ?? '';
     });
 
     final bodyRegex = RegExp(
@@ -543,9 +562,12 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       caseSensitive: false,
       dotAll: true,
     );
-    final match = bodyRegex.firstMatch(html);
-    if (match != null && match.group(1) != null) {
-      return match.group(1)!;
+    final bodyMatch = bodyRegex.firstMatch(html);
+    if (bodyMatch != null) {
+      final bodyContent = bodyMatch.group(1);
+      if (bodyContent != null) {
+        return bodyContent;
+      }
     }
 
     if (!html.toLowerCase().contains('<body')) {

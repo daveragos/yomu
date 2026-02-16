@@ -72,7 +72,78 @@ class DashboardHeader extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            _buildXPProgressBar(libraryState),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildXPProgressBar(LibraryState state) {
+    final int currentXP = state.totalXP;
+    final int nextLevelXP = (state.level) * 1000;
+    final int currentLevelStartXP = (state.level - 1) * 1000;
+    final double progress =
+        ((currentXP - currentLevelStartXP) /
+                (nextLevelXP - currentLevelStartXP))
+            .clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'LEVEL ${state.level}',
+              style: const TextStyle(
+                color: YomuConstants.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.0,
+              ),
+            ),
+            Text(
+              '${currentXP % 1000} / 1000 XP',
+              style: const TextStyle(
+                color: YomuConstants.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 6,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: YomuConstants.glassy,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: progress,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    YomuConstants.accent,
+                    YomuConstants.accent.withOpacity(0.6),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: [
+                  BoxShadow(
+                    color: YomuConstants.accent.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ],
     );

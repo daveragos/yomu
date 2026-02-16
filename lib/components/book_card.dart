@@ -186,7 +186,7 @@ class BookCard extends StatelessWidget {
               if (book.totalPages > 0) ...[
                 const SizedBox(height: 2),
                 Text(
-                  'Page ${book.currentPage + 1} of ${book.totalPages}',
+                  '${book.filePath.toLowerCase().endsWith('.epub') ? 'Chapter' : 'Page'} ${book.currentPage + 1} of ${book.totalPages}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: YomuConstants.textSecondary,
                     fontSize: 11,

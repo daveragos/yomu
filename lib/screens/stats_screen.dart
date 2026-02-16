@@ -12,6 +12,7 @@ import './stats/widgets/weekly_goal_card.dart';
 import './stats/widgets/achievements_grid.dart';
 import './stats/widgets/goal_settings_sheet.dart';
 import './stats/widgets/level_metadata_sheet.dart';
+import '../components/daily_quests_card.dart';
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -54,6 +55,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 state: libraryState,
                 onEdit: () => _showGoalSettings(context),
               ),
+              const SizedBox(height: 32),
+              DailyQuestsCard(quests: libraryState.dailyQuests),
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

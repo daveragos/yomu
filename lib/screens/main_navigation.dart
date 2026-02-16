@@ -151,12 +151,12 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
                   icon: Icons.bar_chart_rounded,
                   label: 'Stats',
                 ),
-                // _buildNavItem(
-                //   ref,
-                //   index: 3,
-                //   icon: Icons.settings_rounded,
-                //   label: 'Settings',
-                // ),
+                _buildNavItem(
+                  ref,
+                  index: 3,
+                  icon: Icons.settings_rounded,
+                  label: 'Settings',
+                ),
               ],
             ),
           ),

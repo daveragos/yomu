@@ -432,7 +432,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _recordInteraction();
 
     final progress = _calculateCurrentProgress(book);
-    final int pagesRead = _epubChaptersReadThisSession.length;
+    final int pagesRead = _epubChaptersReadThisSession.fold(
+      0,
+      (sum, idx) => sum + _getEpubChapterWeight(idx),
+    );
 
     // Report pages read if any were accumulated
     ref
@@ -442,6 +445,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           progress,
           pagesRead: pagesRead > 0 ? pagesRead : 0,
           durationMinutes: 0,
+          currentPage: _currentChapterIndex,
+          totalPages: _chapters.length,
           estimateReadingTime: false,
         );
 
@@ -615,7 +620,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         totalPages = _pdfPages;
       }
     } else if (book.filePath.toLowerCase().endsWith('.epub')) {
-      pagesRead = _epubChaptersReadThisSession.length;
+      // Use weights instead of simple counts
+      for (var chapterIndex in _epubChaptersReadThisSession) {
+        pagesRead += _getEpubChapterWeight(chapterIndex);
+      }
+      currentPage = _currentChapterIndex;
+      totalPages = _chapters.length;
     }
 
     if (pagesRead > 0 || duration > 0 || progress != book.progress) {
@@ -635,6 +645,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       _lastSyncTime = now;
     }
     _accumulatedSeconds = 0;
+  }
+
+  int _getEpubChapterWeight(int index) {
+    if (index < 0 || index >= _chapters.length) return 0;
+    final chapter = _chapters[index];
+    final contentLength = chapter.HtmlContent?.length ?? 0;
+    return contentLength < 1000 ? 1 : 10;
   }
 
   @override

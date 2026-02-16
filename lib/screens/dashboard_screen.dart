@@ -11,6 +11,7 @@ import './dashboard/widgets/dashboard_header.dart';
 import './dashboard/widgets/continue_reading_card.dart';
 import './dashboard/widgets/shelf_item.dart';
 import '../components/rank_up_dialog.dart';
+import '../components/streak_widget.dart';
 import 'main_navigation.dart';
 
 final hasDashboardAnimatedProvider = StateProvider<bool>((ref) => false);
@@ -89,6 +90,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 30),
               ],
+              const SizedBox(height: 30),
               _animateIf(
                 _buildQuickStats(context, libraryState),
                 hasAnimated,
@@ -189,6 +191,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 30),
               ],
+              const SizedBox(height: 30),
               const SizedBox(height: 100),
             ],
           ),
@@ -210,11 +213,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Row(
       children: [
         Expanded(
-          child: StatBadge(
-            label: 'Streak',
-            value: '${state.currentStreak}',
-            icon: Icons.local_fire_department,
-            color: YomuConstants.accent,
+          child: StreakWidget(
+            streak: state.currentStreak,
+            isActive: state.isStreakActiveToday,
           ),
         ),
         const SizedBox(width: 8),
