@@ -1,14 +1,46 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/reader_settings_model.dart';
 import '../providers/reader_settings_provider.dart';
 import '../core/constants.dart';
 
-class DisplaySettingsSheet extends ConsumerWidget {
+class DisplaySettingsSheet extends ConsumerStatefulWidget {
   const DisplaySettingsSheet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DisplaySettingsSheet> createState() =>
+      _DisplaySettingsSheetState();
+}
+
+class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
+  late double _localTextSize;
+  late double _localAutoScrollSpeed;
+  late double _localLineHeight;
+  Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = ref.read(readerSettingsProvider);
+    _localTextSize = settings.textSize;
+    _localAutoScrollSpeed = settings.autoScrollSpeed;
+    _localLineHeight = settings.lineHeight;
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _debounceUpdate(VoidCallback update) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), update);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(readerSettingsProvider);
     final notifier = ref.read(readerSettingsProvider.notifier);
 
@@ -75,31 +107,43 @@ class DisplaySettingsSheet extends ConsumerWidget {
             // Text Size Slider
             _buildSliderRow(
               label: 'Text Size',
-              value: settings.textSize,
+              value: _localTextSize,
               min: 12,
               max: 32,
-              displayValue: '${settings.textSize.round()}px',
-              onChanged: (value) => notifier.setTextSize(value),
+              divisions: 20,
+              displayValue: '${_localTextSize.round()}px',
+              onChanged: (value) {
+                setState(() => _localTextSize = value);
+                _debounceUpdate(() => notifier.setTextSize(value));
+              },
             ),
             // Auto Scroll Speed Slider
             _buildSliderRow(
               label: 'Auto Scroll Speed',
-              value: settings.autoScrollSpeed,
+              value: _localAutoScrollSpeed,
               min: 0.5,
               max: 10.0,
-              displayValue: '${settings.autoScrollSpeed.toStringAsFixed(1)}x',
-              onChanged: (value) => notifier.setAutoScrollSpeed(value),
+              divisions: 19,
+              displayValue: '${_localAutoScrollSpeed.toStringAsFixed(1)}x',
+              onChanged: (value) {
+                setState(() => _localAutoScrollSpeed = value);
+                _debounceUpdate(() => notifier.setAutoScrollSpeed(value));
+              },
             ),
             const SizedBox(height: 16),
 
             // Line Height Slider
             _buildSliderRow(
               label: 'Line Height',
-              value: settings.lineHeight,
+              value: _localLineHeight,
               min: 1.0,
               max: 2.5,
-              displayValue: settings.lineHeight.toStringAsFixed(1),
-              onChanged: (value) => notifier.setLineHeight(value),
+              divisions: 15,
+              displayValue: _localLineHeight.toStringAsFixed(1),
+              onChanged: (value) {
+                setState(() => _localLineHeight = value);
+                _debounceUpdate(() => notifier.setLineHeight(value));
+              },
             ),
             const SizedBox(height: 20),
 
@@ -213,6 +257,7 @@ class DisplaySettingsSheet extends ConsumerWidget {
     required double max,
     required String displayValue,
     required ValueChanged<double> onChanged,
+    int? divisions,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,6 +293,7 @@ class DisplaySettingsSheet extends ConsumerWidget {
             value: value.clamp(min, max),
             min: min,
             max: max,
+            divisions: divisions,
             onChanged: onChanged,
           ),
         ),

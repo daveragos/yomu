@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -65,6 +64,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   bool? _isPullingDown;
   Ticker? _ticker;
   Duration _lastElapsed = Duration.zero;
+  String _processedHtml = '';
 
   @override
   void initState() {
@@ -99,6 +99,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     if (widget.autoScrollSpeedNotifier.value > 0) {
       _ticker?.start();
     }
+    _updateProcessedHtml();
   }
 
   void _handleSpeedChange() {
@@ -121,6 +122,46 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         widget.initialScrollProgress > 0) {
       _checkAndJumpToPosition();
     }
+
+    if (widget.chapter != oldWidget.chapter ||
+        widget.settings.usePublisherDefaults !=
+            oldWidget.settings.usePublisherDefaults ||
+        widget.searchQuery != oldWidget.searchQuery ||
+        widget.epubBook != oldWidget.epubBook) {
+      _updateProcessedHtml();
+    }
+  }
+
+  void _updateProcessedHtml() {
+    String content = _cleanHtml(widget.chapter.HtmlContent ?? '');
+
+    // Inject EPUB CSS if publisher defaults are on
+    if (widget.settings.usePublisherDefaults && widget.epubBook != null) {
+      final cssFiles = widget.epubBook!.Content?.Css;
+      if (cssFiles != null && cssFiles.isNotEmpty) {
+        final buffer = StringBuffer();
+        buffer.write('<style>');
+        for (final cssFile in cssFiles.values) {
+          if (cssFile.Content != null) {
+            buffer.write(cssFile.Content!);
+          }
+        }
+        buffer.write('</style>');
+        content = buffer.toString() + content;
+      }
+    }
+
+    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+      final escapedQuery = RegExp.escape(widget.searchQuery!);
+      final regex = RegExp('(?![^<]*>)$escapedQuery', caseSensitive: false);
+      content = content.replaceAllMapped(regex, (match) {
+        return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
+      });
+    }
+
+    setState(() {
+      _processedHtml = content;
+    });
   }
 
   void _checkAndJump() {
@@ -298,45 +339,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                         const SizedBox(height: 24),
                       ],
                       Html(
-                        data: () {
-                          String content = _cleanHtml(
-                            widget.chapter.HtmlContent ?? '',
-                          );
-
-                          // Inject EPUB CSS if publisher defaults are on
-                          if (widget.settings.usePublisherDefaults &&
-                              widget.epubBook != null) {
-                            final cssFiles = widget.epubBook!.Content?.Css;
-                            if (cssFiles != null && cssFiles.isNotEmpty) {
-                              final buffer = StringBuffer();
-                              buffer.write('<style>');
-                              for (final cssFile in cssFiles.values) {
-                                if (cssFile.Content != null) {
-                                  buffer.write(cssFile.Content!);
-                                }
-                              }
-                              buffer.write('</style>');
-                              content = buffer.toString() + content;
-                            }
-                          }
-
-                          if (widget.searchQuery != null &&
-                              widget.searchQuery!.isNotEmpty) {
-                            final escapedQuery = RegExp.escape(
-                              widget.searchQuery!,
-                            );
-                            final regex = RegExp(
-                              '(?![^<]*>)$escapedQuery',
-                              caseSensitive: false,
-                            );
-                            content = content.replaceAllMapped(regex, (match) {
-                              return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
-                            });
-                          }
-                          // Debug logging
-
-                          return content;
-                        }(),
+                        key: ValueKey(
+                          'epub_html_${widget.index}_${widget.chapter.Title ?? "none"}',
+                        ),
+                        data: _processedHtml,
                         extensions: [
                           TagExtension(
                             tagsToExtend: {"img"},

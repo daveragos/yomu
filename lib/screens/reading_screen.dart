@@ -83,7 +83,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   // UI state
   bool _showControls = true;
-  String _currentTime = '';
+  final ValueNotifier<String> _currentTimeNotifier = ValueNotifier('');
   Timer? _currentTimeTimer;
   Timer? _audioDebounceTimer;
   String? _loadedAudioBookId;
@@ -238,10 +238,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final now = DateTime.now();
     final timeStr =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    if (_currentTime != timeStr) {
-      setState(() {
-        _currentTime = timeStr;
-      });
+    if (_currentTimeNotifier.value != timeStr) {
+      _currentTimeNotifier.value = timeStr;
     }
   }
 
@@ -260,6 +258,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _audioPositionNotifier.dispose();
     _audioDurationNotifier.dispose();
     _isAudioPlayingNotifier.dispose();
+    _currentTimeNotifier.dispose();
     _autoScrollSpeedNotifier.removeListener(_handleGlobalSpeedChange);
     _pdfAutoScrollTicker?.dispose();
     _searchController.dispose();
@@ -733,8 +732,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               setState(() => _shouldJumpToBottom = false),
                           onJumpedToPosition: () =>
                               setState(() => _initialScrollProgress = 0.0),
-                          onHideControls: () =>
-                              setState(() => _showControls = false),
+                          onHideControls: () {
+                            if (_showControls) {
+                              setState(() => _showControls = false);
+                            }
+                          },
                           searchQuery: _activeSearchQuery,
                           epubBook: _epubBook,
                         )
@@ -775,8 +777,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             }
                           },
                           onInteraction: _recordInteraction,
-                          onHideControls: () =>
-                              setState(() => _showControls = false),
+                          onHideControls: () {
+                            if (_showControls) {
+                              setState(() => _showControls = false);
+                            }
+                          },
                           showControls: _showControls,
                         ),
                       _buildAnimatedControlsOverlay(context, book, settings),
@@ -793,14 +798,19 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                   ),
                 ),
               ),
-              ReadingFooter(
-                book: book,
-                settings: settings,
-                currentTime: _currentTime,
-                currentChapter: _currentChapter,
-                scrollProgressNotifier: _scrollProgressNotifier,
-                totalChapters: _chapters.length,
-                currentChapterIndex: _currentChapterIndex,
+              ValueListenableBuilder<String>(
+                valueListenable: _currentTimeNotifier,
+                builder: (context, currentTime, _) {
+                  return ReadingFooter(
+                    book: book,
+                    settings: settings,
+                    currentTime: currentTime,
+                    currentChapter: _currentChapter,
+                    scrollProgressNotifier: _scrollProgressNotifier,
+                    totalChapters: _chapters.length,
+                    currentChapterIndex: _currentChapterIndex,
+                  );
+                },
               ),
             ],
           ),
@@ -824,48 +834,53 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           top: _showControls ? 0 : -100,
           left: 0,
           right: 0,
-          child: ReadingHeader(
-            book: book,
-            settings: settings,
-            currentChapter: _currentChapter,
-            pageInfo: isEpub
-                ? '${(book.progress * 100).toStringAsFixed(0)}%'
-                : '${_pdfCurrentPage + 1} / $_pdfPages',
-            isSearching: _isSearching,
-            isSearchLoading: _isSearchLoading,
-            isSearchResultsCollapsed: _isSearchResultsCollapsed,
-            searchResultsCount: _searchResults.length,
-            searchController: _searchController,
-            searchFocusNode: _searchFocusNode,
-            onBackPressed: () {
-              _syncFinalProgress(book);
-              Navigator.of(context).pop();
+          child: ValueListenableBuilder<String>(
+            valueListenable: _currentTimeNotifier,
+            builder: (context, currentTime, _) {
+              return ReadingHeader(
+                book: book,
+                settings: settings,
+                currentChapter: _currentChapter,
+                pageInfo: isEpub
+                    ? '${(book.progress * 100).toStringAsFixed(0)}%'
+                    : '${_pdfCurrentPage + 1} / $_pdfPages',
+                isSearching: _isSearching,
+                isSearchLoading: _isSearchLoading,
+                isSearchResultsCollapsed: _isSearchResultsCollapsed,
+                searchResultsCount: _searchResults.length,
+                searchController: _searchController,
+                searchFocusNode: _searchFocusNode,
+                onBackPressed: () {
+                  _syncFinalProgress(book);
+                  Navigator.of(context).pop();
+                },
+                onToggleSearch: () {
+                  setState(() {
+                    _isSearching = true;
+                    _showControls = true;
+                  });
+                  _searchFocusNode.requestFocus();
+                },
+                onClearSearch: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchController.clear();
+                    _searchResults = [];
+                    _activeSearchQuery = null;
+                  });
+                },
+                onSearchSubmitted: (value) => _handleSearch(value, book),
+                onToggleSearchResultsCollapse: () => setState(
+                  () => _isSearchResultsCollapsed = !_isSearchResultsCollapsed,
+                ),
+                searchResultsOverlay: ReadingSearchOverlay(
+                  book: book,
+                  settings: settings,
+                  searchResults: _searchResults,
+                  onResultTap: (result) => _goToSearchResult(result, book),
+                ),
+              );
             },
-            onToggleSearch: () {
-              setState(() {
-                _isSearching = true;
-                _showControls = true;
-              });
-              _searchFocusNode.requestFocus();
-            },
-            onClearSearch: () {
-              setState(() {
-                _isSearching = false;
-                _searchController.clear();
-                _searchResults = [];
-                _activeSearchQuery = null;
-              });
-            },
-            onSearchSubmitted: (value) => _handleSearch(value, book),
-            onToggleSearchResultsCollapse: () => setState(
-              () => _isSearchResultsCollapsed = !_isSearchResultsCollapsed,
-            ),
-            searchResultsOverlay: ReadingSearchOverlay(
-              book: book,
-              settings: settings,
-              searchResults: _searchResults,
-              onResultTap: (result) => _goToSearchResult(result, book),
-            ),
           ),
         ),
         AnimatedPositioned(

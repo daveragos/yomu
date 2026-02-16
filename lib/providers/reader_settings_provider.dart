@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,14 +12,23 @@ final readerSettingsProvider =
     });
 
 class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
+  SharedPreferences? _prefs;
+  Timer? _saveTimer;
+
   ReaderSettingsNotifier() : super(ReaderSettings.defaults) {
     _loadSettings();
   }
 
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadSettings() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final settingsJson = prefs.getString(_readerSettingsKey);
+      _prefs ??= await SharedPreferences.getInstance();
+      final settingsJson = _prefs?.getString(_readerSettingsKey);
       if (settingsJson != null) {
         final map = jsonDecode(settingsJson) as Map<String, dynamic>;
         state = ReaderSettings.fromMap(map);
@@ -29,13 +39,16 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
     }
   }
 
-  Future<void> _saveSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_readerSettingsKey, jsonEncode(state.toMap()));
-    } catch (e) {
-      // Silently fail - settings will be lost on restart
-    }
+  void _saveSettings() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 2), () async {
+      try {
+        _prefs ??= await SharedPreferences.getInstance();
+        await _prefs?.setString(_readerSettingsKey, jsonEncode(state.toMap()));
+      } catch (e) {
+        // Silently fail - settings will be lost on restart
+      }
+    });
   }
 
   void setTheme(ReaderTheme theme) {
