@@ -7,21 +7,52 @@ import '../../../models/book_model.dart';
 import '../../../providers/library_provider.dart';
 import '../../reading_screen.dart';
 
-class ContinueReadingCard extends ConsumerWidget {
+class ContinueReadingCard extends ConsumerStatefulWidget {
   final Book book;
+  final Function(Offset)? onLongPress;
+  final Function(Offset)? onMenuPressed;
 
-  const ContinueReadingCard({super.key, required this.book});
+  const ContinueReadingCard({
+    super.key,
+    required this.book,
+    this.onLongPress,
+    this.onMenuPressed,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ContinueReadingCard> createState() =>
+      _ContinueReadingCardState();
+}
+
+class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
+  Offset _tapPosition = Offset.zero;
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
+      onTapDown: (details) {
+        setState(() {
+          _tapPosition = details.globalPosition;
+        });
+      },
       onTap: () {
-        ref.read(currentlyReadingProvider.notifier).state = book;
-        ref.read(libraryProvider.notifier).markBookAsOpened(book);
+        ref.read(currentlyReadingProvider.notifier).state = widget.book;
+        ref.read(libraryProvider.notifier).markBookAsOpened(widget.book);
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const ReadingScreen()),
         );
+      },
+      onLongPress: () {
+        if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
+      },
+      onSecondaryTapDown: (details) {
+        setState(() {
+          _tapPosition = details.globalPosition;
+        });
+      },
+      onSecondaryTap: () {
+        if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
       },
       child: GlassContainer(
         padding: const EdgeInsets.all(16),
@@ -37,9 +68,9 @@ class ContinueReadingCard extends ConsumerWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: book.coverPath.startsWith('assets')
+                child: widget.book.coverPath.startsWith('assets')
                     ? Image.asset(
-                        book.coverPath,
+                        widget.book.coverPath,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -50,7 +81,7 @@ class ContinueReadingCard extends ConsumerWidget {
                         ),
                       )
                     : Image.file(
-                        File(book.coverPath),
+                        File(widget.book.coverPath),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -67,17 +98,44 @@ class ContinueReadingCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    book.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.book.title,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (widget.onMenuPressed != null)
+                        InkWell(
+                          onTapDown: (details) {
+                            setState(() {
+                              _tapPosition = details.globalPosition;
+                            });
+                          },
+                          onTap: () => widget.onMenuPressed!(_tapPosition),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Icon(
+                              Icons.more_vert,
+                              color: YomuConstants.textSecondary.withValues(
+                                alpha: 0.6,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   Text(
-                    book.author,
+                    widget.book.author,
                     style: TextStyle(
                       color: YomuConstants.textSecondary,
                       fontSize: 16,
@@ -88,7 +146,7 @@ class ContinueReadingCard extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: LinearProgressIndicator(
-                          value: book.progress,
+                          value: widget.book.progress,
                           backgroundColor: Colors.white10,
                           valueColor: AlwaysStoppedAnimation<Color>(
                             YomuConstants.accent,
@@ -98,7 +156,7 @@ class ContinueReadingCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        '${(book.progress * 100).toInt()}%',
+                        '${(widget.book.progress * 100).toInt()}%',
                         style: TextStyle(
                           color: YomuConstants.accent,
                           fontWeight: FontWeight.bold,

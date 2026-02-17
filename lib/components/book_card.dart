@@ -6,11 +6,13 @@ import '../components/glass_container.dart';
 
 import '../models/book_model.dart';
 
-class BookCard extends StatelessWidget {
+class BookCard extends StatefulWidget {
   final Book book;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-  final VoidCallback? onMenuPressed;
+  final Function(Offset)? onLongPress;
+  final Function(Offset)? onMenuPressed;
+  final bool isSelected;
+  final bool selectionMode;
 
   const BookCard({
     super.key,
@@ -18,13 +20,29 @@ class BookCard extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onMenuPressed,
+    this.isSelected = false,
+    this.selectionMode = false,
   });
+
+  @override
+  State<BookCard> createState() => _BookCardState();
+}
+
+class _BookCardState extends State<BookCard> {
+  Offset _tapPosition = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
+      onTapDown: (details) {
+        setState(() {
+          _tapPosition = details.globalPosition;
+        });
+      },
+      onTap: widget.onTap,
+      onLongPress: () {
+        if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
+      },
       child: GlassContainer(
         width: 150,
         padding: const EdgeInsets.all(8),
@@ -40,9 +58,9 @@ class BookCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    book.coverPath.startsWith('http')
+                    widget.book.coverPath.startsWith('http')
                         ? CachedNetworkImage(
-                            imageUrl: book.coverPath,
+                            imageUrl: widget.book.coverPath,
                             fit: BoxFit.cover,
                             placeholder: (context, url) =>
                                 Container(color: YomuConstants.surface),
@@ -54,9 +72,9 @@ class BookCard extends StatelessWidget {
                               ),
                             ),
                           )
-                        : book.coverPath.isNotEmpty
+                        : widget.book.coverPath.isNotEmpty
                         ? Image.file(
-                            File(book.coverPath),
+                            File(widget.book.coverPath),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 Padding(
@@ -75,7 +93,7 @@ class BookCard extends StatelessWidget {
                             ),
                           ),
                     // New Tag
-                    if (book.progress == 0)
+                    if (widget.book.progress == 0)
                       Positioned(
                         top: 8,
                         left: 8,
@@ -98,7 +116,7 @@ class BookCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (book.isFavorite)
+                    if (widget.book.isFavorite)
                       Positioned(
                         top: 8,
                         right: 8,
@@ -106,6 +124,39 @@ class BookCard extends StatelessWidget {
                           Icons.favorite,
                           color: Colors.red,
                           size: 20,
+                        ),
+                      ),
+                    // Selection Overlay
+                    if (widget.selectionMode)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: widget.isSelected
+                                ? YomuConstants.accent.withValues(alpha: 0.3)
+                                : Colors.black26,
+                          ),
+                          child: Center(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: widget.isSelected
+                                    ? YomuConstants.accent
+                                    : Colors.white24,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                widget.isSelected ? Icons.check : Icons.add,
+                                color: widget.isSelected
+                                    ? Colors.black
+                                    : Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                   ],
@@ -121,7 +172,7 @@ class BookCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        book.title,
+                        widget.book.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -130,7 +181,7 @@ class BookCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        book.author,
+                        widget.book.author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -141,21 +192,30 @@ class BookCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onMenuPressed != null)
-                  IconButton(
-                    icon: Icon(
-                      Icons.more_vert,
-                      size: 20,
-                      color: YomuConstants.textSecondary.withValues(alpha: 0.6),
+                if (widget.onMenuPressed != null && !widget.selectionMode)
+                  InkWell(
+                    onTapDown: (details) {
+                      setState(() {
+                        _tapPosition = details.globalPosition;
+                      });
+                    },
+                    onTap: () => widget.onMenuPressed!(_tapPosition),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Icon(
+                        Icons.more_vert,
+                        size: 20,
+                        color: YomuConstants.textSecondary.withValues(
+                          alpha: 0.6,
+                        ),
+                      ),
                     ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: onMenuPressed,
                   ),
               ],
             ),
             // Progress information for books in progress
-            if (book.progress > 0 && book.progress < 1.0) ...[
+            if (widget.book.progress > 0 && widget.book.progress < 1.0) ...[
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -163,7 +223,7 @@ class BookCard extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(2),
                       child: LinearProgressIndicator(
-                        value: book.progress,
+                        value: widget.book.progress,
                         backgroundColor: Colors.white.withValues(alpha: 0.05),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           YomuConstants.accent,
@@ -174,7 +234,7 @@ class BookCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${(book.progress * 100).toStringAsFixed(0)}%',
+                    '${(widget.book.progress * 100).toStringAsFixed(0)}%',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: YomuConstants.textSecondary,
                       fontSize: 10,
@@ -183,30 +243,30 @@ class BookCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (book.totalPages > 0) ...[
+              if (widget.book.totalPages > 0) ...[
                 const SizedBox(height: 2),
                 Text(
-                  '${book.filePath.toLowerCase().endsWith('.epub') ? 'Chapter' : 'Page'} ${book.currentPage + 1} of ${book.totalPages}',
+                  '${widget.book.filePath.toLowerCase().endsWith('.epub') ? 'Chapter' : 'Page'} ${widget.book.currentPage + 1} of ${widget.book.totalPages}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: YomuConstants.textSecondary,
                     fontSize: 11,
                   ),
                 ),
               ],
-              if (book.estimatedReadingMinutes > 0) ...[
+              if (widget.book.estimatedReadingMinutes > 0) ...[
                 const SizedBox(height: 2),
                 Text(
-                  _formatReadingTime(book.estimatedReadingMinutes),
+                  _formatReadingTime(widget.book.estimatedReadingMinutes),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: YomuConstants.textSecondary.withValues(alpha: 0.8),
                     fontSize: 11,
                   ),
                 ),
               ],
-              if (book.lastReadAt != null) ...[
+              if (widget.book.lastReadAt != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  _formatLastRead(book.lastReadAt!),
+                  _formatLastRead(widget.book.lastReadAt!),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: YomuConstants.textSecondary.withValues(alpha: 0.5),
                     fontSize: 10,

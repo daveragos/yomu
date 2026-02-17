@@ -13,6 +13,9 @@ import './dashboard/widgets/shelf_item.dart';
 import '../components/rank_up_dialog.dart';
 import '../components/streak_widget.dart';
 import 'main_navigation.dart';
+import '../models/book_model.dart';
+import 'edit_book_screen.dart';
+import '../components/book_overlay_menu.dart';
 
 final hasDashboardAnimatedProvider = StateProvider<bool>((ref) => false);
 
@@ -81,7 +84,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 30),
               if (recentBooks.isNotEmpty) ...[
                 _animateIf(
-                  ContinueReadingCard(book: recentBooks.first),
+                  ContinueReadingCard(
+                    book: recentBooks.first,
+                    onLongPress: (pos) =>
+                        _showBookOptions(recentBooks.first, pos),
+                    onMenuPressed: (pos) =>
+                        _showBookOptions(recentBooks.first, pos),
+                  ),
                   hasAnimated,
                   (w) => w
                       .animate()
@@ -179,7 +188,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     itemBuilder: (context, index) {
                       final book = recentBooks[index + 1];
                       return _animateIf(
-                        ShelfItem(book: book),
+                        ShelfItem(
+                          book: book,
+                          onLongPress: (pos) => _showBookOptions(book, pos),
+                          onMenuPressed: (pos) => _showBookOptions(book, pos),
+                        ),
                         hasAnimated,
                         (w) => w
                             .animate()
@@ -268,5 +281,95 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         sessionHistory: state.sessionHistory,
       ),
     );
+  }
+
+  void _showBookOptions(Book book, Offset tapPosition) {
+    BookOverlayMenu.show(
+      context: context,
+      book: book,
+      position: tapPosition,
+      onAction: (action) {
+        switch (action) {
+          case 'favorite':
+            ref.read(libraryProvider.notifier).toggleBookFavorite(book);
+            break;
+          case 'edit':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditBookScreen(book: book),
+              ),
+            );
+            break;
+          case 'delete':
+            _showDeleteConfirmation(book);
+            break;
+        }
+      },
+    );
+  }
+
+  void _showDeleteConfirmation(Book book) async {
+    bool deleteHistory = false;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: YomuConstants.surface,
+            title: const Text(
+              'Remove Book',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Are you sure you want to remove "${book.title}"?',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Remove reading history',
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
+                  ),
+                  value: deleteHistory,
+                  activeColor: YomuConstants.accent,
+                  onChanged: (val) {
+                    setDialogState(() {
+                      deleteHistory = val ?? false;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white60),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Remove',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirm == true) {
+      ref
+          .read(libraryProvider.notifier)
+          .deleteBook(book.id!, deleteHistory: deleteHistory);
+    }
   }
 }

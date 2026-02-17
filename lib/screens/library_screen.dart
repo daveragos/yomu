@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../core/constants.dart';
 import '../components/book_card.dart';
+import '../components/glass_container.dart';
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
 import '../services/book_service.dart';
@@ -10,8 +11,9 @@ import 'reading_screen.dart';
 import 'file_selection_screen.dart';
 import './library/widgets/empty_library_view.dart';
 import './library/widgets/library_header.dart';
-import './library/widgets/book_options_sheet.dart';
 import './library/widgets/add_book_fab.dart';
+import 'edit_book_screen.dart';
+import '../components/book_overlay_menu.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -25,6 +27,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   final TextEditingController _searchController = TextEditingController();
   bool _isMenuOpen = false;
   late AnimationController _animationController;
+  final Set<int> _selectedBookIds = {};
+  bool _isSelectionMode = false;
+
+  void _toggleSelection(Book book) {
+    if (book.id == null) return;
+    setState(() {
+      if (_selectedBookIds.contains(book.id)) {
+        _selectedBookIds.remove(book.id);
+        if (_selectedBookIds.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedBookIds.add(book.id!);
+        _isSelectionMode = true;
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedBookIds.clear();
+      _isSelectionMode = false;
+    });
+  }
 
   @override
   void initState() {
@@ -102,7 +128,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                LibraryHeader(searchController: _searchController),
+                if (_isSelectionMode)
+                  _buildSelectionHeader()
+                else
+                  LibraryHeader(searchController: _searchController),
                 Expanded(
                   child: state.allBooks.isEmpty
                       ? EmptyLibraryView(onImportFiles: _handleSelectiveImport)
@@ -143,14 +172,118 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       itemCount: books.length,
       itemBuilder: (context, index) {
         final book = books[index];
+        final isSelected = _selectedBookIds.contains(book.id);
         return BookCard(
           book: book,
-          onTap: () => _showBookDetails(book),
-          onLongPress: () => _showBookOptions(book),
-          onMenuPressed: () => _showBookOptions(book),
+          isSelected: isSelected,
+          selectionMode: _isSelectionMode,
+          onTap: () {
+            if (_isSelectionMode) {
+              _toggleSelection(book);
+            } else {
+              _showBookDetails(book);
+            }
+          },
+          onLongPress: (pos) {
+            if (!_isSelectionMode) {
+              _toggleSelection(book);
+            } else {
+              _showBookOptions(book, pos);
+            }
+          },
+          onMenuPressed: (pos) => _showBookOptions(book, pos),
         );
       },
     );
+  }
+
+  Widget _buildSelectionHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GlassContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        borderRadius: 12,
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white70),
+              onPressed: _clearSelection,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${_selectedBookIds.length} selected',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Select All',
+              icon: const Icon(Icons.select_all, color: Colors.white70),
+              onPressed: () {
+                setState(() {
+                  final filteredBooks = ref.read(libraryProvider).filteredBooks;
+                  for (final book in filteredBooks) {
+                    if (book.id != null) _selectedBookIds.add(book.id!);
+                  }
+                  _isSelectionMode = true;
+                });
+              },
+            ),
+            IconButton(
+              tooltip: 'Remove Selected',
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              onPressed: _handleBatchDelete,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleBatchDelete() async {
+    if (_selectedBookIds.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: YomuConstants.surface,
+        title: const Text(
+          'Remove Books',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'Are you sure you want to remove ${_selectedBookIds.length} books? Your reading progress and history will be kept if you re-import them.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white60),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final notifier = ref.read(libraryProvider.notifier);
+      for (final id in _selectedBookIds) {
+        notifier.deleteBook(id);
+      }
+      _clearSelection();
+    }
   }
 
   void _showBookDetails(Book book) {
@@ -162,17 +295,93 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  void _showBookOptions(Book book) {
-    showModalBottomSheet(
+  void _showBookOptions(Book book, Offset tapPosition) {
+    BookOverlayMenu.show(
       context: context,
-      backgroundColor: YomuConstants.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      builder: (context) => BookOptionsSheet(book: book),
+      book: book,
+      position: tapPosition,
+      onAction: (action) {
+        switch (action) {
+          case 'favorite':
+            ref.read(libraryProvider.notifier).toggleBookFavorite(book);
+            break;
+          case 'edit':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditBookScreen(book: book),
+              ),
+            );
+            break;
+          case 'delete':
+            _showDeleteConfirmation(book);
+            break;
+        }
+      },
     );
+  }
+
+  void _showDeleteConfirmation(Book book) async {
+    bool deleteHistory = false;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: YomuConstants.surface,
+            title: const Text(
+              'Remove Book',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Are you sure you want to remove "${book.title}"?',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Remove reading history',
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
+                  ),
+                  value: deleteHistory,
+                  activeColor: YomuConstants.accent,
+                  onChanged: (val) {
+                    setDialogState(() {
+                      deleteHistory = val ?? false;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white60),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Remove',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirm == true) {
+      ref
+          .read(libraryProvider.notifier)
+          .deleteBook(book.id!, deleteHistory: deleteHistory);
+    }
   }
 }
