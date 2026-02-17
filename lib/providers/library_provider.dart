@@ -877,7 +877,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
     // 1. Estimate Pages if null, based on progress
     // We only want to track pages read if progress moved and pagesRead wasn't provided.
-    if (finalPages == 0 && pagesRead == null && progress > oldProgress) {
+    if (finalPages == 0 &&
+        pagesRead == null &&
+        durationMinutes != null &&
+        durationMinutes > 0 &&
+        progress > oldProgress + 0.001) {
       final effectiveTotalPages = book.totalPages > 0 ? book.totalPages : 300;
       finalPages = ((progress - oldProgress) * effectiveTotalPages)
           .round()
@@ -1078,7 +1082,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       return 1.0;
     }
 
-    return totalPages / totalMinutes;
+    return (totalPages / totalMinutes).clamp(0.1, 100.0);
   }
 
   Future<void> scanFolder() async {

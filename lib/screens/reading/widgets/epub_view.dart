@@ -23,6 +23,7 @@ class ReadingEpubView extends StatelessWidget {
   final VoidCallback onJumpedToBottom;
   final VoidCallback onJumpedToPosition;
   final VoidCallback onHideControls;
+  final VoidCallback onInteraction;
 
   const ReadingEpubView({
     super.key,
@@ -42,6 +43,7 @@ class ReadingEpubView extends StatelessWidget {
     required this.onJumpedToBottom,
     required this.onJumpedToPosition,
     required this.onHideControls,
+    required this.onInteraction,
     this.searchQuery,
     this.epubBook,
   });
@@ -60,6 +62,7 @@ class ReadingEpubView extends StatelessWidget {
       itemBuilder: (context, index) {
         return EpubChapterPage(
           index: index,
+          isCurrentPage: index == currentChapterIndex,
           chapter: chapters[index],
           settings: settings,
           shouldJumpToBottom: shouldJumpToBottom,
@@ -71,6 +74,7 @@ class ReadingEpubView extends StatelessWidget {
           scrollProgressNotifier: scrollProgressNotifier,
           showControls: showControls,
           onHideControls: onHideControls,
+          onInteraction: onInteraction,
           pullTriggerDistance: 80.0,
           pullDeadzone: 8.0,
           chapters: chapters,

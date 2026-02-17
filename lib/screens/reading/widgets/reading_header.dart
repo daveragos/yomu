@@ -7,7 +7,7 @@ class ReadingHeader extends StatelessWidget {
   final Book book;
   final ReaderSettings settings;
   final String currentChapter;
-  final String pageInfo;
+  final dynamic pageInfo;
   final bool isSearching;
   final bool isSearchLoading;
   final bool isSearchResultsCollapsed;
@@ -140,14 +140,16 @@ class ReadingHeader extends StatelessWidget {
                         color: settings.textColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        pageInfo,
-                        style: TextStyle(
-                          color: settings.textColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      child: pageInfo is Widget
+                          ? pageInfo
+                          : Text(
+                              pageInfo.toString(),
+                              style: TextStyle(
+                                color: settings.textColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                     ),
                   ],
                 ],

@@ -10,6 +10,7 @@ import '../../../models/reader_settings_model.dart';
 
 class EpubChapterPage extends StatefulWidget {
   final int index;
+  final bool isCurrentPage;
   final EpubChapter chapter;
   final ReaderSettings settings;
   final bool shouldJumpToBottom;
@@ -21,6 +22,7 @@ class EpubChapterPage extends StatefulWidget {
   final ValueNotifier<double> scrollProgressNotifier;
   final bool showControls;
   final VoidCallback onHideControls;
+  final VoidCallback onInteraction;
   final double pullTriggerDistance;
   final double pullDeadzone;
   final List<EpubChapter> chapters;
@@ -32,6 +34,7 @@ class EpubChapterPage extends StatefulWidget {
   const EpubChapterPage({
     super.key,
     required this.index,
+    required this.isCurrentPage,
     required this.chapter,
     required this.settings,
     required this.shouldJumpToBottom,
@@ -43,6 +46,7 @@ class EpubChapterPage extends StatefulWidget {
     required this.scrollProgressNotifier,
     required this.showControls,
     required this.onHideControls,
+    required this.onInteraction,
     required this.pullTriggerDistance,
     required this.pullDeadzone,
     required this.chapters,
@@ -60,6 +64,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     with SingleTickerProviderStateMixin {
   late ScrollController _scrollController;
   bool _isNavigating = false;
+  bool _isInitialPositionRestored = false;
   double _currentPeakOverscroll = 0.0;
   bool? _isPullingDown;
   Ticker? _ticker;
@@ -72,8 +77,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     _scrollController = ScrollController();
     if (widget.shouldJumpToBottom) {
       _checkAndJump();
+      _isInitialPositionRestored = true;
     } else if (widget.initialScrollProgress > 0) {
       _checkAndJumpToPosition();
+    } else {
+      _isInitialPositionRestored = true;
     }
 
     _ticker = createTicker((elapsed) {
@@ -202,11 +210,8 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       if (mounted && _scrollController.hasClients) {
         final double maxScroll = _scrollController.position.maxScrollExtent;
         if (maxScroll > 0) {
-          _scrollController.animateTo(
-            maxScroll * widget.initialScrollProgress,
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
-          );
+          _scrollController.jumpTo(maxScroll * widget.initialScrollProgress);
+          setState(() => _isInitialPositionRestored = true);
           widget.onJumpedToPosition();
         } else {
           Future.delayed(const Duration(milliseconds: 50), () {
@@ -214,12 +219,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               final double newMaxScroll =
                   _scrollController.position.maxScrollExtent;
               if (newMaxScroll > 0) {
-                _scrollController.animateTo(
+                _scrollController.jumpTo(
                   newMaxScroll * widget.initialScrollProgress,
-                  duration: const Duration(milliseconds: 600),
-                  curve: Curves.easeOutCubic,
                 );
               }
+              setState(() => _isInitialPositionRestored = true);
               widget.onJumpedToPosition();
             }
           });
@@ -290,9 +294,17 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
         if (notification.metrics.axis == Axis.vertical) {
           final metrics = notification.metrics;
-          final double currentProgress = metrics.maxScrollExtent > 0
+          final double progressValue = metrics.maxScrollExtent > 0
               ? (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0)
               : 1.0;
+
+          // Only update progress if we're the current page AND initial position is restored
+          if (widget.isCurrentPage && _isInitialPositionRestored) {
+            if (progressValue != widget.scrollProgressNotifier.value) {
+              widget.scrollProgressNotifier.value = progressValue;
+              widget.onInteraction();
+            }
+          }
 
           if (metrics.pixels > metrics.maxScrollExtent) {
             final overscroll = metrics.pixels - metrics.maxScrollExtent;
@@ -308,12 +320,8 @@ class _EpubChapterPageState extends State<EpubChapterPage>
             }
           }
 
-          if (widget.scrollProgressNotifier.value != currentProgress) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                widget.scrollProgressNotifier.value = currentProgress;
-              }
-            });
+          if (metrics.pixels != 0) {
+            widget.onInteraction();
           }
         }
         return false;

@@ -394,8 +394,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       return book.progress;
     } else if (book.filePath.toLowerCase().endsWith('.epub')) {
       if (_chapters.isNotEmpty) {
-        return (_currentChapterIndex + _scrollProgressNotifier.value) /
+        final double progress =
+            (_currentChapterIndex + _scrollProgressNotifier.value) /
             _chapters.length;
+        // If we are in the last chapter and very close to the end, snap to 1.0
+        if (_currentChapterIndex == _chapters.length - 1 &&
+            _scrollProgressNotifier.value > 0.99) {
+          return 1.0;
+        }
+        return progress.clamp(0.0, 1.0);
       }
     }
     return book.progress;
@@ -722,6 +729,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               Expanded(
                 child: GestureDetector(
                   onTap: () {
+                    _recordInteraction();
                     setState(() {
                       _showControls = !_showControls;
                     });
@@ -754,6 +762,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               setState(() => _showControls = false);
                             }
                           },
+                          onInteraction: _recordInteraction,
                           searchQuery: _activeSearchQuery,
                           epubBook: _epubBook,
                         )
@@ -859,8 +868,36 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 settings: settings,
                 currentChapter: _currentChapter,
                 pageInfo: isEpub
-                    ? '${(book.progress * 100).toStringAsFixed(0)}%'
-                    : '${_pdfCurrentPage + 1} / $_pdfPages',
+                    ? ValueListenableBuilder<double>(
+                        valueListenable: _scrollProgressNotifier,
+                        builder: (context, scrollProgress, _) {
+                          final overallProgress =
+                              (_currentChapterIndex + scrollProgress) /
+                              _chapters.length;
+                          // Use the refined calculation logic for consistency
+                          double displayProgress = overallProgress;
+                          if (_currentChapterIndex == _chapters.length - 1 &&
+                              scrollProgress > 0.99) {
+                            displayProgress = 1.0;
+                          }
+                          return Text(
+                            '${(displayProgress * 100).toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              color: settings.textColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          );
+                        },
+                      )
+                    : Text(
+                        '${_pdfCurrentPage + 1} / $_pdfPages',
+                        style: TextStyle(
+                          color: settings.textColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                 isSearching: _isSearching,
                 isSearchLoading: _isSearchLoading,
                 isSearchResultsCollapsed: _isSearchResultsCollapsed,
