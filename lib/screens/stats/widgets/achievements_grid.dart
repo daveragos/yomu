@@ -79,6 +79,12 @@ class AchievementsGrid extends StatelessWidget {
         'icon': Icons.book,
       },
       {
+        'id': 'habit_builder',
+        'title': 'Habit Builder',
+        'desc': 'Read for 3 days in a row',
+        'icon': Icons.trending_up,
+      },
+      {
         'id': 'seven_day_streak',
         'title': '7-Day Streak',
         'desc': 'Read for 7 days in a row',
@@ -97,6 +103,12 @@ class AchievementsGrid extends StatelessWidget {
         'icon': Icons.nightlight_round,
       },
       {
+        'id': 'early_bird',
+        'title': 'Early Bird',
+        'desc': 'Read books before 9 AM',
+        'icon': Icons.wb_sunny,
+      },
+      {
         'id': 'century_club',
         'title': 'Century Club',
         'desc': '100+ pages read in one go',
@@ -111,8 +123,14 @@ class AchievementsGrid extends StatelessWidget {
       {
         'id': 'marathoner',
         'title': 'Marathoner',
-        'desc': 'Read for 5 hours in one go',
+        'desc': 'Read for 2 hours in one go',
         'icon': Icons.timer,
+      },
+      {
+        'id': 'scholar',
+        'title': 'Scholar',
+        'desc': 'Total 5,000 pages read',
+        'icon': Icons.history_edu,
       },
       {
         'id': 'yomibito',
@@ -127,22 +145,22 @@ class AchievementsGrid extends StatelessWidget {
         'icon': Icons.school,
       },
       {
-        'id': 'early_bird',
-        'title': 'Early Bird',
-        'desc': 'Read books before 7 AM',
-        'icon': Icons.wb_sunny,
-      },
-      {
-        'id': 'genre_explorer',
-        'title': 'Genre Explorer',
-        'desc': 'Read from 5 different genres',
-        'icon': Icons.explore,
+        'id': 'bibliophile',
+        'title': 'Bibliophile',
+        'desc': 'Add 10 books to library',
+        'icon': Icons.library_books,
       },
       {
         'id': 'collector',
         'title': 'Collector',
         'desc': 'Add 100 books to library',
         'icon': Icons.collections_bookmark,
+      },
+      {
+        'id': 'weekend_warrior',
+        'title': 'Weekend Warrior',
+        'desc': 'Read on both Sat and Sun',
+        'icon': Icons.umbrella,
       },
     ];
 

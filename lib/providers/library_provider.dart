@@ -516,20 +516,49 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     if (level > 99) level = 99;
 
     // Achievements check
+    // Achievements check
     final achievements = <String>{};
     if (finishedBooks >= 1) achievements.add('the_first_page');
+    if (streak >= 3) achievements.add('habit_builder');
     if (streak >= 7) achievements.add('seven_day_streak');
     if (streak >= 30) achievements.add('unstoppable');
     if (totalPages >= 1000) achievements.add('bookworm');
+    if (totalPages >= 5000) achievements.add('scholar');
     if (finishedBooks >= 10) achievements.add('yomibito');
     if (finishedBooks >= 50) achievements.add('sensei');
+    if (books.where((b) => !b.isDeleted).length >= 10) {
+      achievements.add('bibliophile');
+    }
+    if (books.where((b) => !b.isDeleted).length >= 100) {
+      achievements.add('collector');
+    }
 
-    // Time-based achievements (would need real session timestamps)
-    // For now, placeholders or simple checks
+    // Time & Session based achievements
+    final readOnSat = sessions.any((s) {
+      final ts = s['timestamp'] != null
+          ? DateTime.tryParse(s['timestamp']) ?? DateTime.parse(s['date'])
+          : DateTime.parse(s['date']);
+      return ts.weekday == DateTime.saturday;
+    });
+    final readOnSun = sessions.any((s) {
+      final ts = s['timestamp'] != null
+          ? DateTime.tryParse(s['timestamp']) ?? DateTime.parse(s['date'])
+          : DateTime.parse(s['date']);
+      return ts.weekday == DateTime.sunday;
+    });
+    if (readOnSat && readOnSun) achievements.add('weekend_warrior');
+
     for (var s in sessions) {
-      if ((s['pagesRead'] as int? ?? 0) >= 100) {
-        achievements.add('century_club');
-      }
+      final pages = (s['pagesRead'] as int? ?? 0);
+      final minutes = (s['durationMinutes'] as int? ?? 0);
+      final ts = s['timestamp'] != null
+          ? DateTime.tryParse(s['timestamp']) ?? DateTime.parse(s['date'])
+          : DateTime.parse(s['date']);
+
+      if (pages >= 100) achievements.add('century_club');
+      if (minutes >= 120) achievements.add('marathoner');
+      if (ts.hour >= 6 && ts.hour < 9) achievements.add('early_bird');
+      if (ts.hour >= 22 || ts.hour < 1) achievements.add('night_owl');
     }
 
     return _UserStats(
@@ -939,18 +968,34 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     switch (key) {
       case 'the_first_page':
         return 'The First Page';
+      case 'habit_builder':
+        return 'Habit Builder';
       case 'seven_day_streak':
-        return 'Weekly Goal';
+        return '7-Day Streak';
       case 'unstoppable':
         return 'Unstoppable';
       case 'bookworm':
         return 'Bookworm';
+      case 'scholar':
+        return 'Scholar';
       case 'yomibito':
         return 'Yomibito';
       case 'sensei':
         return 'Sensei';
       case 'century_club':
         return 'Century Club';
+      case 'marathoner':
+        return 'Marathoner';
+      case 'early_bird':
+        return 'Early Bird';
+      case 'night_owl':
+        return 'Night Owl';
+      case 'bibliophile':
+        return 'Bibliophile';
+      case 'collector':
+        return 'Collector';
+      case 'weekend_warrior':
+        return 'Weekend Warrior';
       default:
         return 'New Achievement';
     }
