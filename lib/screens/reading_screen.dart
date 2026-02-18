@@ -290,6 +290,44 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     });
   }
 
+  void _toggleLock() {
+    ref.read(readerSettingsProvider.notifier).toggleLockState();
+    _recordInteraction();
+  }
+
+  void _jumpToPercent(double percent, Book book) {
+    if (book.filePath.toLowerCase().endsWith('.epub')) {
+      if (_chapters.isEmpty) return;
+
+      final double targetTotalProgress = percent * _chapters.length;
+      final int chapterIndex = targetTotalProgress.floor().clamp(
+        0,
+        _chapters.length - 1,
+      );
+      final double chapterScrollProgress = (targetTotalProgress - chapterIndex)
+          .clamp(0.0, 1.0);
+
+      setState(() {
+        _isJumpingFromToc = true;
+        _currentChapterIndex = chapterIndex;
+        _initialScrollProgress = chapterScrollProgress;
+        _currentChapter =
+            _chapters[chapterIndex].Title ?? 'Chapter ${chapterIndex + 1}';
+        _pageController?.jumpToPage(chapterIndex);
+      });
+    } else {
+      if (!_isPdfReady || _pdfPages <= 0) return;
+      final targetPage = (percent * (_pdfPages - 1)).toInt() + 1;
+      setState(() {
+        _isJumpingFromToc = true;
+        _pdfCurrentPage = targetPage - 1;
+      });
+      _pdfController?.goToPage(pageNumber: targetPage, duration: Duration.zero);
+    }
+
+    _recordInteraction();
+  }
+
   void _recordInteraction() {
     _lastInteractionTime = DateTime.now();
   }
@@ -495,6 +533,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   void _handlePdfPageChange(int? page, int? total, Book book) {
     if (page == null || total == null || total == 0) return;
 
+    if (page == _pdfCurrentPage && total == _pdfPages) {
+      if (_isJumpingFromToc) {
+        setState(() => _isJumpingFromToc = false);
+      }
+      return;
+    }
+
     if (!_initialized) {
       _lastSyncTime = DateTime.now();
       _pageEntryTime = DateTime.now();
@@ -537,6 +582,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     setState(() {
       _pdfCurrentPage = page;
       _pdfPages = total;
+      _isJumpingFromToc = false;
     });
 
     _debounceTimer?.cancel();
@@ -927,6 +973,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 onToggleSearchResultsCollapse: () => setState(
                   () => _isSearchResultsCollapsed = !_isSearchResultsCollapsed,
                 ),
+                onToggleLock: _toggleLock,
                 searchResultsOverlay: ReadingSearchOverlay(
                   book: book,
                   settings: settings,
@@ -993,7 +1040,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             ),
             onPickAudio: () => _pickAudio(book),
             onShowNavigationSheet: () =>
-                _showNavigationSheet(context, book, settings),
+                _showNavigationSheet(book: book, settings: settings),
             onAddBookmark: () => _addBookmark(book),
             onToggleAutoScroll: () {
               setState(() {
@@ -1166,6 +1213,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     setState(() {
       _activeSearchQuery = result.query; // Track the query for highlighting
       _isSearchResultsCollapsed = true; // Collapse overlay on selection
+      _isJumpingFromToc = true;
       if (result.scrollProgress != null) {
         _initialScrollProgress = result.scrollProgress!;
       }
@@ -1175,7 +1223,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       if (result.metadata is PdfTextMatch) {
         _pdfSearcher?.goToMatch(result.metadata as PdfTextMatch);
       } else {
-        _pdfController?.goToPage(pageNumber: result.pageIndex + 1);
+        _pdfController?.goToPage(
+          pageNumber: result.pageIndex + 1,
+          duration: Duration.zero,
+        );
       }
     } else {
       _pageController?.jumpToPage(result.pageIndex);
@@ -1186,11 +1237,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     return '${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  void _showNavigationSheet(
-    BuildContext context,
-    Book book,
-    ReaderSettings settings,
-  ) {
+  void _showNavigationSheet({
+    required Book book,
+    required ReaderSettings settings,
+    bool focusJump = false,
+  }) {
+    if (!mounted) return;
+
     if (_isNavigationSheetOpen) {
       Navigator.pop(context);
       return;
@@ -1210,6 +1263,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           pdfOutline: _pdfOutline,
           tocPdfOutline: _tocPdfOutline,
           currentChapterIndex: _currentChapterIndex,
+          totalPages: _pdfPages,
+          focusJump: focusJump,
           onChapterTap: (index) {
             Navigator.pop(context);
             setState(() {
@@ -1220,8 +1275,30 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           onPdfOutlineTap: (node) {
             if (node.dest?.pageNumber != null) {
               Navigator.pop(context);
-              _pdfController?.goToPage(pageNumber: node.dest!.pageNumber);
+              setState(() => _isJumpingFromToc = true);
+              _pdfController?.goToPage(
+                pageNumber: node.dest!.pageNumber,
+                duration: Duration.zero,
+              );
             }
+          },
+          onJumpToPage: (page) {
+            Navigator.pop(context);
+            // Ensure page is within range: pdfrx uses 1-indexed pageNumber
+            final targetPage = page.clamp(1, _pdfPages);
+            setState(() {
+              _isJumpingFromToc = true;
+              _pdfCurrentPage = targetPage - 1;
+            });
+            _pdfController?.goToPage(
+              pageNumber: targetPage,
+              duration: Duration.zero,
+            );
+            _recordInteraction();
+          },
+          onJumpToPercent: (percent) {
+            Navigator.pop(context);
+            _jumpToPercent(percent, book);
           },
           getBookmarks: () =>
               ref.read(libraryProvider.notifier).getBookmarks(book.id!),
@@ -1267,7 +1344,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               }
             } else {
               final targetPage = int.tryParse(bookmark.position) ?? 1;
-              _pdfController?.goToPage(pageNumber: targetPage);
+              setState(() => _isJumpingFromToc = true);
+              _pdfController?.goToPage(
+                pageNumber: targetPage,
+                duration: Duration.zero,
+              );
             }
           },
           formatDate: _formatDate,

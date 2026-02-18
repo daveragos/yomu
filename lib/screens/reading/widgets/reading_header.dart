@@ -19,6 +19,7 @@ class ReadingHeader extends StatelessWidget {
   final VoidCallback onClearSearch;
   final Function(String) onSearchSubmitted;
   final VoidCallback onToggleSearchResultsCollapse;
+  final VoidCallback onToggleLock;
   final Widget? searchResultsOverlay;
 
   const ReadingHeader({
@@ -38,6 +39,7 @@ class ReadingHeader extends StatelessWidget {
     required this.onClearSearch,
     required this.onSearchSubmitted,
     required this.onToggleSearchResultsCollapse,
+    required this.onToggleLock,
     this.searchResultsOverlay,
   });
 
@@ -131,6 +133,21 @@ class ReadingHeader extends StatelessWidget {
                       ),
                       onPressed: onToggleSearch,
                     ),
+                    if (book.filePath.toLowerCase().endsWith('.pdf'))
+                      IconButton(
+                        icon: Icon(
+                          settings.lockState == ReaderLockState.none
+                              ? Icons.lock_open_rounded
+                              : settings.lockState == ReaderLockState.zoom
+                              ? Icons.zoom_in_map_rounded
+                              : Icons.lock_rounded,
+                          color: settings.lockState != ReaderLockState.none
+                              ? YomuConstants.accent
+                              : settings.textColor,
+                          size: 20,
+                        ),
+                        onPressed: onToggleLock,
+                      ),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,

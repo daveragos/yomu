@@ -97,6 +97,17 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
     _saveSettings();
   }
 
+  void setLockState(ReaderLockState state) {
+    this.state = this.state.copyWith(lockState: state);
+    _saveSettings();
+  }
+
+  void toggleLockState() {
+    final nextState = ReaderLockState
+        .values[(state.lockState.index + 1) % ReaderLockState.values.length];
+    setLockState(nextState);
+  }
+
   void resetToDefaults() {
     state = ReaderSettings.defaults;
     _saveSettings();

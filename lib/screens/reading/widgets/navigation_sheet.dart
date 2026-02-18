@@ -5,7 +5,7 @@ import '../../../models/book_model.dart';
 import '../../../models/bookmark_model.dart';
 import '../../../core/constants.dart';
 
-class NavigationSheet extends StatelessWidget {
+class NavigationSheet extends StatefulWidget {
   final Book book;
   final List<EpubChapter> chapters;
   final List<EpubChapter> tocChapters;
@@ -18,6 +18,10 @@ class NavigationSheet extends StatelessWidget {
   final Function(Bookmark) onDeleteBookmark;
   final Function(Bookmark) onBookmarkTap;
   final String Function(DateTime) formatDate;
+  final Function(int)? onJumpToPage;
+  final Function(double)? onJumpToPercent;
+  final bool focusJump;
+  final int totalPages;
 
   const NavigationSheet({
     super.key,
@@ -33,7 +37,36 @@ class NavigationSheet extends StatelessWidget {
     required this.onDeleteBookmark,
     required this.onBookmarkTap,
     required this.formatDate,
+    this.onJumpToPage,
+    this.onJumpToPercent,
+    this.focusJump = false,
+    this.totalPages = 0,
   });
+
+  @override
+  State<NavigationSheet> createState() => _NavigationSheetState();
+}
+
+class _NavigationSheetState extends State<NavigationSheet> {
+  final TextEditingController _jumpController = TextEditingController();
+  final FocusNode _jumpFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.focusJump) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _jumpFocusNode.requestFocus();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _jumpController.dispose();
+    _jumpFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +102,7 @@ class NavigationSheet extends StatelessWidget {
             ),
             Expanded(
               child: TabBarView(
-                children: [_buildChaptersList(), _buildBookmarksList()],
+                children: [_buildChaptersTab(), _buildBookmarksList()],
               ),
             ),
           ],
@@ -78,25 +111,113 @@ class NavigationSheet extends StatelessWidget {
     );
   }
 
+  Widget _buildChaptersTab() {
+    return Column(
+      children: [
+        _buildJumpToSection(),
+        Expanded(child: _buildChaptersList()),
+      ],
+    );
+  }
+
+  Widget _buildJumpToSection() {
+    final isEpub = widget.book.filePath.toLowerCase().endsWith('.epub');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _jumpController,
+              focusNode: _jumpFocusNode,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: isEpub
+                    ? 'Jump to %'
+                    : 'Jump to page${widget.totalPages > 0 ? " (1 - ${widget.totalPages})" : ""}',
+                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                suffixText: isEpub
+                    ? '%'
+                    : (widget.totalPages > 0 ? "/ ${widget.totalPages}" : null),
+                suffixStyle: const TextStyle(color: Colors.white38),
+              ),
+              onSubmitted: (value) => _handleJump(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: YomuConstants.accent.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: _handleJump,
+              borderRadius: BorderRadius.circular(12),
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  color: YomuConstants.accent,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleJump() {
+    final value = _jumpController.text;
+    final numValue = double.tryParse(value);
+    if (numValue != null) {
+      final isEpub = widget.book.filePath.toLowerCase().endsWith('.epub');
+      if (isEpub) {
+        if (widget.onJumpToPercent != null) {
+          widget.onJumpToPercent!(numValue / 100.0);
+        }
+      } else {
+        if (widget.onJumpToPage != null) {
+          widget.onJumpToPage!(numValue.toInt());
+        }
+      }
+    }
+  }
+
   Widget _buildChaptersList() {
-    if (book.filePath.toLowerCase().endsWith('.epub')) {
+    if (widget.book.filePath.toLowerCase().endsWith('.epub')) {
       return ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        children: tocChapters.map((chapter) {
+        children: widget.tocChapters.map((chapter) {
           return _ChapterTreeItem(
             chapter: chapter,
             depth: 0,
-            currentChapterIndex: currentChapterIndex,
-            flattenedChapters: chapters,
-            onTap: onChapterTap,
+            currentChapterIndex: widget.currentChapterIndex,
+            flattenedChapters: widget.chapters,
+            onTap: widget.onChapterTap,
           );
         }).toList(),
       );
     } else {
       return ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        children: tocPdfOutline.map((node) {
-          return _PdfTreeItem(node: node, depth: 0, onTap: onPdfOutlineTap);
+        children: widget.tocPdfOutline.map((node) {
+          return _PdfTreeItem(
+            node: node,
+            depth: 0,
+            onTap: widget.onPdfOutlineTap,
+          );
         }).toList(),
       );
     }
@@ -106,7 +227,7 @@ class NavigationSheet extends StatelessWidget {
     return StatefulBuilder(
       builder: (context, setSheetState) {
         return FutureBuilder<List<Bookmark>>(
-          future: getBookmarks(),
+          future: widget.getBookmarks(),
           builder: (context, snapshot) {
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return const Center(
@@ -129,7 +250,7 @@ class NavigationSheet extends StatelessWidget {
                     style: const TextStyle(color: Colors.white),
                   ),
                   subtitle: Text(
-                    '${(bookmark.progress * 100).toStringAsFixed(1)}% • ${formatDate(bookmark.createdAt)}',
+                    '${(bookmark.progress * 100).toStringAsFixed(1)}% • ${widget.formatDate(bookmark.createdAt)}',
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                   trailing: IconButton(
@@ -138,11 +259,11 @@ class NavigationSheet extends StatelessWidget {
                       color: Colors.white38,
                     ),
                     onPressed: () async {
-                      await onDeleteBookmark(bookmark);
+                      await widget.onDeleteBookmark(bookmark);
                       setSheetState(() {});
                     },
                   ),
-                  onTap: () => onBookmarkTap(bookmark),
+                  onTap: () => widget.onBookmarkTap(bookmark),
                 );
               },
             );

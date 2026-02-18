@@ -6,6 +6,9 @@ enum ReaderTheme { white, cream, darkBlue, black }
 /// Text alignment options for the reader
 enum ReaderAlignment { left, center, justified }
 
+/// Lock states for the PDF reader
+enum ReaderLockState { none, zoom, all }
+
 /// Reader display settings model
 class ReaderSettings {
   final ReaderTheme theme;
@@ -15,6 +18,7 @@ class ReaderSettings {
   final ReaderAlignment alignment;
   final bool usePublisherDefaults;
   final double autoScrollSpeed;
+  final ReaderLockState lockState;
 
   const ReaderSettings({
     this.theme = ReaderTheme.black,
@@ -24,6 +28,7 @@ class ReaderSettings {
     this.alignment = ReaderAlignment.justified,
     this.usePublisherDefaults = false,
     this.autoScrollSpeed = 2.0,
+    this.lockState = ReaderLockState.none,
   });
 
   ReaderSettings copyWith({
@@ -34,6 +39,7 @@ class ReaderSettings {
     ReaderAlignment? alignment,
     bool? usePublisherDefaults,
     double? autoScrollSpeed,
+    ReaderLockState? lockState,
   }) {
     return ReaderSettings(
       theme: theme ?? this.theme,
@@ -43,6 +49,7 @@ class ReaderSettings {
       alignment: alignment ?? this.alignment,
       usePublisherDefaults: usePublisherDefaults ?? this.usePublisherDefaults,
       autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
+      lockState: lockState ?? this.lockState,
     );
   }
 
@@ -110,6 +117,7 @@ class ReaderSettings {
       'alignment': alignment.index,
       'usePublisherDefaults': usePublisherDefaults,
       'autoScrollSpeed': autoScrollSpeed,
+      'lockState': lockState.index,
     };
   }
 
@@ -126,6 +134,7 @@ class ReaderSettings {
         0.5,
         10.0,
       ),
+      lockState: ReaderLockState.values[map['lockState'] as int? ?? 0],
     );
   }
 

@@ -4,7 +4,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 
-class ReadingPdfView extends StatelessWidget {
+class ReadingPdfView extends StatefulWidget {
   final Book book;
   final ReaderSettings settings;
   final PdfViewerController controller;
@@ -14,8 +14,6 @@ class ReadingPdfView extends StatelessWidget {
   final VoidCallback onInteraction;
   final VoidCallback onHideControls;
   final bool showControls;
-
-  static final _viewerKey = GlobalKey();
 
   const ReadingPdfView({
     super.key,
@@ -31,30 +29,52 @@ class ReadingPdfView extends StatelessWidget {
   });
 
   @override
+  State<ReadingPdfView> createState() => _ReadingPdfViewState();
+}
+
+class _ReadingPdfViewState extends State<ReadingPdfView> {
+  final _viewerKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
-    final colorFilter = _getPdfColorFilter(settings.theme);
+    final colorFilter = _getPdfColorFilter(widget.settings.theme);
 
     Widget pdfViewer = PdfViewer.file(
-      book.filePath,
+      widget.book.filePath,
       key: _viewerKey,
-      controller: controller,
+      controller: widget.controller,
       params: PdfViewerParams(
-        backgroundColor: settings.backgroundColor,
-        onViewerReady: onViewerReady,
+        backgroundColor: widget.settings.backgroundColor,
+        onViewerReady: widget.onViewerReady,
         enableTextSelection: false,
         margin: 1.0,
         pageDropShadow: null,
         interactionEndFrictionCoefficient: 0.000005,
         verticalCacheExtent: 3.0,
         maxImageBytesCachedOnMemory: 256 * 1024 * 1024,
-        pagePaintCallbacks: (searcher != null)
+        maxScale: widget.settings.lockState != ReaderLockState.none
+            ? (widget.controller.isReady ? widget.controller.currentZoom : 1.0)
+            : 8.0,
+        minScale: widget.settings.lockState != ReaderLockState.none
+            ? (widget.controller.isReady ? widget.controller.currentZoom : 1.0)
+            : 0.1,
+        panEnabled: true,
+        scaleEnabled: widget.settings.lockState == ReaderLockState.none,
+        panAxis: widget.settings.lockState == ReaderLockState.all
+            ? PanAxis.vertical
+            : PanAxis.free,
+        pagePaintCallbacks: (widget.searcher != null)
             ? [
                 (canvas, pageRect, page) {
-                  searcher!.pageTextMatchPaintCallback(canvas, pageRect, page);
+                  widget.searcher!.pageTextMatchPaintCallback(
+                    canvas,
+                    pageRect,
+                    page,
+                  );
                 },
               ]
             : null,
-        onPageChanged: onPageChanged,
+        onPageChanged: widget.onPageChanged,
         errorBannerBuilder: (context, error, stackTrace, documentRef) {
           return Center(
             child: Padding(
@@ -65,13 +85,13 @@ class ReadingPdfView extends StatelessWidget {
                   Icon(
                     Icons.error_outline_rounded,
                     size: 64,
-                    color: settings.textColor.withValues(alpha: 0.5),
+                    color: widget.settings.textColor.withValues(alpha: 0.5),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Failed to load PDF',
                     style: TextStyle(
-                      color: settings.textColor,
+                      color: widget.settings.textColor,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
@@ -80,7 +100,7 @@ class ReadingPdfView extends StatelessWidget {
                   Text(
                     'The file may be corrupted or missing.',
                     style: TextStyle(
-                      color: settings.secondaryTextColor,
+                      color: widget.settings.secondaryTextColor,
                       fontSize: 14,
                     ),
                   ),
@@ -89,7 +109,9 @@ class ReadingPdfView extends StatelessWidget {
                     error.toString().replaceAll('PdfException: ', ''),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: settings.secondaryTextColor.withValues(alpha: 0.7),
+                      color: widget.settings.secondaryTextColor.withValues(
+                        alpha: 0.7,
+                      ),
                       fontSize: 12,
                     ),
                   ),
@@ -105,15 +127,15 @@ class ReadingPdfView extends StatelessWidget {
       onNotification: (notification) {
         if (notification is UserScrollNotification &&
             notification.direction != ScrollDirection.idle &&
-            showControls) {
-          onHideControls();
+            widget.showControls) {
+          widget.onHideControls();
         }
         return false;
       },
       child: Listener(
-        onPointerDown: (_) => onInteraction(),
+        onPointerDown: (_) => widget.onInteraction(),
         child: Container(
-          color: settings.backgroundColor,
+          color: widget.settings.backgroundColor,
           child: colorFilter != null
               ? ColorFiltered(colorFilter: colorFilter, child: pdfViewer)
               : pdfViewer,
