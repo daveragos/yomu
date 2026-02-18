@@ -103,6 +103,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   void _showLevelMetadata(BuildContext context, LibraryState state) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => LevelMetadataSheet(state: state),
     );

@@ -17,9 +17,19 @@
 - **Goal Setting**: Set weekly reading goals (by pages) to stay consistent.
 
 ### 🎮 Gamified Experience
-- **Ranks & Levels**: Progress from *Kohai* to *Yomite* and beyond as you read.
+- **Ranks & Levels**: Progress from *Kohai* to *Tatsujin* based on both your **Level (XP)** and **Achievements**.
+- **Dynamic Achievement Ranking**: Your achieved badges are automatically moved to the top of your collection for quick viewing.
 - **Level-Up Celebrations**: Visually stunning rewards and celebrations when you hit new milestones.
 - **Activity Visualizations**: Beautiful charts and insights into your reading habits.
+
+| Rank | Level Required | Achievements Required |
+| :--- | :--- | :--- |
+| **Kohai** (後輩) | 1 | 0 |
+| **Yomite** (読み手) | 5 | 2 |
+| **Senpai** (先輩) | 10 | 5 |
+| **Chousha** (著者) | 20 | 8 |
+| **Sensei** (先生) | 40 | 10 |
+| **Tatsujin** (達人) | 50 | 12 |
 
 ### 🗂️ Library Management
 - **Shelf Organization**: Keep your collection tidy with customizable shelves.
@@ -56,6 +66,9 @@ lib/
 ## 🤝 Contributing
 
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+> [!TIP]
+> **Priority Contribution**: We are actively looking for a robust **Text Highlighting** feature for both EPUB and PDF readers. If you're looking for a way to make a big impact, this is it!
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)

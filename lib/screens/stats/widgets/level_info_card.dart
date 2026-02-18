@@ -11,7 +11,10 @@ class LevelInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentTitle = YomuConstants.getRankForLevel(state.level).name;
+    final currentTitle = YomuConstants.getRankForLevel(
+      state.level,
+      state.unlockedAchievements.length,
+    ).name;
 
     return GestureDetector(
       onTap: onTap,

@@ -41,8 +41,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     ref.listen(libraryProvider.select((s) => s.level), (previous, next) {
       final state = ref.read(libraryProvider);
-      final currentRank = YomuConstants.getRankForLevel(next);
-      final lastRank = YomuConstants.getRankForLevel(state.lastCelebratedLevel);
+      final currentRank = YomuConstants.getRankForLevel(
+        next,
+        state.unlockedAchievements.length,
+      );
+      final lastRank = YomuConstants.getRankForLevel(
+        state.lastCelebratedLevel,
+        state.unlockedAchievements.length,
+      );
 
       if (currentRank.level > lastRank.level) {
         showDialog(

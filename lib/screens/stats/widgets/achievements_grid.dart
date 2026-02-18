@@ -164,6 +164,14 @@ class AchievementsGrid extends StatelessWidget {
       },
     ];
 
+    final sortedList = List<Map<String, dynamic>>.from(achievementList);
+    sortedList.sort((a, b) {
+      final aUnlocked = state.unlockedAchievements.contains(a['id']);
+      final bUnlocked = state.unlockedAchievements.contains(b['id']);
+      if (aUnlocked == bUnlocked) return 0;
+      return aUnlocked ? -1 : 1;
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -183,9 +191,9 @@ class AchievementsGrid extends StatelessWidget {
             crossAxisSpacing: 16,
             childAspectRatio: 0.8,
           ),
-          itemCount: achievementList.length,
+          itemCount: sortedList.length,
           itemBuilder: (context, index) {
-            final ach = achievementList[index];
+            final ach = sortedList[index];
             final isUnlocked = state.unlockedAchievements.contains(ach['id']);
             return AchievementBadge(
               title: ach['title'] as String,

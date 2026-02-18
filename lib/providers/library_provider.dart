@@ -130,7 +130,8 @@ class LibraryState {
     return activity;
   }
 
-  String get rankName => YomuConstants.getRankForLevel(level).name;
+  String get rankName =>
+      YomuConstants.getRankForLevel(level, unlockedAchievements.length).name;
 
   int get weeklyPagesRead => _sumForCurrentWeek(dailyPages);
   int get weeklyMinutesRead => _sumForCurrentWeek(dailyMinutes);
@@ -1085,8 +1086,14 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
       // Check for level up notification
       if (stats.level > state.level) {
-        final newRank = YomuConstants.getRankForLevel(stats.level);
-        final oldRank = YomuConstants.getRankForLevel(state.level);
+        final newRank = YomuConstants.getRankForLevel(
+          stats.level,
+          stats.achievements.length,
+        );
+        final oldRank = YomuConstants.getRankForLevel(
+          state.level,
+          state.unlockedAchievements.length,
+        );
 
         if (newRank.name != oldRank.name) {
           NotificationService().showNotification(

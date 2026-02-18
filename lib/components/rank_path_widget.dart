@@ -3,13 +3,21 @@ import '../core/constants.dart';
 
 class RankPathWidget extends StatelessWidget {
   final int currentLevel;
+  final int achievementCount;
 
-  const RankPathWidget({super.key, required this.currentLevel});
+  const RankPathWidget({
+    super.key,
+    required this.currentLevel,
+    required this.achievementCount,
+  });
 
   @override
   Widget build(BuildContext context) {
     final ranks = YomuConstants.ranks;
-    final currentRank = YomuConstants.getRankForLevel(currentLevel);
+    final currentRank = YomuConstants.getRankForLevel(
+      currentLevel,
+      achievementCount,
+    );
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -110,7 +118,7 @@ class RankPathWidget extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Level ${rank.level}+ • ${rank.description}',
+                    'Level ${rank.level}+ • ${rank.achievementsRequired} Achievements • ${rank.description}',
                     style: const TextStyle(
                       color: YomuConstants.textSecondary,
                       fontSize: 12,
