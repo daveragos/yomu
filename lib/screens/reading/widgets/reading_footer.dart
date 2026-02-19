@@ -81,6 +81,15 @@ class ReadingFooter extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   );
+                } else if (book.filePath.toLowerCase().endsWith('.pdf')) {
+                  return Text(
+                    '${(scrollProgress * 100).toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      color: settings.secondaryTextColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  );
                 }
                 return Text(
                   '${(book.progress * 100).toStringAsFixed(1)}%',

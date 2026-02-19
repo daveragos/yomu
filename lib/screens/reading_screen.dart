@@ -536,8 +536,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   void _handlePdfPageChange(int? page, int? total, Book book) {
     if (page == null || total == null || total == 0) return;
 
-    // Convert to 0-indexed for internal tracking
-    final int zeroIndexedPage = page - 1;
+    // Caller already passes 0-indexed page
+    final int zeroIndexedPage = page;
 
     if (_isJumpingFromToc) {
       if (zeroIndexedPage == _pdfCurrentPage) {
@@ -559,6 +559,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       setState(() {
         _pdfCurrentPage = zeroIndexedPage;
         _pdfPages = total;
+        _scrollProgressNotifier.value = (total > 1)
+            ? (zeroIndexedPage / (total - 1)).clamp(0.0, 1.0)
+            : 0.0;
       });
 
       ref
@@ -594,6 +597,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     setState(() {
       _pdfCurrentPage = zeroIndexedPage;
       _pdfPages = total;
+      _scrollProgressNotifier.value = (total > 1)
+          ? (zeroIndexedPage / (total - 1)).clamp(0.0, 1.0)
+          : 0.0;
     });
 
     _debounceTimer?.cancel();
@@ -844,6 +850,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             if (!_initialized) {
                               final initialPage =
                                   (book.progress * (_pdfPages - 1)).toInt();
+                              _pdfCurrentPage = initialPage;
+                              _scrollProgressNotifier.value = book.progress;
                               controller.goToPage(pageNumber: initialPage + 1);
                               _startHeartbeat(book);
                               _initialized = true;
@@ -866,6 +874,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             }
                           },
                           showControls: _showControls,
+                          scrollProgressNotifier: _scrollProgressNotifier,
                         ),
                       _buildAnimatedControlsOverlay(context, book, settings),
                       if (_pdfErrorMessage.isNotEmpty)
@@ -1224,7 +1233,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     setState(() {
       _activeSearchQuery = result.query; // Track the query for highlighting
       _isSearchResultsCollapsed = true; // Collapse overlay on selection
-      _isJumpingFromToc = true;
+
+      if (book.filePath.toLowerCase().endsWith('.pdf')) {
+        if (result.pageIndex != _pdfCurrentPage) {
+          _isJumpingFromToc = true;
+          _pdfCurrentPage = result.pageIndex;
+        }
+      } else {
+        if (result.pageIndex != _currentChapterIndex) {
+          _isJumpingFromToc = true;
+          _currentChapterIndex = result.pageIndex;
+          _currentChapter =
+              _chapters[result.pageIndex].Title ??
+              'Chapter ${result.pageIndex + 1}';
+        }
+      }
+
       if (result.scrollProgress != null) {
         _initialScrollProgress = result.scrollProgress!;
       }
@@ -1278,34 +1302,47 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           focusJump: focusJump,
           onChapterTap: (index) {
             Navigator.pop(context);
-            setState(() {
-              _isJumpingFromToc = true;
-            });
-            _pageController?.jumpToPage(index);
+            if (index != _currentChapterIndex) {
+              setState(() {
+                _isJumpingFromToc = true;
+                _currentChapterIndex = index;
+                _currentChapter =
+                    _chapters[index].Title ?? 'Chapter ${index + 1}';
+              });
+              _pageController?.jumpToPage(index);
+            }
           },
           onPdfOutlineTap: (node) {
             if (node.dest?.pageNumber != null) {
               Navigator.pop(context);
-              setState(() => _isJumpingFromToc = true);
-              _pdfController?.goToPage(
-                pageNumber: node.dest!.pageNumber,
-                duration: const Duration(milliseconds: 200),
-              );
+              final targetPage = node.dest!.pageNumber;
+              if (targetPage - 1 != _pdfCurrentPage) {
+                setState(() {
+                  _isJumpingFromToc = true;
+                  _pdfCurrentPage = targetPage - 1;
+                });
+                _pdfController?.goToPage(
+                  pageNumber: targetPage,
+                  duration: const Duration(milliseconds: 200),
+                );
+              }
             }
           },
           onJumpToPage: (page) {
             Navigator.pop(context);
             // Ensure page is within range: pdfrx uses 1-indexed pageNumber
             final targetPage = page.clamp(1, _pdfPages);
-            setState(() {
-              _isJumpingFromToc = true;
-              _pdfCurrentPage = targetPage - 1;
-            });
-            _pdfController?.goToPage(
-              pageNumber: targetPage,
-              duration: const Duration(milliseconds: 200),
-            );
-            _recordInteraction();
+            if (targetPage - 1 != _pdfCurrentPage) {
+              setState(() {
+                _isJumpingFromToc = true;
+                _pdfCurrentPage = targetPage - 1;
+              });
+              _pdfController?.goToPage(
+                pageNumber: targetPage,
+                duration: const Duration(milliseconds: 200),
+              );
+              _recordInteraction();
+            }
           },
           onJumpToPercent: (percent) {
             Navigator.pop(context);
@@ -1355,11 +1392,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               }
             } else {
               final targetPage = int.tryParse(bookmark.position) ?? 1;
-              setState(() => _isJumpingFromToc = true);
-              _pdfController?.goToPage(
-                pageNumber: targetPage,
-                duration: const Duration(milliseconds: 200),
-              );
+              if (targetPage - 1 != _pdfCurrentPage) {
+                setState(() {
+                  _isJumpingFromToc = true;
+                  _pdfCurrentPage = targetPage - 1;
+                });
+                _pdfController?.goToPage(
+                  pageNumber: targetPage,
+                  duration: const Duration(milliseconds: 200),
+                );
+              }
             }
           },
           formatDate: _formatDate,

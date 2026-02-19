@@ -15,6 +15,8 @@ class ReadingPdfView extends StatefulWidget {
   final VoidCallback onHideControls;
   final bool showControls;
 
+  final ValueNotifier<double> scrollProgressNotifier;
+
   const ReadingPdfView({
     super.key,
     required this.book,
@@ -25,6 +27,7 @@ class ReadingPdfView extends StatefulWidget {
     required this.onInteraction,
     required this.onHideControls,
     required this.showControls,
+    required this.scrollProgressNotifier,
     this.searcher,
   });
 
@@ -123,23 +126,13 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
       ),
     );
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is UserScrollNotification &&
-            notification.direction != ScrollDirection.idle &&
-            widget.showControls) {
-          widget.onHideControls();
-        }
-        return false;
-      },
-      child: Listener(
-        onPointerDown: (_) => widget.onInteraction(),
-        child: Container(
-          color: widget.settings.backgroundColor,
-          child: colorFilter != null
-              ? ColorFiltered(colorFilter: colorFilter, child: pdfViewer)
-              : pdfViewer,
-        ),
+    return Listener(
+      onPointerDown: (_) => widget.onInteraction(),
+      child: Container(
+        color: widget.settings.backgroundColor,
+        child: colorFilter != null
+            ? ColorFiltered(colorFilter: colorFilter, child: pdfViewer)
+            : pdfViewer,
       ),
     );
   }
