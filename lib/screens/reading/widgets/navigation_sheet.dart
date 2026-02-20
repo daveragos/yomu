@@ -12,6 +12,7 @@ class NavigationSheet extends StatefulWidget {
   final List<PdfOutlineNode> pdfOutline;
   final List<PdfOutlineNode> tocPdfOutline;
   final int currentChapterIndex;
+  final PdfOutlineNode? currentPdfNode;
   final Function(int) onChapterTap;
   final Function(PdfOutlineNode) onPdfOutlineTap;
   final Future<List<Bookmark>> Function() getBookmarks;
@@ -31,6 +32,7 @@ class NavigationSheet extends StatefulWidget {
     required this.pdfOutline,
     required this.tocPdfOutline,
     required this.currentChapterIndex,
+    this.currentPdfNode,
     required this.onChapterTap,
     required this.onPdfOutlineTap,
     required this.getBookmarks,
@@ -217,6 +219,8 @@ class _NavigationSheetState extends State<NavigationSheet> {
             node: node,
             depth: 0,
             onTap: widget.onPdfOutlineTap,
+            currentPdfNode: widget.currentPdfNode,
+            flattenedOutline: widget.pdfOutline,
           );
         }).toList(),
       );
@@ -382,11 +386,15 @@ class _PdfTreeItem extends StatefulWidget {
   final PdfOutlineNode node;
   final int depth;
   final Function(PdfOutlineNode) onTap;
+  final PdfOutlineNode? currentPdfNode;
+  final List<PdfOutlineNode> flattenedOutline;
 
   const _PdfTreeItem({
     required this.node,
     required this.depth,
     required this.onTap,
+    this.currentPdfNode,
+    this.flattenedOutline = const [],
   });
 
   @override
@@ -399,6 +407,7 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
   @override
   Widget build(BuildContext context) {
     final hasChildren = widget.node.children.isNotEmpty;
+    final isCurrent = widget.currentPdfNode == widget.node;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,7 +428,13 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
                   Expanded(
                     child: Text(
                       widget.node.title,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(
+                        color: isCurrent ? YomuConstants.accent : Colors.white,
+                        fontWeight: isCurrent
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                   if (hasChildren)
@@ -454,6 +469,8 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
                 node: child,
                 depth: widget.depth + 1,
                 onTap: widget.onTap,
+                currentPdfNode: widget.currentPdfNode,
+                flattenedOutline: widget.flattenedOutline,
               );
             }).toList(),
           ),
