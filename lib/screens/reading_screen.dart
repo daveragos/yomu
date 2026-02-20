@@ -27,6 +27,7 @@ import './reading/widgets/pdf_view.dart';
 import './reading/widgets/reading_footer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import '../utils/tutorial_helper.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -176,204 +177,72 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final isPdf = book.filePath.toLowerCase().endsWith('.pdf');
 
     final targets = <TargetFocus>[
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "toc_target",
         keyTarget: _tocKey,
         alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Navigation",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Access the Table of Contents, outlines, and your bookmarks.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Navigation",
+        description:
+            "Access the Table of Contents, outlines, and your bookmarks.",
+        contentAlign: ContentAlign.top,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "search_target",
         keyTarget: _searchKey,
         alignSkip: Alignment.bottomLeft,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text(
-                    "Search",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Find specific phrases or words quickly within the book.",
-                    textAlign: TextAlign.right,
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Search",
+        description: "Find specific phrases or words quickly within the book.",
+        contentAlign: ContentAlign.bottom,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
       if (isPdf)
-        TargetFocus(
+        TutorialHelper.createTarget(
           identify: "lock_target",
           keyTarget: _lockKey,
           alignSkip: Alignment.bottomRight,
-          contents: [
-            TargetContent(
-              align: ContentAlign.bottom,
-              builder: (context, controller) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      "Scroll Lock",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 24,
-                      ),
-                    ),
-                    SizedBox(height: 10),
-                    Text(
-                      "Lock the PDF to horizontal scrolling, vertical scrolling, or lock the zoom level.",
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+          title: "Scroll Lock",
+          description:
+              "Lock the PDF to horizontal scrolling, vertical scrolling, or lock the zoom level.",
+          contentAlign: ContentAlign.bottom,
         ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "audio_target",
         keyTarget: _audioKey,
         alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Immersive Audio",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Tap the + icon to attach an audiobook file. If one is attached, tap here to open the audio controls.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Immersive Audio",
+        description:
+            "Tap the + icon to attach an audiobook file. If one is attached, tap here to open the audio controls.",
+        contentAlign: ContentAlign.top,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "autoscroll_target",
         keyTarget: _autoScrollKey,
         alignSkip: Alignment.topLeft,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text(
-                    "Auto-Scroll",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Sit back and let the app scroll for you. Adjust the speed in the settings.",
-                    textAlign: TextAlign.right,
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Auto-Scroll",
+        description:
+            "Sit back and let the app scroll for you. Adjust the speed in the settings.",
+        contentAlign: ContentAlign.top,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "display_target",
         keyTarget: _displaySettingsKey,
         alignSkip: Alignment.topLeft,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text(
-                    "Display Settings",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Customize fonts, themes, margins, and more to suit your reading style.",
-                    textAlign: TextAlign.right,
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Display Settings",
+        description:
+            "Customize fonts, themes, margins, and more to suit your reading style.",
+        contentAlign: ContentAlign.top,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
     ];
 
-    TutorialCoachMark(
+    TutorialHelper.showTutorial(
+      context: context,
       targets: targets,
       colorShadow: YomuConstants.accent,
-      textSkip: "SKIP",
-      paddingFocus: 10,
-      opacityShadow: 0.8,
       onFinish: () {
         SharedPreferences.getInstance().then((prefs) {
           prefs.setBool('is_first_launch_reading', false);
@@ -385,7 +254,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         });
         return true;
       },
-    ).show(context: context);
+    );
   }
 
   void _handleGlobalSpeedChange() {

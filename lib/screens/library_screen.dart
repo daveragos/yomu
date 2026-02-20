@@ -16,6 +16,7 @@ import 'edit_book_screen.dart';
 import '../components/book_overlay_menu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import '../utils/tutorial_helper.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -103,84 +104,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _showFabTutorial() {
     final targets = [
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "filter_target",
         keyTarget: _filterKey,
         alignSkip: Alignment.bottomRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text(
-                    "Filter & Sort",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Tap here to filter your library by genre, author, folder, or sorting method.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                    textAlign: TextAlign.right,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Filter & Sort",
+        description:
+            "Tap here to filter your library by genre, author, folder, or sorting method.",
+        contentAlign: ContentAlign.bottom,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "fab_target",
         keyTarget: _fabKey,
         alignSkip: Alignment.topLeft,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: const [
-                  Text(
-                    "Add Books",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Tap the + button to add new books to your library.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                    textAlign: TextAlign.right,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Add Books",
+        description: "Tap the + button to add new books to your library.",
+        contentAlign: ContentAlign.top,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
     ];
 
-    TutorialCoachMark(
+    TutorialHelper.showTutorial(
+      context: context,
       targets: targets,
-      colorShadow: YomuConstants.background,
-      textSkip: "SKIP",
-      paddingFocus: 10,
-      opacityShadow: 0.8,
       onFinish: _setFabTutorialShown,
       onSkip: () {
         _setFabTutorialShown();
         return true;
       },
-    ).show(context: context);
+    );
   }
 
   void _setFabTutorialShown() {
@@ -198,80 +153,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _showMenuTutorial() {
     final targets = [
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "scan_target",
         keyTarget: _scanKey,
         alignSkip: Alignment.bottomLeft,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            builder: (context, controller) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
-                Text(
-                  "Scan Folder",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 20,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  "Automatically detects and adds all supported books from a folder you choose.",
-                  textAlign: TextAlign.right,
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        ],
+        title: "Scan Folder",
+        description:
+            "Automatically detects and adds all supported books from a folder you choose.",
+        contentAlign: ContentAlign.bottom,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "import_target",
         keyTarget: _importKey,
         alignSkip: Alignment.bottomLeft,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            builder: (context, controller) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
-                Text(
-                  "Select Files",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 20,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  "Manually pick specific EPUB or PDF files to import.",
-                  textAlign: TextAlign.right,
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        ],
+        title: "Select Files",
+        description: "Manually pick specific EPUB or PDF files to import.",
+        contentAlign: ContentAlign.bottom,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        textAlign: TextAlign.right,
       ),
     ];
 
-    TutorialCoachMark(
+    TutorialHelper.showTutorial(
+      context: context,
       targets: targets,
-      colorShadow: YomuConstants.background,
-      textSkip: "SKIP",
-      paddingFocus: 10,
-      opacityShadow: 0.8,
       onFinish: _setMenuTutorialShown,
       onSkip: () {
         _setMenuTutorialShown();
         return true;
       },
-    ).show(context: context);
+    );
   }
 
   void _setMenuTutorialShown() {
@@ -283,49 +196,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _showBookCardTutorial() {
     final targets = [
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "book_menu_target",
         keyTarget: _firstBookMenuKey,
         alignSkip: Alignment.bottomRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            builder: (context, controller) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  "Edit Book Info",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 20,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  "Tap the three dots to edit the book's cover, title, or author.\n\nLong-pressing the card is used to select multiple books!",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        ],
+        title: "Edit Book Info",
+        description:
+            "Tap the three dots to edit the book's cover, title, or author.\n\nLong-pressing the card is used to select multiple books!",
+        contentAlign: ContentAlign.bottom,
       ),
     ];
 
-    TutorialCoachMark(
+    TutorialHelper.showTutorial(
+      context: context,
       targets: targets,
-      colorShadow: YomuConstants.background,
-      textSkip: "SKIP",
-      paddingFocus: 10,
-      opacityShadow: 0.8,
       onFinish: _setBookCardTutorialShown,
       onSkip: () {
         _setBookCardTutorialShown();
         return true;
       },
-    ).show(context: context);
+    );
   }
 
   void _setBookCardTutorialShown() {

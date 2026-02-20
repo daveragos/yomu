@@ -13,6 +13,7 @@ import 'settings_screen.dart';
 import 'reading_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import '../utils/tutorial_helper.dart';
 
 class NavigationState {
   final int current;
@@ -113,138 +114,44 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
   void _showTutorial() {
     final targets = [
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "home_target",
         keyTarget: _homeKey,
-        alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Home Dashboard",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Welcome to Yomu! Here you can quickly resume your current book and see your recent activity.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Home Dashboard",
+        description:
+            "Welcome to Yomu! Here you can quickly resume your current book and see your recent activity.",
+        contentAlign: ContentAlign.top,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "library_target",
         keyTarget: _libraryKey,
-        alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Your Library",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Access all your imported books here. Tap the plus button to add new EPUB or PDF files.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Your Library",
+        description:
+            "Access all your imported books here. Tap the plus button to add new EPUB or PDF files.",
+        contentAlign: ContentAlign.top,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "stats_target",
         keyTarget: _statsKey,
-        alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Reading Stats",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Track your reading habits, view your level, and check your achievements as you read more books.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "Reading Stats",
+        description:
+            "Track your reading habits, view your level, and check your achievements as you read more books.",
+        contentAlign: ContentAlign.top,
       ),
-      TargetFocus(
+      TutorialHelper.createTarget(
         identify: "settings_target",
         keyTarget: _settingsKey,
-        alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "App Settings",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 24,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Customize your reading experience, adjust your preferences, and access help or about sections.",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+        title: "App Settings",
+        description:
+            "Customize your reading experience, adjust your preferences, and access help or about sections.",
+        contentAlign: ContentAlign.top,
       ),
     ];
 
-    TutorialCoachMark(
+    TutorialHelper.showTutorial(
+      context: context,
       targets: targets,
       colorShadow: YomuConstants.accent,
-      textSkip: "SKIP",
-      paddingFocus: 10,
-      opacityShadow: 0.8,
       onClickTarget: (target) {
         if (target.identify == "library_target") {
           ref.read(navigationStateProvider.notifier).state = NavigationState(
@@ -274,7 +181,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         });
         return true;
       },
-    )..show(context: context);
+    );
   }
 
   @override
