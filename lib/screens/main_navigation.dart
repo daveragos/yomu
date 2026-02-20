@@ -11,6 +11,8 @@ import 'library_screen.dart';
 import 'stats_screen.dart';
 import 'settings_screen.dart';
 import 'reading_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class NavigationState {
   final int current;
@@ -31,6 +33,11 @@ class MainNavigation extends ConsumerStatefulWidget {
 
 class _MainNavigationState extends ConsumerState<MainNavigation> {
   StreamSubscription? _intentDataStreamSubscription;
+
+  final GlobalKey _homeKey = GlobalKey();
+  final GlobalKey _libraryKey = GlobalKey();
+  final GlobalKey _statsKey = GlobalKey();
+  final GlobalKey _settingsKey = GlobalKey();
 
   @override
   void initState() {
@@ -58,6 +65,8 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         _handleSharedFiles(value);
       }
     });
+
+    _checkFirstLaunch();
   }
 
   @override
@@ -87,6 +96,185 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         );
       }
     }
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+
+    if (isFirstLaunch && mounted) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _showTutorial();
+        }
+      });
+    }
+  }
+
+  void _showTutorial() {
+    final targets = [
+      TargetFocus(
+        identify: "home_target",
+        keyTarget: _homeKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Home Dashboard",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Welcome to Yomu! Here you can quickly resume your current book and see your recent activity.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "library_target",
+        keyTarget: _libraryKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Your Library",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Access all your imported books here. Tap the plus button to add new EPUB or PDF files.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "stats_target",
+        keyTarget: _statsKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Reading Stats",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Track your reading habits, view your level, and check your achievements as you read more books.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "settings_target",
+        keyTarget: _settingsKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "App Settings",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Customize your reading experience, adjust your preferences, and access help or about sections.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    TutorialCoachMark(
+      targets: targets,
+      colorShadow: YomuConstants.accent,
+      textSkip: "SKIP",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      onClickTarget: (target) {
+        if (target.identify == "library_target") {
+          ref.read(navigationStateProvider.notifier).state = NavigationState(
+            current: 1,
+            previous: 0,
+          );
+        } else if (target.identify == "stats_target") {
+          ref.read(navigationStateProvider.notifier).state = NavigationState(
+            current: 2,
+            previous: 1, // Assuming moving forward
+          );
+        } else if (target.identify == "settings_target") {
+          ref.read(navigationStateProvider.notifier).state = NavigationState(
+            current: 3,
+            previous: 2,
+          );
+        }
+      },
+      onFinish: () {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setBool('is_first_launch', false);
+        });
+      },
+      onSkip: () {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setBool('is_first_launch', false);
+        });
+        return true;
+      },
+    )..show(context: context);
   }
 
   @override
@@ -138,24 +326,28 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
                   index: 0,
                   icon: Icons.dashboard_rounded,
                   label: 'Home',
+                  itemKey: _homeKey,
                 ),
                 _buildNavItem(
                   ref,
                   index: 1,
                   icon: Icons.menu_book_rounded,
                   label: 'Library',
+                  itemKey: _libraryKey,
                 ),
                 _buildNavItem(
                   ref,
                   index: 2,
                   icon: Icons.bar_chart_rounded,
                   label: 'Stats',
+                  itemKey: _statsKey,
                 ),
                 _buildNavItem(
                   ref,
                   index: 3,
                   icon: Icons.settings_rounded,
                   label: 'Settings',
+                  itemKey: _settingsKey,
                 ),
               ],
             ),
@@ -170,6 +362,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     required int index,
     required IconData icon,
     required String label,
+    GlobalKey? itemKey,
   }) {
     final navState = ref.watch(navigationStateProvider);
     final selectedIndex = navState.current;
@@ -187,6 +380,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         },
         behavior: HitTestBehavior.opaque,
         child: Column(
+          key: itemKey,
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.max,
           children: [

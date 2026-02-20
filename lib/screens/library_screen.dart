@@ -14,6 +14,8 @@ import './library/widgets/library_header.dart';
 import './library/widgets/add_book_fab.dart';
 import 'edit_book_screen.dart';
 import '../components/book_overlay_menu.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -29,6 +31,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late AnimationController _animationController;
   final Set<int> _selectedBookIds = {};
   bool _isSelectionMode = false;
+
+  final GlobalKey _fabKey = GlobalKey();
+  final GlobalKey _scanKey = GlobalKey();
+  final GlobalKey _importKey = GlobalKey();
+  final GlobalKey _firstBookMenuKey = GlobalKey();
+  final GlobalKey _filterKey = GlobalKey();
+
+  bool _fabTutorialShown = true;
+  bool _menuTutorialShown = true;
+  bool _bookCardTutorialShown = true;
 
   void _toggleSelection(Book book) {
     if (book.id == null) return;
@@ -59,6 +71,268 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
+    _checkFirstLaunch();
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
+    final isMainFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+    if (isMainFirstLaunch) return;
+
+    _fabTutorialShown = !(prefs.getBool('is_first_launch_library_fab') ?? true);
+    _menuTutorialShown =
+        !(prefs.getBool('is_first_launch_library_menu') ?? true);
+    _bookCardTutorialShown =
+        !(prefs.getBool('is_first_launch_library_book_card') ?? true);
+
+    if (!_fabTutorialShown) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _showFabTutorial();
+      });
+    } else if (!_bookCardTutorialShown) {
+      final state = ref.read(libraryProvider);
+      if (state.allBooks.isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _showBookCardTutorial();
+        });
+      }
+    }
+  }
+
+  void _showFabTutorial() {
+    final targets = [
+      TargetFocus(
+        identify: "filter_target",
+        keyTarget: _filterKey,
+        alignSkip: Alignment.bottomRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const [
+                  Text(
+                    "Filter & Sort",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Tap here to filter your library by genre, author, folder, or sorting method.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.right,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "fab_target",
+        keyTarget: _fabKey,
+        alignSkip: Alignment.topLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const [
+                  Text(
+                    "Add Books",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Tap the + button to add new books to your library.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.right,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    TutorialCoachMark(
+      targets: targets,
+      colorShadow: YomuConstants.background,
+      textSkip: "SKIP",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      onFinish: _setFabTutorialShown,
+      onSkip: () {
+        _setFabTutorialShown();
+        return true;
+      },
+    ).show(context: context);
+  }
+
+  void _setFabTutorialShown() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool('is_first_launch_library_fab', false);
+    });
+    _fabTutorialShown = true;
+    final state = ref.read(libraryProvider);
+    if (!_bookCardTutorialShown && state.allBooks.isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _showBookCardTutorial();
+      });
+    }
+  }
+
+  void _showMenuTutorial() {
+    final targets = [
+      TargetFocus(
+        identify: "scan_target",
+        keyTarget: _scanKey,
+        alignSkip: Alignment.bottomLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: const [
+                Text(
+                  "Scan Folder",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "Automatically detects and adds all supported books from a folder you choose.",
+                  textAlign: TextAlign.right,
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "import_target",
+        keyTarget: _importKey,
+        alignSkip: Alignment.bottomLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: const [
+                Text(
+                  "Select Files",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "Manually pick specific EPUB or PDF files to import.",
+                  textAlign: TextAlign.right,
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+
+    TutorialCoachMark(
+      targets: targets,
+      colorShadow: YomuConstants.background,
+      textSkip: "SKIP",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      onFinish: _setMenuTutorialShown,
+      onSkip: () {
+        _setMenuTutorialShown();
+        return true;
+      },
+    ).show(context: context);
+  }
+
+  void _setMenuTutorialShown() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool('is_first_launch_library_menu', false);
+    });
+    _menuTutorialShown = true;
+  }
+
+  void _showBookCardTutorial() {
+    final targets = [
+      TargetFocus(
+        identify: "book_menu_target",
+        keyTarget: _firstBookMenuKey,
+        alignSkip: Alignment.bottomRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "Edit Book Info",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "Tap the three dots to edit the book's cover, title, or author.\n\nLong-pressing the card is used to select multiple books!",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+
+    TutorialCoachMark(
+      targets: targets,
+      colorShadow: YomuConstants.background,
+      textSkip: "SKIP",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      onFinish: _setBookCardTutorialShown,
+      onSkip: () {
+        _setBookCardTutorialShown();
+        return true;
+      },
+    ).show(context: context);
+  }
+
+  void _setBookCardTutorialShown() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool('is_first_launch_library_book_card', false);
+    });
+    _bookCardTutorialShown = true;
   }
 
   @override
@@ -73,6 +347,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       _isMenuOpen = !_isMenuOpen;
       if (_isMenuOpen) {
         _animationController.forward();
+        if (!_menuTutorialShown) {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) _showMenuTutorial();
+          });
+        }
       } else {
         _animationController.reverse();
       }
@@ -117,6 +396,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
 
+    ref.listen(libraryProvider, (previous, next) {
+      if (_fabTutorialShown &&
+          !_bookCardTutorialShown &&
+          (previous == null || previous.allBooks.isEmpty) &&
+          next.allBooks.isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _showBookCardTutorial();
+        });
+      }
+    });
+
     return Scaffold(
       backgroundColor: YomuConstants.background,
       appBar: AppBar(
@@ -131,7 +421,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 if (_isSelectionMode)
                   _buildSelectionHeader()
                 else
-                  LibraryHeader(searchController: _searchController),
+                  LibraryHeader(
+                    searchController: _searchController,
+                    filterKey: _filterKey,
+                  ),
                 Expanded(
                   child: state.allBooks.isEmpty
                       ? EmptyLibraryView(onImportFiles: _handleSelectiveImport)
@@ -144,6 +437,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           bottom: MediaQuery.paddingOf(context).bottom - 30,
         ),
         child: AddBookFab(
+          key: _fabKey,
+          scanKey: _scanKey,
+          importKey: _importKey,
           isMenuOpen: _isMenuOpen,
           animationController: _animationController,
           onToggleMenu: _toggleMenu,
@@ -177,6 +473,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           book: book,
           isSelected: isSelected,
           selectionMode: _isSelectionMode,
+          menuKey: index == 0 ? _firstBookMenuKey : null,
           onTap: () {
             if (_isSelectionMode) {
               _toggleSelection(book);

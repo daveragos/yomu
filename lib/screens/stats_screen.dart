@@ -25,6 +25,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   String _selectedMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryProvider);
 
@@ -113,11 +118,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     return Row(
       children: [
         Expanded(
-          child: StatBadge(
-            label: 'Streak',
-            value: '${state.currentStreak}',
-            icon: Icons.local_fire_department,
-            color: YomuConstants.accent,
+          child: Container(
+            child: StatBadge(
+              label: 'Streak',
+              value: '${state.currentStreak}',
+              icon: Icons.local_fire_department,
+              color: YomuConstants.accent,
+            ),
           ),
         ),
         const SizedBox(width: 12),

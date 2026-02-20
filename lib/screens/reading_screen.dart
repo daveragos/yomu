@@ -25,6 +25,8 @@ import './reading/widgets/navigation_sheet.dart';
 import './reading/widgets/epub_view.dart';
 import './reading/widgets/pdf_view.dart';
 import './reading/widgets/reading_footer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -108,6 +110,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   bool _isOrientationLandscape = false;
   bool _isJumpingFromToc = false;
 
+  final GlobalKey _audioKey = GlobalKey();
+  final GlobalKey _searchKey = GlobalKey();
+  final GlobalKey _lockKey = GlobalKey();
+  final GlobalKey _tocKey = GlobalKey();
+  final GlobalKey _autoScrollKey = GlobalKey();
+  final GlobalKey _displaySettingsKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -139,6 +148,244 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       }
     });
     _autoScrollSpeedNotifier.addListener(_handleGlobalSpeedChange);
+
+    _checkFirstLaunch();
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final isMainFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+    if (isMainFirstLaunch) return;
+
+    final isFirstLaunch = prefs.getBool('is_first_launch_reading') ?? true;
+
+    if (isFirstLaunch && mounted) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _showTutorial();
+        }
+      });
+    }
+  }
+
+  void _showTutorial() {
+    final book = ref.read(currentlyReadingProvider);
+    if (book == null) return;
+
+    final isPdf = book.filePath.toLowerCase().endsWith('.pdf');
+
+    final targets = <TargetFocus>[
+      TargetFocus(
+        identify: "toc_target",
+        keyTarget: _tocKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Navigation",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Access the Table of Contents, outlines, and your bookmarks.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "search_target",
+        keyTarget: _searchKey,
+        alignSkip: Alignment.bottomLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const [
+                  Text(
+                    "Search",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Find specific phrases or words quickly within the book.",
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      if (isPdf)
+        TargetFocus(
+          identify: "lock_target",
+          keyTarget: _lockKey,
+          alignSkip: Alignment.bottomRight,
+          contents: [
+            TargetContent(
+              align: ContentAlign.bottom,
+              builder: (context, controller) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      "Scroll Lock",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 24,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "Lock the PDF to horizontal scrolling, vertical scrolling, or lock the zoom level.",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      TargetFocus(
+        identify: "audio_target",
+        keyTarget: _audioKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Immersive Audio",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Tap the + icon to attach an audiobook file. If one is attached, tap here to open the audio controls.",
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "autoscroll_target",
+        keyTarget: _autoScrollKey,
+        alignSkip: Alignment.topLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const [
+                  Text(
+                    "Auto-Scroll",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Sit back and let the app scroll for you. Adjust the speed in the settings.",
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "display_target",
+        keyTarget: _displaySettingsKey,
+        alignSkip: Alignment.topLeft,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: const [
+                  Text(
+                    "Display Settings",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Customize fonts, themes, margins, and more to suit your reading style.",
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    TutorialCoachMark(
+      targets: targets,
+      colorShadow: YomuConstants.accent,
+      textSkip: "SKIP",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+      onFinish: () {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setBool('is_first_launch_reading', false);
+        });
+      },
+      onSkip: () {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setBool('is_first_launch_reading', false);
+        });
+        return true;
+      },
+    ).show(context: context);
   }
 
   void _handleGlobalSpeedChange() {
@@ -930,6 +1177,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             valueListenable: _currentTimeNotifier,
             builder: (context, currentTime, _) {
               return ReadingHeader(
+                searchKey: _searchKey,
+                lockKey: _lockKey,
                 book: book,
                 settings: settings,
                 currentChapter: _currentChapter,
@@ -1011,6 +1260,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           left: 0,
           right: 0,
           child: ReadingBottomControls(
+            tocKey: _tocKey,
+            audioKey: _audioKey,
+            autoScrollKey: _autoScrollKey,
+            displaySettingsKey: _displaySettingsKey,
             book: book,
             settings: settings,
             isAudioControlsExpanded: _isAudioControlsExpanded,

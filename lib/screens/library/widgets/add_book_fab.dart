@@ -7,6 +7,8 @@ class AddBookFab extends StatelessWidget {
   final VoidCallback onToggleMenu;
   final VoidCallback onScanFolder;
   final VoidCallback onImportFiles;
+  final GlobalKey? scanKey;
+  final GlobalKey? importKey;
 
   const AddBookFab({
     super.key,
@@ -15,6 +17,8 @@ class AddBookFab extends StatelessWidget {
     required this.onToggleMenu,
     required this.onScanFolder,
     required this.onImportFiles,
+    this.scanKey,
+    this.importKey,
   });
 
   @override
@@ -40,6 +44,7 @@ class AddBookFab extends StatelessWidget {
                     curve: Curves.easeOutBack,
                   ),
                   child: FloatingActionButton.small(
+                    key: scanKey,
                     heroTag: 'fab-scan',
                     onPressed: onScanFolder,
                     backgroundColor: YomuConstants.surface,
@@ -56,6 +61,7 @@ class AddBookFab extends StatelessWidget {
                     curve: Curves.easeOutBack,
                   ),
                   child: FloatingActionButton.small(
+                    key: importKey,
                     heroTag: 'fab-import',
                     onPressed: onImportFiles,
                     backgroundColor: YomuConstants.surface,

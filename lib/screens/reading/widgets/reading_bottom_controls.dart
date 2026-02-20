@@ -23,6 +23,10 @@ class ReadingBottomControls extends StatelessWidget {
   final VoidCallback onShowDisplaySettings;
   final VoidCallback onIncrementPlaybackSpeed;
   final Function(Duration) onSkip;
+  final GlobalKey? audioKey;
+  final GlobalKey? tocKey;
+  final GlobalKey? autoScrollKey;
+  final GlobalKey? displaySettingsKey;
 
   const ReadingBottomControls({
     super.key,
@@ -43,6 +47,10 @@ class ReadingBottomControls extends StatelessWidget {
     required this.onShowDisplaySettings,
     required this.onIncrementPlaybackSpeed,
     required this.onSkip,
+    this.audioKey,
+    this.tocKey,
+    this.autoScrollKey,
+    this.displaySettingsKey,
     this.audioSection,
   });
 
@@ -144,6 +152,7 @@ class ReadingBottomControls extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   ControlButton(
+                    key: tocKey,
                     settings: settings,
                     onTap: onShowNavigationSheet,
                     child: Icon(
@@ -168,6 +177,7 @@ class ReadingBottomControls extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ControlButton(
+                          key: audioKey,
                           settings: settings,
                           onTap: onToggleAudioControls,
                           child: Icon(
@@ -184,6 +194,7 @@ class ReadingBottomControls extends StatelessWidget {
                     )
                   else
                     ControlButton(
+                      key: audioKey,
                       settings: settings,
                       onTap: onPickAudio,
                       child: const Icon(
@@ -193,6 +204,7 @@ class ReadingBottomControls extends StatelessWidget {
                       ),
                     ),
                   ControlButton(
+                    key: autoScrollKey,
                     settings: settings,
                     onTap: onToggleAutoScroll,
                     child: Icon(
@@ -215,6 +227,7 @@ class ReadingBottomControls extends StatelessWidget {
                     ),
                   ),
                   ControlButton(
+                    key: displaySettingsKey,
                     settings: settings,
                     onTap: onShowDisplaySettings,
                     child: Icon(

@@ -5,8 +5,13 @@ import '../../../providers/library_provider.dart';
 
 class LibraryHeader extends ConsumerStatefulWidget {
   final TextEditingController searchController;
+  final GlobalKey? filterKey;
 
-  const LibraryHeader({super.key, required this.searchController});
+  const LibraryHeader({
+    super.key,
+    required this.searchController,
+    this.filterKey,
+  });
 
   @override
   ConsumerState<LibraryHeader> createState() => _LibraryHeaderState();
@@ -49,6 +54,7 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
                       size: 20,
                     ),
                     suffixIcon: IconButton(
+                      key: widget.filterKey,
                       icon: Icon(
                         _isExpanded ? Icons.expand_less : Icons.tune_rounded,
                         color: _isExpanded

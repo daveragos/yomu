@@ -21,6 +21,8 @@ class ReadingHeader extends StatelessWidget {
   final VoidCallback onToggleSearchResultsCollapse;
   final VoidCallback onToggleLock;
   final Widget? searchResultsOverlay;
+  final GlobalKey? searchKey;
+  final GlobalKey? lockKey;
 
   const ReadingHeader({
     super.key,
@@ -41,6 +43,8 @@ class ReadingHeader extends StatelessWidget {
     required this.onToggleSearchResultsCollapse,
     required this.onToggleLock,
     this.searchResultsOverlay,
+    this.searchKey,
+    this.lockKey,
   });
 
   @override
@@ -127,6 +131,7 @@ class ReadingHeader extends StatelessWidget {
                       ),
                     ),
                     IconButton(
+                      key: searchKey,
                       icon: Icon(
                         Icons.search_rounded,
                         color: settings.textColor,
@@ -135,6 +140,7 @@ class ReadingHeader extends StatelessWidget {
                     ),
                     if (book.filePath.toLowerCase().endsWith('.pdf'))
                       IconButton(
+                        key: lockKey,
                         icon: Icon(
                           settings.lockState == ReaderLockState.none
                               ? Icons.lock_open_rounded

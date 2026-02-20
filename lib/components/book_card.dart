@@ -11,6 +11,7 @@ class BookCard extends StatefulWidget {
   final VoidCallback? onTap;
   final Function(Offset)? onLongPress;
   final Function(Offset)? onMenuPressed;
+  final GlobalKey? menuKey;
   final bool isSelected;
   final bool selectionMode;
 
@@ -20,6 +21,7 @@ class BookCard extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.onMenuPressed,
+    this.menuKey,
     this.isSelected = false,
     this.selectionMode = false,
   });
@@ -194,6 +196,7 @@ class _BookCardState extends State<BookCard> {
                 ),
                 if (widget.onMenuPressed != null && !widget.selectionMode)
                   InkWell(
+                    key: widget.menuKey,
                     onTapDown: (details) {
                       setState(() {
                         _tapPosition = details.globalPosition;
