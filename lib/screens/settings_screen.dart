@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/constants.dart';
 import '../providers/library_provider.dart';
 import '../components/glass_container.dart';
@@ -37,6 +38,9 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               _buildSectionHeader('Notifications'),
               _buildNotificationToggles(context, state, notifier),
+              const SizedBox(height: 48),
+              _buildSectionHeader('More'),
+              _buildMoreCard(context),
               const SizedBox(height: 48),
               _buildAboutSection(),
               const SizedBox(height: 120),
@@ -216,6 +220,85 @@ class SettingsScreen extends ConsumerWidget {
                   }
                 },
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: GlassContainer(
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.volunteer_activism_rounded,
+                color: YomuConstants.accent,
+              ),
+              title: const Text(
+                'Support the Developer AKA RaGoose',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                'Support the developer and the project \u2764\uFE0F',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 12,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.open_in_new_rounded,
+                color: Colors.white24,
+                size: 20,
+              ),
+              onTap: () async {
+                final uri = Uri.parse('https://jami.bio/daveragoose');
+                try {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } catch (e) {
+                  debugPrint('Could not launch \$uri: \$e');
+                }
+              },
+            ),
+            Divider(color: Colors.white.withOpacity(0.1), height: 1),
+            ListTile(
+              leading: const Icon(
+                Icons.code_rounded,
+                color: YomuConstants.accent,
+              ),
+              title: const Text(
+                'Contribute on GitHub',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                'Help build the future of Yomu \uD83D\uDE80',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 12,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.open_in_new_rounded,
+                color: Colors.white24,
+                size: 20,
+              ),
+              onTap: () async {
+                final uri = Uri.parse('https://github.com/daveragos/yomu');
+                try {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } catch (e) {
+                  debugPrint('Could not launch \$uri: \$e');
+                }
+              },
+            ),
           ],
         ),
       ),

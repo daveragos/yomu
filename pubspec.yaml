@@ -39,6 +39,7 @@ dependencies:
   crypto: ^3.0.7
   flutter_local_notifications: ^20.1.0
   timezone: ^0.10.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
