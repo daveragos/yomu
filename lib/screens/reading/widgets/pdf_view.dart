@@ -47,11 +47,18 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
       key: _viewerKey,
       controller: widget.controller,
       params: PdfViewerParams(
-        backgroundColor: widget.settings.backgroundColor,
+        // Maintain a white background so that the transparent parts of the PDF
+        // are treated as white pages before the color filter is applied.
+        backgroundColor: Colors.white,
         onViewerReady: widget.onViewerReady,
         enableTextSelection: false,
-        margin: 1.0,
-        pageDropShadow: null,
+        margin: 4.0, // Increased margin to show separation
+        pageDropShadow: const BoxShadow(
+          color: Colors.black12,
+          blurRadius: 4.0,
+          spreadRadius: 1.0,
+          offset: Offset(0, 2),
+        ), // Added a subtle drop shadow to delineate page boundaries
         interactionEndFrictionCoefficient: 0.000005,
         verticalCacheExtent: 3.0,
         maxImageBytesCachedOnMemory: 256 * 1024 * 1024,
@@ -140,21 +147,45 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
   ColorFilter? _getPdfColorFilter(ReaderTheme theme) {
     switch (theme) {
       case ReaderTheme.darkBlue:
-      case ReaderTheme.black:
+        // Maps White(255) to Dark Blue(26, 39, 68) and Black(0) to Light Gray(224)
         return const ColorFilter.matrix([
-          -0.9,
+          -0.776,
+          0,
+          0,
+          0,
+          224,
+          0,
+          -0.725,
+          0,
+          0,
+          224,
+          0,
+          0,
+          -0.612,
+          0,
+          224,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]);
+      case ReaderTheme.black:
+        // Maps White(255) to Blackish(10, 11, 14) and Black(0) to White(255)
+        return const ColorFilter.matrix([
+          -0.961,
           0,
           0,
           0,
           255,
           0,
-          -0.9,
+          -0.957,
           0,
           0,
           255,
           0,
           0,
-          -0.9,
+          -0.945,
           0,
           255,
           0,
@@ -164,28 +195,8 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
           0,
         ]);
       case ReaderTheme.cream:
-        return const ColorFilter.matrix([
-          0.393,
-          0.769,
-          0.189,
-          0,
-          0,
-          0.349,
-          0.686,
-          0.168,
-          0,
-          0,
-          0.272,
-          0.534,
-          0.131,
-          0,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]);
+        // Multiply keeps black text pure black but tints the white background to cream
+        return const ColorFilter.mode(Color(0xFFF5F0E1), BlendMode.multiply);
       case ReaderTheme.white:
         return null;
     }
