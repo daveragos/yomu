@@ -10,6 +10,7 @@ class ReadingBottomControls extends StatelessWidget {
   final bool isAudioControlsExpanded;
   final bool isNavigationSheetOpen;
   final bool isAutoScrolling;
+  final bool isBookmarked;
   final double playbackSpeed;
   final bool isOrientationLandscape;
   final Widget? audioSection;
@@ -17,7 +18,7 @@ class ReadingBottomControls extends StatelessWidget {
   final VoidCallback onToggleAudioControls;
   final VoidCallback onPickAudio;
   final VoidCallback onShowNavigationSheet;
-  final VoidCallback onAddBookmark;
+  final VoidCallback onToggleBookmark;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onToggleOrientation;
   final VoidCallback onShowDisplaySettings;
@@ -35,13 +36,14 @@ class ReadingBottomControls extends StatelessWidget {
     required this.isAudioControlsExpanded,
     required this.isNavigationSheetOpen,
     required this.isAutoScrolling,
+    required this.isBookmarked,
     required this.playbackSpeed,
     required this.isOrientationLandscape,
     required this.playPauseButton,
     required this.onToggleAudioControls,
     required this.onPickAudio,
     required this.onShowNavigationSheet,
-    required this.onAddBookmark,
+    required this.onToggleBookmark,
     required this.onToggleAutoScroll,
     required this.onToggleOrientation,
     required this.onShowDisplaySettings,
@@ -165,10 +167,14 @@ class ReadingBottomControls extends StatelessWidget {
                   ),
                   ControlButton(
                     settings: settings,
-                    onTap: onAddBookmark,
+                    onTap: onToggleBookmark,
                     child: Icon(
-                      Icons.bookmark_outline_rounded,
-                      color: settings.textColor,
+                      isBookmarked
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_outline_rounded,
+                      color: isBookmarked
+                          ? YomuConstants.accent
+                          : settings.textColor,
                       size: 22,
                     ),
                   ),

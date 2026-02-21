@@ -111,6 +111,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   bool _isSearchResultsCollapsed = false;
   bool _isOrientationLandscape = false;
   bool _isJumpingFromToc = false;
+  List<Bookmark> _bookmarks = [];
 
   final GlobalKey _audioKey = GlobalKey();
   final GlobalKey _searchKey = GlobalKey();
@@ -152,6 +153,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _autoScrollSpeedNotifier.addListener(_handleGlobalSpeedChange);
 
     _checkFirstLaunch();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadBookmarks();
+    });
+  }
+
+  Future<void> _loadBookmarks() async {
+    final book = ref.read(currentlyReadingProvider);
+    if (book != null) {
+      final bookmarks = await ref
+          .read(libraryProvider.notifier)
+          .getBookmarks(book.id!);
+      if (mounted) {
+        setState(() {
+          _bookmarks = bookmarks;
+        });
+      }
+    }
   }
 
   Future<void> _checkFirstLaunch() async {
@@ -463,45 +481,97 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _lastInteractionTime = DateTime.now();
   }
 
-  void _addBookmark(Book book) async {
-    final progress = _calculateCurrentProgress(book);
-    String position = '0';
+  Bookmark? _getCurrentBookmark() {
+    if (_bookmarks.isEmpty) return null;
+
+    final book = ref.read(currentlyReadingProvider);
+    if (book == null) return null;
 
     if (book.filePath.toLowerCase().endsWith('.epub')) {
-      // Save chapter index and personal scroll progress for precision
-      position = '$_currentChapterIndex:${_scrollProgressNotifier.value}';
-    } else if (book.filePath.toLowerCase().endsWith('.pdf')) {
-      position = (_pdfController?.pageNumber ?? 1).toString();
-    }
-
-    String title = 'Bookmark';
-    if (book.filePath.toLowerCase().endsWith('.epub')) {
-      if (_chapters.isNotEmpty && _currentChapterIndex < _chapters.length) {
-        title = _chapters[_currentChapterIndex].Title ?? 'Bookmark';
+      final chapterPosStr = '$_currentChapterIndex:';
+      for (final b in _bookmarks) {
+        if (b.position.startsWith(chapterPosStr)) {
+          final parts = b.position.split(':');
+          if (parts.length > 1) {
+            final double bookmarkProgress = double.tryParse(parts[1]) ?? 0.0;
+            if ((_scrollProgressNotifier.value - bookmarkProgress).abs() <
+                0.5) {
+              return b;
+            }
+          }
+        } else if (b.position == _currentChapterIndex.toString()) {
+          return b;
+        }
       }
-    } else if (_isPdfReady) {
-      title = 'Page ${_pdfController?.pageNumber ?? 1}';
+    } else {
+      if (!_isPdfReady) return null;
+      final pageStr = (_pdfCurrentPage + 1).toString();
+      for (final b in _bookmarks) {
+        if (b.position == pageStr) {
+          return b;
+        }
+      }
     }
+    return null;
+  }
 
-    final bookmark = Bookmark(
-      bookId: book.id!,
-      title: title,
-      progress: progress,
-      createdAt: DateTime.now(),
-      position: position,
-    );
+  void _toggleBookmark(Book book) async {
+    final currentBookmark = _getCurrentBookmark();
+    if (currentBookmark != null) {
+      await ref
+          .read(libraryProvider.notifier)
+          .deleteBookmark(currentBookmark.id!);
+      await _loadBookmarks();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Bookmark removed'),
+            backgroundColor: YomuConstants.accent,
+            behavior: SnackBarBehavior.floating,
+            width: 200,
+          ),
+        );
+      }
+    } else {
+      final progress = _calculateCurrentProgress(book);
+      String position = '0';
 
-    await ref.read(libraryProvider.notifier).addBookmark(bookmark);
+      if (book.filePath.toLowerCase().endsWith('.epub')) {
+        position = '$_currentChapterIndex:${_scrollProgressNotifier.value}';
+      } else if (book.filePath.toLowerCase().endsWith('.pdf')) {
+        position = (_pdfCurrentPage + 1).toString();
+      }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Position bookmarked'),
-          backgroundColor: YomuConstants.accent,
-          behavior: SnackBarBehavior.floating,
-          width: 200,
-        ),
+      String title = 'Bookmark';
+      if (book.filePath.toLowerCase().endsWith('.epub')) {
+        if (_chapters.isNotEmpty && _currentChapterIndex < _chapters.length) {
+          title = _chapters[_currentChapterIndex].Title ?? 'Bookmark';
+        }
+      } else if (_isPdfReady) {
+        title = 'Page ${_pdfCurrentPage + 1}';
+      }
+
+      final bookmark = Bookmark(
+        bookId: book.id!,
+        title: title,
+        progress: progress,
+        createdAt: DateTime.now(),
+        position: position,
       );
+
+      await ref.read(libraryProvider.notifier).addBookmark(bookmark);
+      await _loadBookmarks();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Position bookmarked'),
+            backgroundColor: YomuConstants.accent,
+            behavior: SnackBarBehavior.floating,
+            width: 200,
+          ),
+        );
+      }
     }
   }
 
@@ -1194,6 +1264,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             isAudioControlsExpanded: _isAudioControlsExpanded,
             isNavigationSheetOpen: _isNavigationSheetOpen,
             isAutoScrolling: _isAutoScrolling,
+            isBookmarked: _getCurrentBookmark() != null,
             playbackSpeed: _playbackSpeed,
             isOrientationLandscape: _isOrientationLandscape,
             audioSection: ReadingAudioSection(
@@ -1239,7 +1310,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             onPickAudio: () => _pickAudio(book),
             onShowNavigationSheet: () =>
                 _showNavigationSheet(book: book, settings: settings),
-            onAddBookmark: () => _addBookmark(book),
+            onToggleBookmark: () => _toggleBookmark(book),
             onToggleAutoScroll: () {
               setState(() {
                 _isAutoScrolling = !_isAutoScrolling;
@@ -1512,8 +1583,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           },
           getBookmarks: () =>
               ref.read(libraryProvider.notifier).getBookmarks(book.id!),
-          onDeleteBookmark: (bookmark) =>
-              ref.read(libraryProvider.notifier).deleteBookmark(bookmark.id!),
+          onDeleteBookmark: (bookmark) async {
+            await ref
+                .read(libraryProvider.notifier)
+                .deleteBookmark(bookmark.id!);
+            await _loadBookmarks();
+          },
           onBookmarkTap: (bookmark) {
             Navigator.pop(context);
             if (book.filePath.toLowerCase().endsWith('.epub')) {

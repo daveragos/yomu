@@ -199,30 +199,36 @@ class _NavigationSheetState extends State<NavigationSheet> {
 
   Widget _buildChaptersList() {
     if (widget.book.filePath.toLowerCase().endsWith('.epub')) {
-      return ListView(
+      return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        children: widget.tocChapters.map((chapter) {
-          return _ChapterTreeItem(
-            chapter: chapter,
-            depth: 0,
-            currentChapterIndex: widget.currentChapterIndex,
-            flattenedChapters: widget.chapters,
-            onTap: widget.onChapterTap,
-          );
-        }).toList(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: widget.tocChapters.map((chapter) {
+            return _ChapterTreeItem(
+              chapter: chapter,
+              depth: 0,
+              currentChapterIndex: widget.currentChapterIndex,
+              flattenedChapters: widget.chapters,
+              onTap: widget.onChapterTap,
+            );
+          }).toList(),
+        ),
       );
     } else {
-      return ListView(
+      return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        children: widget.tocPdfOutline.map((node) {
-          return _PdfTreeItem(
-            node: node,
-            depth: 0,
-            onTap: widget.onPdfOutlineTap,
-            currentPdfNode: widget.currentPdfNode,
-            flattenedOutline: widget.pdfOutline,
-          );
-        }).toList(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: widget.tocPdfOutline.map((node) {
+            return _PdfTreeItem(
+              node: node,
+              depth: 0,
+              onTap: widget.onPdfOutlineTap,
+              currentPdfNode: widget.currentPdfNode,
+              flattenedOutline: widget.pdfOutline,
+            );
+          }).toList(),
+        ),
       );
     }
   }
@@ -299,6 +305,23 @@ class _ChapterTreeItem extends StatefulWidget {
 
 class _ChapterTreeItemState extends State<_ChapterTreeItem> {
   bool _isExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final index = widget.flattenedChapters.indexOf(widget.chapter);
+        if (index == widget.currentChapterIndex) {
+          Scrollable.ensureVisible(
+            context,
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 300),
+          );
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -403,6 +426,20 @@ class _PdfTreeItem extends StatefulWidget {
 
 class _PdfTreeItemState extends State<_PdfTreeItem> {
   bool _isExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.node == widget.currentPdfNode) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 300),
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
