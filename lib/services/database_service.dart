@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
+import '../models/highlight_model.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -22,7 +23,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 13,
+      version: 14,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -85,6 +86,17 @@ class DatabaseService {
         xpReward INTEGER,
         isCompleted INTEGER,
         date TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE highlights(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId INTEGER,
+        chapterIndex INTEGER,
+        text TEXT,
+        note TEXT,
+        color TEXT,
+        createdAt TEXT
       )
     ''');
   }
@@ -174,6 +186,19 @@ class DatabaseService {
         'ALTER TABLE reading_sessions ADD COLUMN timestamp TEXT',
       );
     }
+    if (oldVersion < 14) {
+      await db.execute('''
+        CREATE TABLE highlights(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bookId INTEGER,
+          chapterIndex INTEGER,
+          text TEXT,
+          note TEXT,
+          color TEXT,
+          createdAt TEXT
+        )
+      ''');
+    }
   }
 
   // Book CRUD
@@ -224,6 +249,7 @@ class DatabaseService {
         whereArgs: [id],
       );
       await txn.delete('bookmarks', where: 'bookId = ?', whereArgs: [id]);
+      await txn.delete('highlights', where: 'bookId = ?', whereArgs: [id]);
       await txn.delete('books', where: 'id = ?', whereArgs: [id]);
     });
   }
@@ -314,5 +340,46 @@ class DatabaseService {
       'SELECT SUM(xpReward) as total FROM quests WHERE isCompleted = 1',
     );
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // Highlight CRUD
+  Future<int> insertHighlight(Highlight highlight) async {
+    final db = await database;
+    return await db.insert('highlights', highlight.toMap());
+  }
+
+  Future<List<Highlight>> getHighlightsForBook(int bookId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'highlights',
+      where: 'bookId = ?',
+      whereArgs: [bookId],
+      orderBy: 'createdAt DESC',
+    );
+    return List.generate(maps.length, (i) => Highlight.fromMap(maps[i]));
+  }
+
+  Future<int> updateHighlight(Highlight highlight) async {
+    final db = await database;
+    return await db.update(
+      'highlights',
+      highlight.toMap(),
+      where: 'id = ?',
+      whereArgs: [highlight.id],
+    );
+  }
+
+  Future<int> deleteHighlight(int id) async {
+    final db = await database;
+    return await db.delete('highlights', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteHighlightsForBook(int bookId) async {
+    final db = await database;
+    return await db.delete(
+      'highlights',
+      where: 'bookId = ?',
+      whereArgs: [bookId],
+    );
   }
 }

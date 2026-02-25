@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:epub_view/epub_view.dart' show EpubChapter, EpubBook;
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
+import '../../../models/highlight_model.dart';
 import './epub_chapter_page.dart';
 
 class ReadingEpubView extends StatelessWidget {
@@ -24,6 +25,9 @@ class ReadingEpubView extends StatelessWidget {
   final VoidCallback onJumpedToPosition;
   final VoidCallback onHideControls;
   final VoidCallback onInteraction;
+  final List<Highlight> highlights;
+  final Function(Highlight) onHighlight;
+  final Function(int) onDeleteHighlight;
 
   const ReadingEpubView({
     super.key,
@@ -44,6 +48,9 @@ class ReadingEpubView extends StatelessWidget {
     required this.onJumpedToPosition,
     required this.onHideControls,
     required this.onInteraction,
+    required this.highlights,
+    required this.onHighlight,
+    required this.onDeleteHighlight,
     this.searchQuery,
     this.epubBook,
   });
@@ -82,6 +89,9 @@ class ReadingEpubView extends StatelessWidget {
           autoScrollSpeedNotifier: autoScrollSpeedNotifier,
           searchQuery: searchQuery,
           epubBook: epubBook,
+          highlights: highlights,
+          onHighlight: onHighlight,
+          onDeleteHighlight: onDeleteHighlight,
         );
       },
     );

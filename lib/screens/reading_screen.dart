@@ -28,6 +28,8 @@ import './reading/widgets/reading_footer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
+import '../models/highlight_model.dart';
+import '../services/database_service.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -112,6 +114,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   bool _isOrientationLandscape = false;
   bool _isJumpingFromToc = false;
   List<Bookmark> _bookmarks = [];
+  List<Highlight> _highlights = [];
 
   final GlobalKey _audioKey = GlobalKey();
   final GlobalKey _searchKey = GlobalKey();
@@ -164,9 +167,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       final bookmarks = await ref
           .read(libraryProvider.notifier)
           .getBookmarks(book.id!);
+      final dbService = DatabaseService();
+      final highlights = await dbService.getHighlightsForBook(book.id!);
       if (mounted) {
         setState(() {
           _bookmarks = bookmarks;
+          _highlights = highlights;
         });
       }
     }
@@ -954,6 +960,51 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     return contentLength < 1000 ? 1 : 10;
   }
 
+  Future<void> _addHighlight(Highlight highlight) async {
+    final book = ref.read(currentlyReadingProvider);
+    if (book?.id == null) return;
+
+    // Check if this exact text+chapter already has a highlight
+    final existing = _highlights
+        .where(
+          (h) =>
+              h.chapterIndex == highlight.chapterIndex &&
+              h.text == highlight.text,
+        )
+        .firstOrNull;
+
+    final dbService = DatabaseService();
+
+    if (existing != null) {
+      // Update color of existing highlight
+      final updated = existing.copyWith(color: highlight.color);
+      await dbService.updateHighlight(updated);
+    } else {
+      // Insert new highlight with correct bookId
+      final withBookId = highlight.copyWith(bookId: book!.id!);
+      await dbService.insertHighlight(withBookId);
+    }
+
+    // Reload from DB to get correct IDs
+    final highlights = await dbService.getHighlightsForBook(book!.id!);
+    if (mounted) {
+      setState(() => _highlights = highlights);
+    }
+  }
+
+  Future<void> _deleteHighlight(int highlightId) async {
+    final book = ref.read(currentlyReadingProvider);
+    if (book?.id == null) return;
+
+    final dbService = DatabaseService();
+    await dbService.deleteHighlight(highlightId);
+
+    final highlights = await dbService.getHighlightsForBook(book!.id!);
+    if (mounted) {
+      setState(() => _highlights = highlights);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final book = ref.watch(currentlyReadingProvider);
@@ -1059,6 +1110,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onInteraction: _recordInteraction,
                           searchQuery: _activeSearchQuery,
                           epubBook: _epubBook,
+                          highlights: _highlights,
+                          onHighlight: _addHighlight,
+                          onDeleteHighlight: _deleteHighlight,
                         )
                       else
                         ReadingPdfView(
