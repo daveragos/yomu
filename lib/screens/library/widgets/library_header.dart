@@ -144,6 +144,38 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
                           onTap: () {},
                         ),
                         _FilterChip(
+                          label: state.selectedFileType == 'All'
+                              ? 'File Type'
+                              : state.selectedFileType,
+                          isSelected: state.selectedFileType != 'All',
+                          hasDropdown: true,
+                          dropdownOptions: ['All', 'EPUB', 'PDF'],
+                          onSelected: (val) => notifier.setFileTypeFilter(val),
+                          onTap: () {},
+                        ),
+                        _FilterChip(
+                          label: state.selectedTag == 'All'
+                              ? 'Category'
+                              : state.selectedTag!,
+                          isSelected: state.selectedTag != 'All',
+                          hasDropdown: true,
+                          dropdownOptions: [
+                            'All',
+                            ...state.allBooks
+                                .where(
+                                  (b) => b.tags != null && b.tags!.isNotEmpty,
+                                )
+                                .expand(
+                                  (b) =>
+                                      b.tags!.split(',').map((e) => e.trim()),
+                                )
+                                .where((e) => e.isNotEmpty)
+                                .toSet(),
+                          ].toList(),
+                          onSelected: (val) => notifier.setTagFilter(val),
+                          onTap: () {},
+                        ),
+                        _FilterChip(
                           label: state.sortBy.name.toUpperCase(),
                           isSelected: state.sortBy != BookSortBy.recent,
                           icon: Icons.sort_rounded,
@@ -271,7 +303,10 @@ class _FilterChip extends StatelessWidget {
           final isItemSelected =
               opt == label ||
               (label == 'Genre' && opt == 'All') ||
-              (label == 'Author' && opt == 'All');
+              (label == 'Author' && opt == 'All') ||
+              (label == 'File Type' && opt == 'All') ||
+              (label == 'Category' && opt == 'All') ||
+              (label == 'Folder' && opt == 'All');
           return PopupMenuItem<String>(
             value: opt,
             child: Text(

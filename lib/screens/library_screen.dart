@@ -435,6 +435,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               },
             ),
             IconButton(
+              tooltip: 'Add to Category',
+              icon: const Icon(Icons.label_outline, color: Colors.white70),
+              onPressed: _showBatchTagDialog,
+            ),
+            IconButton(
               tooltip: 'Remove Selected',
               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
               onPressed: _handleBatchDelete,
@@ -443,6 +448,66 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ),
       ),
     );
+  }
+
+  void _showBatchTagDialog() async {
+    if (_selectedBookIds.isEmpty) return;
+    final textController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: YomuConstants.surface,
+        title: const Text(
+          'Add to Category',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: textController,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Enter category name',
+            hintStyle: const TextStyle(color: Colors.white54),
+            filled: true,
+            fillColor: YomuConstants.surface.withValues(alpha: 0.8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white60),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Add',
+              style: TextStyle(color: YomuConstants.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && textController.text.trim().isNotEmpty) {
+      final notifier = ref.read(libraryProvider.notifier);
+      await notifier.batchAddTag(
+        _selectedBookIds.toList(),
+        textController.text.trim(),
+      );
+      _clearSelection();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Category added to selected books')),
+        );
+      }
+    }
   }
 
   void _handleBatchDelete() async {

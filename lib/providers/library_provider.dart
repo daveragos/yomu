@@ -30,6 +30,7 @@ class LibraryState {
   final bool onlyFavorites;
   final String? selectedSeries;
   final String? selectedTag;
+  final String selectedFileType;
   final BookSortBy sortBy;
   final bool sortAscending;
   final int currentStreak;
@@ -66,6 +67,7 @@ class LibraryState {
     this.onlyFavorites = false,
     this.selectedSeries = 'All',
     this.selectedTag = 'All',
+    this.selectedFileType = 'All',
     this.sortBy = BookSortBy.recent,
     this.sortAscending = false,
     this.currentStreak = 0,
@@ -173,6 +175,7 @@ class LibraryState {
     bool? onlyFavorites,
     String? selectedSeries,
     String? selectedTag,
+    String? selectedFileType,
     BookSortBy? sortBy,
     bool? sortAscending,
     int? currentStreak,
@@ -208,6 +211,7 @@ class LibraryState {
       onlyFavorites: onlyFavorites ?? this.onlyFavorites,
       selectedSeries: selectedSeries ?? this.selectedSeries,
       selectedTag: selectedTag ?? this.selectedTag,
+      selectedFileType: selectedFileType ?? this.selectedFileType,
       sortBy: sortBy ?? this.sortBy,
       sortAscending: sortAscending ?? this.sortAscending,
       currentStreak: currentStreak ?? this.currentStreak,
@@ -259,6 +263,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           onlyFavorites: false,
           selectedSeries: 'All',
           selectedTag: 'All',
+          selectedFileType: 'All',
           sortBy: BookSortBy.recent,
           sortAscending: false,
         ),
@@ -724,6 +729,13 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     );
   }
 
+  void setFileTypeFilter(String fileType) {
+    final newState = state.copyWith(selectedFileType: fileType);
+    state = newState.copyWith(
+      filteredBooks: _applyFilters(state.allBooks, newState),
+    );
+  }
+
   void setTagFilter(String tag) {
     final newState = state.copyWith(selectedTag: tag);
     state = newState.copyWith(
@@ -801,9 +813,24 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           .where(
             (b) =>
                 b.tags != null &&
-                b.tags!.split(',').contains(currentState.selectedTag),
+                b.tags!
+                    .split(',')
+                    .map((e) => e.trim())
+                    .contains(currentState.selectedTag),
           )
           .toList();
+    }
+
+    // 7.5 FileType filter
+    if (currentState.selectedFileType != 'All') {
+      filtered = filtered.where((b) {
+        if (currentState.selectedFileType == 'EPUB') {
+          return b.filePath.toLowerCase().endsWith('.epub');
+        } else if (currentState.selectedFileType == 'PDF') {
+          return b.filePath.toLowerCase().endsWith('.pdf');
+        }
+        return true;
+      }).toList();
     }
 
     // 8. Sorting
@@ -1225,10 +1252,36 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       onlyFavorites: false,
       selectedSeries: 'All',
       selectedTag: 'All',
+      selectedFileType: 'All',
       sortBy: BookSortBy.recent,
       sortAscending: false,
     );
     state = state.copyWith(filteredBooks: _applyFilters(state.allBooks, state));
+  }
+
+  Future<void> batchAddTag(List<int> bookIds, String newTag) async {
+    final cleanTag = newTag.trim();
+    if (cleanTag.isEmpty) return;
+
+    for (int id in bookIds) {
+      final book = state.allBooks.firstWhereOrNull((b) => b.id == id);
+      if (book != null) {
+        String updatedTags = book.tags ?? '';
+        final currentTags = updatedTags
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+
+        if (!currentTags.contains(cleanTag)) {
+          currentTags.add(cleanTag);
+          final finalTags = currentTags.join(', ');
+          final updatedBook = book.copyWith(tags: finalTags);
+          await _dbService.updateBook(updatedBook);
+          _updateStateAndSync(updatedBook);
+        }
+      }
+    }
   }
 
   Future<void> updateBookAudio(
