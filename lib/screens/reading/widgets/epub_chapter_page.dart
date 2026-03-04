@@ -23,6 +23,7 @@ class EpubChapterPage extends StatefulWidget {
   final ValueNotifier<double> scrollProgressNotifier;
   final bool showControls;
   final VoidCallback onHideControls;
+  final VoidCallback onToggleControls;
   final VoidCallback onInteraction;
   final double pullTriggerDistance;
   final double pullDeadzone;
@@ -50,6 +51,7 @@ class EpubChapterPage extends StatefulWidget {
     required this.scrollProgressNotifier,
     required this.showControls,
     required this.onHideControls,
+    required this.onToggleControls,
     required this.onInteraction,
     required this.pullTriggerDistance,
     required this.pullDeadzone,
@@ -398,6 +400,66 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                             'epub_html_${widget.index}_${widget.chapter.Title ?? "none"}',
                           ),
                           data: _processedHtml,
+                          onLinkTap: (url, attributes, element) {
+                            if (url == null ||
+                                url.isEmpty ||
+                                widget.pageController == null)
+                              return;
+
+                            // Clean up url (e.g., ../Text/chapter2.xhtml#sec1 -> Text/chapter2.xhtml)
+                            String targetUrl = url;
+                            while (targetUrl.startsWith('../')) {
+                              targetUrl = targetUrl.substring(3);
+                            }
+
+                            final parts = targetUrl.split('#');
+                            final targetFile = parts[0];
+
+                            final anchor = parts.length > 1 ? parts[1] : null;
+
+                            if (targetFile.isEmpty && anchor != null) {
+                              // Anchor-only link in the current file
+                              for (int i = 0; i < widget.chapters.length; i++) {
+                                final ch = widget.chapters[i];
+                                if (ch.Anchor == anchor &&
+                                    ch.ContentFileName ==
+                                        widget.chapter.ContentFileName) {
+                                  widget.pageController?.jumpToPage(i);
+                                  return;
+                                }
+                              }
+                              return;
+                            }
+
+                            // Find target chapter by file + anchor
+                            int? targetIndex;
+                            int? fileOnlyIndex;
+                            for (int i = 0; i < widget.chapters.length; i++) {
+                              final ch = widget.chapters[i];
+                              final chapterFile = ch.ContentFileName ?? '';
+                              if (chapterFile.isEmpty) continue;
+                              final fileMatches =
+                                  chapterFile == targetFile ||
+                                  chapterFile.endsWith('/$targetFile') ||
+                                  chapterFile.endsWith(targetFile);
+                              if (!fileMatches) continue;
+
+                              // Prefer exact anchor match
+                              if (anchor != null &&
+                                  anchor.isNotEmpty &&
+                                  ch.Anchor == anchor) {
+                                targetIndex = i;
+                                break;
+                              }
+                              // Track first file-only match as fallback
+                              fileOnlyIndex ??= i;
+                            }
+
+                            targetIndex ??= fileOnlyIndex;
+                            if (targetIndex != null) {
+                              widget.pageController?.jumpToPage(targetIndex);
+                            }
+                          },
                           extensions: [
                             TagExtension(
                               tagsToExtend: {"img"},

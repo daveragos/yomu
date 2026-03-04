@@ -123,6 +123,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   final GlobalKey _autoScrollKey = GlobalKey();
   final GlobalKey _displaySettingsKey = GlobalKey();
 
+  DateTime? _epubPointerDownTime;
+  Offset? _epubPointerDownPosition;
+
   @override
   void initState() {
     super.initState();
@@ -1073,46 +1076,79 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: () {
-                    _recordInteraction();
-                    setState(() {
-                      _showControls = !_showControls;
-                    });
-                  },
+                  onTap: isEpub
+                      ? null
+                      : () {
+                          _recordInteraction();
+                          setState(() {
+                            _showControls = !_showControls;
+                          });
+                        },
                   behavior: HitTestBehavior.translucent,
                   child: Stack(
                     children: [
                       if (isEpub)
-                        ReadingEpubView(
-                          book: book,
-                          settings: settings,
-                          chapters: _chapters,
-                          pageController: _pageController,
-                          currentChapterIndex: _currentChapterIndex,
-                          shouldJumpToBottom: _shouldJumpToBottom,
-                          initialScrollProgress: _initialScrollProgress,
-                          pullDistanceNotifier: _pullDistanceNotifier,
-                          isPullingDownNotifier: _isPullingDownNotifier,
-                          scrollProgressNotifier: _scrollProgressNotifier,
-                          autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
-                          showControls: _showControls,
-                          onPageChanged: (index) =>
-                              _handleChapterPageChange(index, book),
-                          onJumpedToBottom: () =>
-                              setState(() => _shouldJumpToBottom = false),
-                          onJumpedToPosition: () =>
-                              setState(() => _initialScrollProgress = 0.0),
-                          onHideControls: () {
-                            if (_showControls) {
-                              setState(() => _showControls = false);
-                            }
+                        Listener(
+                          behavior: HitTestBehavior.translucent,
+                          onPointerDown: (event) {
+                            _epubPointerDownTime = DateTime.now();
+                            _epubPointerDownPosition = event.position;
                           },
-                          onInteraction: _recordInteraction,
-                          searchQuery: _activeSearchQuery,
-                          epubBook: _epubBook,
-                          highlights: _highlights,
-                          onHighlight: _addHighlight,
-                          onDeleteHighlight: _deleteHighlight,
+                          onPointerUp: (event) {
+                            if (_epubPointerDownTime == null ||
+                                _epubPointerDownPosition == null)
+                              return;
+                            final elapsed = DateTime.now().difference(
+                              _epubPointerDownTime!,
+                            );
+                            final distance =
+                                (event.position - _epubPointerDownPosition!)
+                                    .distance;
+
+                            // Short tap: under 300ms and minimal movement
+                            if (elapsed < const Duration(milliseconds: 300) &&
+                                distance < 20) {
+                              _recordInteraction();
+                              setState(() => _showControls = !_showControls);
+                            }
+                            _epubPointerDownTime = null;
+                            _epubPointerDownPosition = null;
+                          },
+                          child: ReadingEpubView(
+                            book: book,
+                            settings: settings,
+                            chapters: _chapters,
+                            pageController: _pageController,
+                            currentChapterIndex: _currentChapterIndex,
+                            shouldJumpToBottom: _shouldJumpToBottom,
+                            initialScrollProgress: _initialScrollProgress,
+                            pullDistanceNotifier: _pullDistanceNotifier,
+                            isPullingDownNotifier: _isPullingDownNotifier,
+                            scrollProgressNotifier: _scrollProgressNotifier,
+                            autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
+                            showControls: _showControls,
+                            onPageChanged: (index) =>
+                                _handleChapterPageChange(index, book),
+                            onJumpedToBottom: () =>
+                                setState(() => _shouldJumpToBottom = false),
+                            onJumpedToPosition: () =>
+                                setState(() => _initialScrollProgress = 0.0),
+                            onHideControls: () {
+                              if (_showControls) {
+                                setState(() => _showControls = false);
+                              }
+                            },
+                            onToggleControls: () {
+                              _recordInteraction();
+                              setState(() => _showControls = !_showControls);
+                            },
+                            onInteraction: _recordInteraction,
+                            searchQuery: _activeSearchQuery,
+                            epubBook: _epubBook,
+                            highlights: _highlights,
+                            onHighlight: _addHighlight,
+                            onDeleteHighlight: _deleteHighlight,
+                          ),
                         )
                       else
                         ReadingPdfView(

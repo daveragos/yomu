@@ -252,6 +252,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final notifier = ref.read(libraryProvider.notifier);
     final bookService = BookService();
 
+    final hasPermission = await bookService.requestPermissions();
+    if (!hasPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Storage permission is required to import books.'),
+          ),
+        );
+      }
+      return;
+    }
+
     final directoryPath = await FilePicker.platform.getDirectoryPath();
     if (directoryPath == null) return;
 

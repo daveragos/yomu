@@ -24,6 +24,7 @@ class ReadingEpubView extends StatelessWidget {
   final VoidCallback onJumpedToBottom;
   final VoidCallback onJumpedToPosition;
   final VoidCallback onHideControls;
+  final VoidCallback onToggleControls;
   final VoidCallback onInteraction;
   final List<Highlight> highlights;
   final Function(Highlight) onHighlight;
@@ -47,6 +48,7 @@ class ReadingEpubView extends StatelessWidget {
     required this.onJumpedToBottom,
     required this.onJumpedToPosition,
     required this.onHideControls,
+    required this.onToggleControls,
     required this.onInteraction,
     required this.highlights,
     required this.onHighlight,
@@ -81,6 +83,7 @@ class ReadingEpubView extends StatelessWidget {
           scrollProgressNotifier: scrollProgressNotifier,
           showControls: showControls,
           onHideControls: onHideControls,
+          onToggleControls: onToggleControls,
           onInteraction: onInteraction,
           pullTriggerDistance: 80.0,
           pullDeadzone: 8.0,

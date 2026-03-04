@@ -53,7 +53,7 @@ class BookService {
     return null;
   }
 
-  Future<bool> _requestPermissions() async {
+  Future<bool> requestPermissions() async {
     if (Platform.isAndroid) {
       final deviceInfo = DeviceInfoPlugin();
       final androidInfo = await deviceInfo.androidInfo;
@@ -72,7 +72,7 @@ class BookService {
   }
 
   Future<List<Book>> scanDirectory() async {
-    final hasPermission = await _requestPermissions();
+    final hasPermission = await requestPermissions();
     if (!hasPermission) {
       debugPrint('Permission denied for storage scanning');
       return [];
