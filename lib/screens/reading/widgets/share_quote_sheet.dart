@@ -307,22 +307,26 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: [
               // Opening quote mark
               Icon(Icons.format_quote, color: style.accentColor, size: 32),
               const SizedBox(height: 16),
 
               // Quote text
-              Text(
-                widget.text,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: style.textColor,
-                  fontSize: _quoteFontSize,
-                  fontWeight: FontWeight.w400,
-                  height: 1.45,
-                  fontStyle: FontStyle.italic,
+              Flexible(
+                child: Text(
+                  widget.text,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: _maxLines,
+                  style: TextStyle(
+                    color: style.textColor,
+                    fontSize: _quoteFontSize,
+                    fontWeight: FontWeight.w400,
+                    height: 1.45,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -407,7 +411,7 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: [
               // Opening quote + line above
               Row(
@@ -438,14 +442,18 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
               const SizedBox(height: 20),
 
               // Quote text — bold, uppercase
-              Text(
-                widget.text.toUpperCase(),
-                style: TextStyle(
-                  color: style.textColor,
-                  fontSize: _quoteFontSize - 2,
-                  fontWeight: FontWeight.w800,
-                  height: 1.35,
-                  letterSpacing: 0.5,
+              Flexible(
+                child: Text(
+                  widget.text.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: _maxLines,
+                  style: TextStyle(
+                    color: style.textColor,
+                    fontSize: _quoteFontSize - 2,
+                    fontWeight: FontWeight.w800,
+                    height: 1.35,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -576,7 +584,16 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
     if (len < 80) return 20;
     if (len < 200) return 17;
     if (len < 400) return 15;
-    return 13;
+    if (len < 600) return 13;
+    return 11;
+  }
+
+  int get _maxLines {
+    final len = widget.text.length;
+    if (len < 80) return 6;
+    if (len < 200) return 8;
+    if (len < 400) return 10;
+    return 14;
   }
 }
 
