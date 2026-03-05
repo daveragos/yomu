@@ -1,0 +1,396 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+/// A bottom sheet that shows themed quote card styles for sharing selected text.
+class ShareQuoteSheet extends StatefulWidget {
+  final String text;
+  final String? bookTitle;
+  final String? bookAuthor;
+
+  const ShareQuoteSheet({
+    super.key,
+    required this.text,
+    this.bookTitle,
+    this.bookAuthor,
+  });
+
+  static Future<void> show(
+    BuildContext context, {
+    required String text,
+    String? bookTitle,
+    String? bookAuthor,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ShareQuoteSheet(
+        text: text,
+        bookTitle: bookTitle,
+        bookAuthor: bookAuthor,
+      ),
+    );
+  }
+
+  @override
+  State<ShareQuoteSheet> createState() => _ShareQuoteSheetState();
+}
+
+class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
+  int _selectedStyle = 0;
+  bool _isSharing = false;
+
+  final List<_QuoteStyle> _styles = const [
+    _QuoteStyle(
+      name: 'Dark',
+      background: Color(0xFF0A0B0E),
+      textColor: Color(0xFFFFFFFF),
+      accentColor: Color(0xFF2ECC71),
+      metaColor: Color(0xFF94A3B8),
+    ),
+    _QuoteStyle(
+      name: 'Emerald',
+      background: Color(0xFF064E3B),
+      textColor: Color(0xFFECFDF5),
+      accentColor: Color(0xFF6EE7B7),
+      metaColor: Color(0xFFA7F3D0),
+    ),
+    _QuoteStyle(
+      name: 'Warm',
+      background: Color(0xFF1C1917),
+      textColor: Color(0xFFFAF5F0),
+      accentColor: Color(0xFFF59E0B),
+      metaColor: Color(0xFFA8A29E),
+    ),
+    _QuoteStyle(
+      name: 'Ocean',
+      background: Color(0xFF0C1929),
+      textColor: Color(0xFFE2E8F0),
+      accentColor: Color(0xFF38BDF8),
+      metaColor: Color(0xFF7DD3FC),
+    ),
+    _QuoteStyle(
+      name: 'Light',
+      background: Color(0xFFF8FAFC),
+      textColor: Color(0xFF0F172A),
+      accentColor: Color(0xFF2ECC71),
+      metaColor: Color(0xFF64748B),
+    ),
+  ];
+
+  final List<GlobalKey> _cardKeys = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cardKeys.addAll(List.generate(_styles.length, (_) => GlobalKey()));
+  }
+
+  Future<void> _shareCard() async {
+    setState(() => _isSharing = true);
+    try {
+      final boundary =
+          _cardKeys[_selectedStyle].currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 4.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/yomu_quote.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      final meta = [
+        if (widget.bookTitle != null) widget.bookTitle!,
+        if (widget.bookAuthor != null) widget.bookAuthor!,
+      ].join(' · ');
+      final shareText = meta.isNotEmpty
+          ? '"${widget.text}"\n\n— $meta'
+          : '"${widget.text}"';
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          text: shareText,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF16171D),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Title
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Icon(Icons.format_quote, color: Color(0xFF2ECC71), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Share Quote',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Card preview (selected style)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildQuoteCard(
+                _styles[_selectedStyle],
+                _cardKeys[_selectedStyle],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Style selector
+            SizedBox(
+              height: 72,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                scrollDirection: Axis.horizontal,
+                itemCount: _styles.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final style = _styles[index];
+                  final isSelected = index == _selectedStyle;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedStyle = index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 72,
+                      decoration: BoxDecoration(
+                        color: style.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? style.accentColor
+                              : Colors.white10,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.format_quote,
+                            color: style.accentColor,
+                            size: 18,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            style.name,
+                            style: TextStyle(
+                              color: style.textColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Share button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _isSharing ? null : _shareCard,
+                  icon: _isSharing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Icon(Icons.share, size: 20),
+                  label: Text(_isSharing ? 'Preparing...' : 'Share'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2ECC71),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuoteCard(_QuoteStyle style, GlobalKey key) {
+    final hasMeta = widget.bookTitle != null || widget.bookAuthor != null;
+    final metaParts = [
+      if (widget.bookTitle != null) widget.bookTitle!,
+      if (widget.bookAuthor != null) widget.bookAuthor!,
+    ];
+
+    return RepaintBoundary(
+      key: key,
+      child: AspectRatio(
+        aspectRatio: 1.0,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(color: style.background),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Opening quote mark
+              Icon(Icons.format_quote, color: style.accentColor, size: 32),
+              const SizedBox(height: 16),
+
+              // Quote text
+              Text(
+                widget.text,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: style.textColor,
+                  fontSize: _quoteFontSize,
+                  fontWeight: FontWeight.w400,
+                  height: 1.45,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Book name · Author (above the line)
+              if (hasMeta) ...[
+                Text(
+                  metaParts.join(' · '),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: style.metaColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Divider line
+              Container(
+                width: 90,
+                height: 1,
+                decoration: BoxDecoration(
+                  color: style.metaColor,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // App branding (below the line)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Image.asset(
+                        'assets/app_icon.png',
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Yomu',
+                    style: TextStyle(
+                      color: style.metaColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double get _quoteFontSize {
+    final len = widget.text.length;
+    if (len < 80) return 20;
+    if (len < 200) return 17;
+    if (len < 400) return 15;
+    return 13;
+  }
+}
+
+class _QuoteStyle {
+  final String name;
+  final Color background;
+  final Color textColor;
+  final Color accentColor;
+  final Color metaColor;
+
+  const _QuoteStyle({
+    required this.name,
+    required this.background,
+    required this.textColor,
+    required this.accentColor,
+    required this.metaColor,
+  });
+}

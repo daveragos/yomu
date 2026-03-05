@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -6,8 +7,10 @@ import 'package:flutter/scheduler.dart';
 import 'package:epub_view/epub_view.dart'
     show EpubChapter, EpubBook, EpubByteContentFile;
 import 'package:flutter_html/flutter_html.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
+import 'share_quote_sheet.dart';
 
 class EpubChapterPage extends StatefulWidget {
   final int index;
@@ -32,6 +35,8 @@ class EpubChapterPage extends StatefulWidget {
   final ValueNotifier<double> autoScrollSpeedNotifier;
   final String? searchQuery;
   final EpubBook? epubBook;
+  final String? bookTitle;
+  final String? bookAuthor;
   final List<Highlight> highlights;
   final Function(Highlight) onHighlight;
   final Function(int) onDeleteHighlight;
@@ -63,6 +68,8 @@ class EpubChapterPage extends StatefulWidget {
     required this.onDeleteHighlight,
     this.searchQuery,
     this.epubBook,
+    this.bookTitle,
+    this.bookAuthor,
   });
 
   @override
@@ -653,73 +660,183 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         .where((h) => h.chapterIndex == widget.index && h.text == selectedText)
         .firstOrNull;
 
-    return AdaptiveTextSelectionToolbar(
-      anchors: selectableRegionState.contextMenuAnchors,
+    final textColor = widget.settings.textColor;
+    const iconSize = 20.0;
+    const btnSize = 36.0;
+
+    final anchors = selectableRegionState.contextMenuAnchors;
+    final primaryAnchor = anchors.primaryAnchor;
+    final screenWidth = MediaQuery.of(context).size.width;
+    const toolbarHeight = 80.0; // 2 rows × 36 + padding
+    const toolbarWidth = 188.0;
+    final left = (primaryAnchor.dx - toolbarWidth / 2).clamp(
+      8.0,
+      screenWidth - toolbarWidth - 8.0,
+    );
+    final top = (primaryAnchor.dy - toolbarHeight - 8).clamp(
+      8.0,
+      double.infinity,
+    );
+
+    return Stack(
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...highlightColors.map(
-              (color) => SizedBox(
-                width: 36,
-                height: 36,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: Icon(Icons.circle, color: color, size: 22),
-                  onPressed: () {
-                    final hexColor =
-                        '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-                    widget.onHighlight(
-                      Highlight(
-                        bookId: 0, // Set by ReadingScreen
-                        chapterIndex: widget.index,
-                        text: selectedText,
-                        color: hexColor,
-                        createdAt: DateTime.now(),
-                      ),
-                    );
-                    selectableRegionState.hideToolbar();
-                  },
-                ),
-              ),
-            ),
-            if (existingHighlight != null)
-              SizedBox(
-                width: 36,
-                height: 36,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: Icon(
-                    Icons.highlight_remove,
-                    color: widget.settings.textColor,
-                    size: 22,
+        Positioned(
+          left: left,
+          top: top,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E2E),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x40000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
                   ),
-                  onPressed: () {
-                    widget.onDeleteHighlight(existingHighlight.id!);
-                    selectableRegionState.hideToolbar();
-                  },
-                ),
+                ],
               ),
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: Icon(
-                  Icons.copy,
-                  color: widget.settings.textColor,
-                  size: 22,
-                ),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: selectedText));
-                  selectableRegionState.hideToolbar();
-                },
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              constraints: const BoxConstraints(minWidth: 188),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Row 1: Highlight colors
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...highlightColors.map(
+                        (color) => SizedBox(
+                          width: btnSize,
+                          height: btnSize,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(Icons.circle, color: color, size: 22),
+                            onPressed: () {
+                              final hexColor =
+                                  '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+                              widget.onHighlight(
+                                Highlight(
+                                  bookId: 0,
+                                  chapterIndex: widget.index,
+                                  text: selectedText,
+                                  color: hexColor,
+                                  createdAt: DateTime.now(),
+                                ),
+                              );
+                              selectableRegionState.hideToolbar();
+                            },
+                          ),
+                        ),
+                      ),
+                      if (existingHighlight != null)
+                        SizedBox(
+                          width: btnSize,
+                          height: btnSize,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              Icons.highlight_remove,
+                              color: textColor,
+                              size: iconSize,
+                            ),
+                            onPressed: () {
+                              widget.onDeleteHighlight(existingHighlight.id!);
+                              selectableRegionState.hideToolbar();
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                  // Row 2: Actions
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: btnSize,
+                        height: btnSize,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.copy_rounded,
+                            color: textColor,
+                            size: iconSize,
+                          ),
+                          onPressed: () {
+                            Clipboard.setData(
+                              ClipboardData(text: selectedText),
+                            );
+                            selectableRegionState.hideToolbar();
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: btnSize,
+                        height: btnSize,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.menu_book_rounded,
+                            color: textColor,
+                            size: iconSize,
+                          ),
+                          onPressed: () {
+                            _lookupDictionary(selectedText);
+                            selectableRegionState.hideToolbar();
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: btnSize,
+                        height: btnSize,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.share_rounded,
+                            color: textColor,
+                            size: iconSize,
+                          ),
+                          onPressed: () {
+                            selectableRegionState.hideToolbar();
+                            ShareQuoteSheet.show(
+                              context,
+                              text: selectedText,
+                              bookTitle: widget.bookTitle,
+                              bookAuthor: widget.bookAuthor,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ],
     );
+  }
+
+  Future<void> _lookupDictionary(String word) async {
+    // Use first word for dictionary lookup if multiple words selected
+    final lookupWord = word.trim().split(RegExp(r'\s+')).first;
+    final encoded = Uri.encodeComponent(lookupWord);
+
+    if (Platform.isIOS || Platform.isMacOS) {
+      final dictUri = Uri.parse('x-dictionary:r:$encoded');
+      if (await canLaunchUrl(dictUri)) {
+        await launchUrl(dictUri);
+        return;
+      }
+    }
+
+    // Fallback: Google define search
+    final searchUri = Uri.parse(
+      'https://www.google.com/search?q=define+$encoded',
+    );
+    await launchUrl(searchUri, mode: LaunchMode.externalApplication);
   }
 
   String _cleanHtml(String html) {

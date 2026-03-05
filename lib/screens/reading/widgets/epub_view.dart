@@ -95,6 +95,8 @@ class ReadingEpubView extends StatelessWidget {
           highlights: highlights,
           onHighlight: onHighlight,
           onDeleteHighlight: onDeleteHighlight,
+          bookTitle: book.title,
+          bookAuthor: book.author,
         );
       },
     );
