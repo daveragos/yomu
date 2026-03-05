@@ -42,6 +42,7 @@ class ShareQuoteSheet extends StatefulWidget {
 
 class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
   int _selectedStyle = 0;
+  int _selectedLayout = 0; // 0 = classic, 1 = bold
   bool _isSharing = false;
 
   final List<_QuoteStyle> _styles = const [
@@ -171,12 +172,30 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
             // Card preview (selected style)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildQuoteCard(
-                _styles[_selectedStyle],
-                _cardKeys[_selectedStyle],
+              child: _selectedLayout == 0
+                  ? _buildQuoteCard(
+                      _styles[_selectedStyle],
+                      _cardKeys[_selectedStyle],
+                    )
+                  : _buildBoldQuoteCard(
+                      _styles[_selectedStyle],
+                      _cardKeys[_selectedStyle],
+                    ),
+            ),
+            const SizedBox(height: 16),
+
+            // Layout toggle
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _buildLayoutOption(0, Icons.format_quote_rounded, 'Classic'),
+                  const SizedBox(width: 10),
+                  _buildLayoutOption(1, Icons.format_bold_rounded, 'Bold'),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Style selector
             SizedBox(
@@ -362,6 +381,188 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
                     ),
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBoldQuoteCard(_QuoteStyle style, GlobalKey key) {
+    final hasMeta = widget.bookTitle != null || widget.bookAuthor != null;
+    final metaParts = [
+      if (widget.bookTitle != null) widget.bookTitle!,
+      if (widget.bookAuthor != null) widget.bookAuthor!,
+    ];
+
+    return RepaintBoundary(
+      key: key,
+      child: AspectRatio(
+        aspectRatio: 1.0,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(color: style.background),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Opening quote + line above
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    '\u201C',
+                    style: TextStyle(
+                      color: style.accentColor,
+                      fontSize: 80,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Transform.translate(
+                      offset: const Offset(0, -14),
+                      child: Container(
+                        height: 5,
+                        color: style.accentColor.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Quote text — bold, uppercase
+              Text(
+                widget.text.toUpperCase(),
+                style: TextStyle(
+                  color: style.textColor,
+                  fontSize: _quoteFontSize - 2,
+                  fontWeight: FontWeight.w800,
+                  height: 1.35,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Line below + closing quote
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Transform.translate(
+                      offset: const Offset(0, -14),
+                      child: Container(
+                        height: 5,
+                        color: style.accentColor.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '\u201D',
+                    style: TextStyle(
+                      color: style.accentColor,
+                      fontSize: 80,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Bottom row: book info + branding
+              Row(
+                children: [
+                  if (hasMeta)
+                    Expanded(
+                      child: Text(
+                        metaParts.join(' \u00b7 '),
+                        style: TextStyle(
+                          color: style.metaColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  if (!hasMeta) const Spacer(),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: Image.asset(
+                        'assets/app_icon.png',
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Yomu',
+                    style: TextStyle(
+                      color: style.metaColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLayoutOption(int index, IconData icon, String label) {
+    final isSelected = _selectedLayout == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedLayout = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFF2ECC71).withValues(alpha: 0.15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF2ECC71) : Colors.white10,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected
+                    ? const Color(0xFF2ECC71)
+                    : const Color(0xFF94A3B8),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? const Color(0xFF2ECC71)
+                      : const Color(0xFF94A3B8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
