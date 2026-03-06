@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:epub_view/epub_view.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:pdfrx/pdfrx.dart';
 import '../core/constants.dart';
 import '../components/display_settings_sheet.dart';
@@ -14,8 +16,8 @@ import '../models/book_model.dart';
 import '../models/reader_settings_model.dart';
 import '../models/bookmark_model.dart';
 import '../models/search_result_model.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:file_picker/file_picker.dart';
+
 import './reading/widgets/reading_header.dart';
 import './reading/widgets/reading_search_overlay.dart';
 import './reading/widgets/reading_audio_section.dart';
@@ -75,6 +77,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     Duration.zero,
   );
   final ValueNotifier<bool> _isAudioPlayingNotifier = ValueNotifier(false);
+  final ValueNotifier<int> _audioIndexNotifier = ValueNotifier(0);
   bool _isAudioLoading = false;
 
   // Reading mode state
@@ -311,6 +314,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _audioPlayer.playerStateStream.listen((state) {
       _isAudioPlayingNotifier.value = state.playing;
     });
+    _audioPlayer.currentIndexStream.listen((index) {
+      if (index != null) {
+        _audioIndexNotifier.value = index;
+        if (_isAudioPlayingNotifier.value) {
+          // Track changed, save position
+          _performAudioSave(0, index: index);
+        }
+        if (mounted) setState(() {});
+      }
+    });
   }
 
   void _maybeSaveAudioPosition(Duration pos) {
@@ -318,39 +331,58 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     final now = DateTime.now();
     final currentMs = pos.inMilliseconds;
+    final currentIndex = _audioPlayer.currentIndex ?? 0;
 
-    // save at most every 10 seconds OR if seek is large (> 5s)
+    // save at most every 10 seconds OR if seek is large (> 5s) OR if index changed
     final diff = (currentMs - _lastSavedAudioMs).abs();
     final timeSinceLastSave = now.difference(_lastAudioSaveTime);
 
     if (timeSinceLastSave > const Duration(seconds: 10) || diff > 5000) {
-      _performAudioSave(currentMs);
+      _performAudioSave(currentMs, index: currentIndex);
     }
   }
 
-  void _performAudioSave(int ms) {
+  void _performAudioSave(int ms, {int? index}) {
     final book = ref.read(currentlyReadingProvider);
     if (book != null && book.id.toString() == _loadedAudioBookId) {
       _lastAudioSaveTime = DateTime.now();
       _lastSavedAudioMs = ms;
+      final targetIndex = index ?? _audioPlayer.currentIndex ?? 0;
       ref
           .read(libraryProvider.notifier)
-          .updateBookAudio(book.id!, audioLastPosition: ms);
+          .updateBookAudio(
+            book.id!,
+            audioLastPosition: ms,
+            audioLastIndex: targetIndex,
+          );
     }
   }
 
   Future<void> _loadAudio(
-    String path, {
+    List<AudioTrack> tracks, {
     int? initialPositionMs,
+    int? initialIndex,
     required String bookId,
   }) async {
+    if (tracks.isEmpty) return;
     try {
       _loadedAudioBookId = bookId;
       setState(() => _isAudioLoading = true);
-      await _audioPlayer.setFilePath(path);
-      if (initialPositionMs != null && initialPositionMs > 0) {
-        await _audioPlayer.seek(Duration(milliseconds: initialPositionMs));
-      }
+
+      final playlist = ConcatenatingAudioSource(
+        children: tracks
+            .map((t) => AudioSource.file(t.path, tag: t.title))
+            .toList(),
+      );
+
+      await _audioPlayer.setAudioSource(
+        playlist,
+        initialIndex: initialIndex,
+        initialPosition: initialPositionMs != null
+            ? Duration(milliseconds: initialPositionMs)
+            : null,
+      );
+
       setState(() => _isAudioLoading = false);
     } catch (e) {
       _loadedAudioBookId = null;
@@ -366,16 +398,280 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   Future<void> _pickAudio(Book book) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.audio,
-      allowMultiple: false,
+      allowMultiple: true,
     );
 
-    if (result != null && result.files.single.path != null) {
-      final path = result.files.single.path!;
+    if (result != null && result.paths.isNotEmpty) {
+      final List<AudioTrack> newTracks = List.from(book.audioTracks);
+      int duplicatesCount = 0;
+      for (final path in result.paths) {
+        if (path != null) {
+          if (!newTracks.any((t) => t.path == path)) {
+            newTracks.add(AudioTrack(path: path, title: p.basename(path)));
+          } else {
+            duplicatesCount++;
+          }
+        }
+      }
+
+      if (duplicatesCount > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              duplicatesCount == result.paths.length
+                  ? 'All selected files are already in this book.'
+                  : 'Skipped $duplicatesCount duplicate files.',
+            ),
+          ),
+        );
+      }
+
+      if (newTracks.length == book.audioTracks.length) return;
+
       await ref
           .read(libraryProvider.notifier)
-          .updateBookAudio(book.id!, audioPath: path);
-      _loadAudio(path, bookId: book.id.toString());
+          .updateBookAudio(book.id!, audioPath: newTracks.first.path);
+
+      // Also update the whole book to save tracks list
+      await DatabaseService().updateBook(book.copyWith(audioTracks: newTracks));
+      ref.read(libraryProvider.notifier).loadBooks();
+
+      _loadAudio(newTracks, bookId: book.id.toString());
     }
+  }
+
+  void _skip(Duration duration) {
+    final newPos = _audioPlayer.position + duration;
+    final totalDur = _audioPlayer.duration ?? Duration.zero;
+    if (newPos < Duration.zero) {
+      _audioPlayer.seek(Duration.zero);
+    } else if (newPos > totalDur) {
+      if (_audioPlayer.hasNext) {
+        _audioPlayer.seekToNext();
+      } else {
+        _audioPlayer.seek(totalDur);
+      }
+    } else {
+      _audioPlayer.seek(newPos);
+    }
+  }
+
+  Future<void> _removeTrack(Book book, int index) async {
+    final tracks = book.audioTracks.isEmpty && book.audioPath != null
+        ? [
+            AudioTrack(
+              path: book.audioPath!,
+              title: p.basename(book.audioPath!),
+            ),
+          ]
+        : List<AudioTrack>.from(book.audioTracks);
+
+    if (index < 0 || index >= tracks.length) return;
+
+    tracks.removeAt(index);
+
+    // Update the book in the database and provider
+    final updatedBook = book.copyWith(
+      audioTracks: tracks,
+      audioPath: tracks.isNotEmpty ? tracks.first.path : null,
+    );
+
+    await DatabaseService().updateBook(updatedBook);
+    ref.read(libraryProvider.notifier).loadBooks();
+
+    // Update player
+    if (tracks.isEmpty) {
+      await _audioPlayer.stop();
+      _audioIndexNotifier.value = 0;
+    } else {
+      _loadAudio(tracks, bookId: book.id.toString());
+    }
+
+    if (mounted) {
+      // Don't pop automatically so user remains in the list
+      // Navigator.pop(context);
+    }
+  }
+
+  Future<void> _reorderTracks(Book book, int oldIndex, int newIndex) async {
+    final tracks = List<AudioTrack>.from(
+      book.audioTracks.isEmpty && book.audioPath != null
+          ? [
+              AudioTrack(
+                path: book.audioPath!,
+                title: p.basename(book.audioPath!),
+              ),
+            ]
+          : book.audioTracks,
+    );
+
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final track = tracks.removeAt(oldIndex);
+    tracks.insert(newIndex, track);
+
+    // Update the book in the database and provider
+    final updatedBook = book.copyWith(
+      audioTracks: tracks,
+      audioPath: tracks.first.path,
+    );
+
+    await DatabaseService().updateBook(updatedBook);
+    ref.read(libraryProvider.notifier).loadBooks();
+
+    // Update player without losing position
+    final currentPos = _audioPlayer.position;
+    final currentIndex = _audioPlayer.currentIndex;
+
+    int? nextIndex;
+    if (currentIndex == oldIndex) {
+      nextIndex = newIndex;
+    } else if (currentIndex != null) {
+      // Adjust index if affected by move
+      if (oldIndex < currentIndex && newIndex >= currentIndex) {
+        nextIndex = currentIndex - 1;
+      } else if (oldIndex > currentIndex && newIndex <= currentIndex) {
+        nextIndex = currentIndex + 1;
+      } else {
+        nextIndex = currentIndex;
+      }
+    }
+
+    await _loadAudio(
+      tracks,
+      bookId: book.id.toString(),
+      initialIndex: nextIndex,
+      initialPositionMs: currentPos.inMilliseconds,
+    );
+    // After reloading the audio source, seek to the correct position and index
+    if (nextIndex != null) {
+      _audioPlayer.seek(currentPos, index: nextIndex);
+    }
+  }
+
+  void _showTrackListSheet(Book book) {
+    final settings = ref.read(readerSettingsProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: settings.backgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final tracks = book.audioTracks.isEmpty && book.audioPath != null
+              ? [
+                  AudioTrack(
+                    path: book.audioPath!,
+                    title: p.basename(book.audioPath!),
+                  ),
+                ]
+              : book.audioTracks;
+
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    'Audiobook Parts',
+                    style: TextStyle(
+                      color: settings.textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ReorderableListView.builder(
+                    shrinkWrap: true,
+                    itemCount: tracks.length,
+                    onReorder: (oldIndex, newIndex) async {
+                      await _reorderTracks(book, oldIndex, newIndex);
+                      setSheetState(() {});
+                    },
+                    itemBuilder: (context, index) {
+                      final track = tracks[index];
+                      return ValueListenableBuilder<int>(
+                        key: ValueKey(track.path + index.toString()),
+                        valueListenable: _audioIndexNotifier,
+                        builder: (context, currentIndex, _) {
+                          final isCurrent = currentIndex == index;
+                          return ListTile(
+                            leading: Icon(
+                              isCurrent
+                                  ? Icons.play_circle_fill_rounded
+                                  : Icons.play_circle_outline_rounded,
+                              color: isCurrent
+                                  ? YomuConstants.accent
+                                  : settings.secondaryTextColor,
+                            ),
+                            title: Text(
+                              track.title,
+                              style: TextStyle(
+                                color: isCurrent
+                                    ? YomuConstants.accent
+                                    : settings.textColor,
+                                fontWeight: isCurrent
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Part ${index + 1}',
+                              style: TextStyle(
+                                color: settings.secondaryTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: settings.secondaryTextColor
+                                        .withOpacity(0.5),
+                                    size: 20,
+                                  ),
+                                  onPressed: () async {
+                                    await _removeTrack(book, index);
+                                    setSheetState(() {});
+                                  },
+                                ),
+                                Icon(
+                                  Icons.drag_handle,
+                                  color: settings.secondaryTextColor
+                                      .withOpacity(0.3),
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              _audioPlayer.seek(Duration.zero, index: index);
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _updateTime() {
@@ -1051,11 +1347,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       _initEpub(book);
     }
 
-    final hasAudio = book.audioPath != null;
+    final hasAudio = book.audioPath != null || book.audioTracks.isNotEmpty;
     if (hasAudio && _loadedAudioBookId != book.id.toString()) {
+      List<AudioTrack> tracks = book.audioTracks;
+      if (tracks.isEmpty && book.audioPath != null) {
+        tracks = [
+          AudioTrack(path: book.audioPath!, title: p.basename(book.audioPath!)),
+        ];
+      }
       _loadAudio(
-        book.audioPath!,
+        tracks,
         initialPositionMs: book.audioLastPosition,
+        initialIndex: book.audioLastIndex,
         bookId: book.id.toString(),
       );
     }
@@ -1152,10 +1455,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                         )
                       else
                         ReadingPdfView(
+                          key: ValueKey('pdf_${book.id}'),
                           book: book,
                           settings: settings,
+
                           controller: _pdfController ??= PdfViewerController(),
                           searcher: _pdfSearcher,
+                          highlights: _highlights,
+                          onHighlight: _addHighlight,
+                          onDeleteHighlight: _deleteHighlight,
                           onViewerReady: (document, controller) async {
                             _pdfSearcher = PdfTextSearcher(controller);
                             _pdfSearcher!.addListener(() => setState(() {}));
@@ -1255,8 +1563,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
-          top: _showControls ? 0 : -100,
+          top: _showControls ? 0 : -200,
           left: 0,
+
           right: 0,
           child: ValueListenableBuilder<String>(
             valueListenable: _currentTimeNotifier,
@@ -1341,8 +1650,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
-          bottom: _showControls ? 0 : -200,
+          bottom: _showControls ? 0 : -800,
           left: 0,
+
           right: 0,
           child: ReadingBottomControls(
             tocKey: _tocKey,
@@ -1362,6 +1672,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               isLoading: _isAudioLoading,
               positionNotifier: _audioPositionNotifier,
               durationNotifier: _audioDurationNotifier,
+              currentIndexNotifier: _audioIndexNotifier,
+              audioTracks: book.audioTracks.isEmpty && book.audioPath != null
+                  ? [
+                      AudioTrack(
+                        path: book.audioPath!,
+                        title: p.basename(book.audioPath!),
+                      ),
+                    ]
+                  : book.audioTracks,
               isDraggingSlider: _isDraggingSlider,
               sliderDragValue: _sliderDragValue,
               onChangeStart: (value) {
@@ -1383,6 +1702,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 setState(() => _isDraggingSlider = false);
               },
               formatDuration: _formatDuration,
+              isOrientationLandscape: _isOrientationLandscape,
             ),
             playPauseButton: PlayPauseButton(
               isPlayingNotifier: _isAudioPlayingNotifier,
@@ -1424,15 +1744,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 _audioPlayer.setSpeed(_playbackSpeed);
               });
             },
-            onSkip: (delta) {
-              final newPos = _audioPlayer.position + delta;
-              final duration = _audioPlayer.duration ?? Duration.zero;
-              _audioPlayer.seek(
-                newPos < Duration.zero
-                    ? Duration.zero
-                    : (newPos > duration ? duration : newPos),
-              );
-            },
+            onSkip: _skip,
+            onNextTrack: _audioPlayer.hasNext
+                ? () => _audioPlayer.seekToNext()
+                : null,
+            onPrevTrack: _audioPlayer.hasPrevious
+                ? () => _audioPlayer.seekToPrevious()
+                : null,
+            onShowTrackList: () => _showTrackListSheet(book),
           ),
         ),
       ],

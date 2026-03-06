@@ -95,6 +95,23 @@ class ReaderSettings {
     }
   }
 
+  /// Get menu background color for floating toolbars
+  Color get menuBackgroundColor {
+    switch (theme) {
+      case ReaderTheme.white:
+      case ReaderTheme.cream:
+        return const Color(0xFF1E1E2E); // Dark Slate for light themes
+      case ReaderTheme.darkBlue:
+      case ReaderTheme.black:
+        return const Color(0xFF2C2C3E); // Elevated Charcoal for dark themes
+    }
+  }
+
+  /// Get icon color for floating toolbars
+  Color get menuIconColor {
+    return const Color(0xFFFFFFFF); // Always use White for high contrast menus
+  }
+
   /// Get TextAlign value for current alignment
   TextAlign get textAlign {
     switch (alignment) {

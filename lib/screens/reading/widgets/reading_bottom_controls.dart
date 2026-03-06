@@ -24,6 +24,9 @@ class ReadingBottomControls extends StatelessWidget {
   final VoidCallback onShowDisplaySettings;
   final VoidCallback onIncrementPlaybackSpeed;
   final Function(Duration) onSkip;
+  final VoidCallback? onNextTrack;
+  final VoidCallback? onPrevTrack;
+  final VoidCallback? onShowTrackList;
   final GlobalKey? audioKey;
   final GlobalKey? tocKey;
   final GlobalKey? autoScrollKey;
@@ -49,6 +52,9 @@ class ReadingBottomControls extends StatelessWidget {
     required this.onShowDisplaySettings,
     required this.onIncrementPlaybackSpeed,
     required this.onSkip,
+    this.onNextTrack,
+    this.onPrevTrack,
+    this.onShowTrackList,
     this.audioKey,
     this.tocKey,
     this.autoScrollKey,
@@ -58,6 +64,8 @@ class ReadingBottomControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasMultipleTracks = book.audioTracks.length > 1;
+
     return Container(
       decoration: BoxDecoration(
         color: settings.backgroundColor,
@@ -77,72 +85,49 @@ class ReadingBottomControls extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (book.audioPath != null && audioSection != null)
+            if ((book.audioPath != null || book.audioTracks.isNotEmpty) &&
+                audioSection != null)
               audioSection!
             else
               const SizedBox(height: 12),
-
-            if (book.audioPath != null)
+            if (book.audioPath != null || book.audioTracks.isNotEmpty)
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: (child, animation) =>
                     SizeTransition(sizeFactor: animation, child: child),
                 child: isAudioControlsExpanded
                     ? Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ControlButton(
-                              settings: settings,
-                              onTap: onIncrementPlaybackSpeed,
-                              child: Text(
-                                '${playbackSpeed}x',
-                                style: TextStyle(
-                                  color: settings.textColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                        padding: EdgeInsets.only(
+                          bottom: isOrientationLandscape ? 8 : 16,
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          alignment: Alignment.center,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: isOrientationLandscape
+                                ? const NeverScrollableScrollPhysics()
+                                : const ScrollPhysics(),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isOrientationLandscape ? 40 : 16,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: _buildAudioControlButtons(
+                                  hasMultipleTracks,
+                                  withSizedBoxes: true,
+                                  spacing: isOrientationLandscape ? 32 : 20,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 24),
-                            ControlButton(
-                              settings: settings,
-                              onTap: () => onSkip(const Duration(seconds: -10)),
-                              child: Icon(
-                                Icons.replay_10_rounded,
-                                color: settings.textColor,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 24),
-                            ControlButton(
-                              settings: settings,
-                              onTap: () => onSkip(const Duration(seconds: 10)),
-                              child: Icon(
-                                Icons.forward_10_rounded,
-                                color: settings.textColor,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 24),
-                            ControlButton(
-                              settings: settings,
-                              onTap: onPickAudio,
-                              child: Icon(
-                                Icons.swap_horiz_rounded,
-                                color: settings.textColor,
-                                size: 20,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       )
                     : const SizedBox.shrink(),
               ),
-
             const SizedBox(height: 16),
-
             Padding(
               padding: EdgeInsets.fromLTRB(
                 isOrientationLandscape ? 40 : 20,
@@ -178,7 +163,7 @@ class ReadingBottomControls extends StatelessWidget {
                       size: 22,
                     ),
                   ),
-                  if (book.audioPath != null)
+                  if (book.audioPath != null || book.audioTracks.isNotEmpty)
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -249,5 +234,115 @@ class ReadingBottomControls extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildAudioControlButtons(
+    bool hasMultipleTracks, {
+    bool withSizedBoxes = false,
+    double spacing = 20,
+  }) {
+    final List<Widget> buttons = [];
+
+    buttons.add(
+      ControlButton(
+        settings: settings,
+        onTap: onIncrementPlaybackSpeed,
+        child: Text(
+          '${playbackSpeed}x',
+          style: TextStyle(
+            color: settings.textColor,
+            fontSize: isOrientationLandscape ? 12 : 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+
+    if (withSizedBoxes) buttons.add(SizedBox(width: spacing));
+
+    if (hasMultipleTracks) {
+      buttons.add(
+        ControlButton(
+          settings: settings,
+          onTap: onPrevTrack ?? () {},
+          child: Icon(
+            Icons.skip_previous_rounded,
+            color: settings.textColor,
+            size: isOrientationLandscape ? 24 : 28,
+          ),
+        ),
+      );
+      if (withSizedBoxes) buttons.add(SizedBox(width: spacing));
+    }
+
+    buttons.add(
+      ControlButton(
+        settings: settings,
+        onTap: () => onSkip(const Duration(seconds: -10)),
+        child: Icon(
+          Icons.replay_10_rounded,
+          color: settings.textColor,
+          size: isOrientationLandscape ? 24 : 28,
+        ),
+      ),
+    );
+
+    if (withSizedBoxes) buttons.add(SizedBox(width: spacing));
+
+    buttons.add(
+      ControlButton(
+        settings: settings,
+        onTap: () => onSkip(const Duration(seconds: 10)),
+        child: Icon(
+          Icons.forward_10_rounded,
+          color: settings.textColor,
+          size: isOrientationLandscape ? 24 : 28,
+        ),
+      ),
+    );
+
+    if (withSizedBoxes) buttons.add(SizedBox(width: spacing));
+
+    if (hasMultipleTracks) {
+      buttons.add(
+        ControlButton(
+          settings: settings,
+          onTap: onNextTrack ?? () {},
+          child: Icon(
+            Icons.skip_next_rounded,
+            color: settings.textColor,
+            size: isOrientationLandscape ? 24 : 28,
+          ),
+        ),
+      );
+      if (withSizedBoxes) buttons.add(SizedBox(width: spacing));
+
+      buttons.add(
+        ControlButton(
+          settings: settings,
+          onTap: onShowTrackList ?? () {},
+          child: Icon(
+            Icons.playlist_play_rounded,
+            color: settings.textColor,
+            size: isOrientationLandscape ? 24 : 28,
+          ),
+        ),
+      );
+      if (withSizedBoxes) buttons.add(SizedBox(width: spacing));
+    }
+
+    buttons.add(
+      ControlButton(
+        settings: settings,
+        onTap: onPickAudio,
+        child: Icon(
+          Icons.swap_horiz_rounded,
+          color: settings.textColor,
+          size: isOrientationLandscape ? 18 : 20,
+        ),
+      ),
+    );
+
+    return buttons;
   }
 }

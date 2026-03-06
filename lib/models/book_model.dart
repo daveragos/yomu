@@ -1,3 +1,28 @@
+import 'dart:convert';
+
+class AudioTrack {
+  final String path;
+  final String title;
+
+  AudioTrack({required this.path, required this.title});
+
+  Map<String, dynamic> toMap() {
+    return {'path': path, 'title': title};
+  }
+
+  factory AudioTrack.fromMap(Map<String, dynamic> map) {
+    return AudioTrack(
+      path: map['path'] ?? '',
+      title: map['title'] ?? 'Unknown Track',
+    );
+  }
+
+  String toJson() => json.encode(toMap());
+
+  factory AudioTrack.fromJson(String source) =>
+      AudioTrack.fromMap(json.decode(source));
+}
+
 class Book {
   final int? id;
   final String title;
@@ -20,6 +45,9 @@ class Book {
   lastPosition; // Granular position string (e.g., CFI for EPUB, offset for PDF)
   final String? audioPath; // Local path to associated audio file
   final int? audioLastPosition; // Last playback position in milliseconds
+  final int? audioLastIndex; // Last played track index
+  final List<AudioTrack> audioTracks; // List of associated audio tracks
+
   final String? contentHash; // MD5 hash of the file content
   final bool isDeleted;
 
@@ -43,6 +71,9 @@ class Book {
     this.lastPosition,
     this.audioPath,
     this.audioLastPosition,
+    this.audioLastIndex,
+    this.audioTracks = const [],
+
     this.contentHash,
     this.isDeleted = false,
   });
@@ -68,12 +99,26 @@ class Book {
       'lastPosition': lastPosition,
       'audioPath': audioPath,
       'audioLastPosition': audioLastPosition,
+      'audioLastIndex': audioLastIndex,
+      'audioTracks': json.encode(audioTracks.map((x) => x.toMap()).toList()),
+
       'contentHash': contentHash,
       'isDeleted': isDeleted ? 1 : 0,
     };
   }
 
   factory Book.fromMap(Map<String, dynamic> map) {
+    List<AudioTrack> tracks = [];
+    if (map['audioTracks'] != null && map['audioTracks'] is String) {
+      try {
+        final List<dynamic> tracksJson = json.decode(map['audioTracks']);
+        tracks = tracksJson.map((x) => AudioTrack.fromMap(x)).toList();
+      } catch (e) {
+        // Handle potential malformed JSON
+        tracks = [];
+      }
+    }
+
     return Book(
       id: map['id'],
       title: map['title'],
@@ -96,6 +141,9 @@ class Book {
       lastPosition: map['lastPosition'],
       audioPath: map['audioPath'],
       audioLastPosition: map['audioLastPosition'] as int?,
+      audioLastIndex: map['audioLastIndex'] as int?,
+      audioTracks: tracks,
+
       contentHash: map['contentHash'],
       isDeleted: (map['isDeleted'] as int? ?? 0) == 1,
     );
@@ -121,6 +169,9 @@ class Book {
     String? lastPosition,
     String? audioPath,
     int? audioLastPosition,
+    int? audioLastIndex,
+    List<AudioTrack>? audioTracks,
+
     String? contentHash,
     bool? isDeleted,
   }) {
@@ -145,6 +196,9 @@ class Book {
       lastPosition: lastPosition ?? this.lastPosition,
       audioPath: audioPath ?? this.audioPath,
       audioLastPosition: audioLastPosition ?? this.audioLastPosition,
+      audioLastIndex: audioLastIndex ?? this.audioLastIndex,
+      audioTracks: audioTracks ?? this.audioTracks,
+
       contentHash: contentHash ?? this.contentHash,
       isDeleted: isDeleted ?? this.isDeleted,
     );

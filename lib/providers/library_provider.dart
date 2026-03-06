@@ -1288,6 +1288,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     int bookId, {
     String? audioPath,
     int? audioLastPosition,
+    int? audioLastIndex,
   }) async {
     final book = state.allBooks.firstWhereOrNull((b) => b.id == bookId);
     if (book == null) return;
@@ -1295,6 +1296,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final updatedBook = book.copyWith(
       audioPath: audioPath, // Allow setting to null or a new path
       audioLastPosition: audioLastPosition ?? book.audioLastPosition,
+      audioLastIndex: audioLastIndex ?? book.audioLastIndex,
     );
     await _dbService.updateBook(updatedBook);
 

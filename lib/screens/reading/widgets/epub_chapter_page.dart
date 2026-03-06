@@ -660,7 +660,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         .where((h) => h.chapterIndex == widget.index && h.text == selectedText)
         .firstOrNull;
 
-    final textColor = widget.settings.textColor;
+    final textColor = widget.settings.menuIconColor;
     const iconSize = 20.0;
     const btnSize = 36.0;
 
@@ -687,7 +687,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
             color: Colors.transparent,
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E2E),
+                color: widget.settings.menuBackgroundColor,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: const [
                   BoxShadow(

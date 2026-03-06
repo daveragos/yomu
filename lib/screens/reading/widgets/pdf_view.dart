@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:pdfrx/pdfrx.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
+import '../../../models/highlight_model.dart';
 
 class ReadingPdfView extends StatefulWidget {
   final Book book;
@@ -14,6 +15,9 @@ class ReadingPdfView extends StatefulWidget {
   final VoidCallback onInteraction;
   final VoidCallback onHideControls;
   final bool showControls;
+  final List<Highlight> highlights;
+  final Function(Highlight) onHighlight;
+  final Function(int) onDeleteHighlight;
 
   final ValueNotifier<double> scrollProgressNotifier;
 
@@ -28,6 +32,9 @@ class ReadingPdfView extends StatefulWidget {
     required this.onHideControls,
     required this.showControls,
     required this.scrollProgressNotifier,
+    required this.highlights,
+    required this.onHighlight,
+    required this.onDeleteHighlight,
     this.searcher,
   });
 
@@ -36,29 +43,29 @@ class ReadingPdfView extends StatefulWidget {
 }
 
 class _ReadingPdfViewState extends State<ReadingPdfView> {
-  final _viewerKey = GlobalKey();
-
   @override
   Widget build(BuildContext context) {
     final colorFilter = _getPdfColorFilter(widget.settings.theme);
 
     Widget pdfViewer = PdfViewer.file(
       widget.book.filePath,
-      key: _viewerKey,
       controller: widget.controller,
+
       params: PdfViewerParams(
         // Maintain a white background so that the transparent parts of the PDF
         // are treated as white pages before the color filter is applied.
+        // The matrix filters map white to the target theme background.
         backgroundColor: Colors.white,
+
         onViewerReady: widget.onViewerReady,
-        enableTextSelection: false,
-        margin: 4.0, // Increased margin to show separation
+        enableTextSelection: true,
+        margin: 4.0,
         pageDropShadow: const BoxShadow(
           color: Colors.black12,
           blurRadius: 4.0,
           spreadRadius: 1.0,
           offset: Offset(0, 2),
-        ), // Added a subtle drop shadow to delineate page boundaries
+        ),
         interactionEndFrictionCoefficient: 0.000005,
         verticalCacheExtent: 3.0,
         maxImageBytesCachedOnMemory: 256 * 1024 * 1024,
@@ -137,68 +144,49 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
       onPointerDown: (_) => widget.onInteraction(),
       child: Container(
         color: widget.settings.backgroundColor,
-        child: colorFilter != null
-            ? ColorFiltered(colorFilter: colorFilter, child: pdfViewer)
-            : pdfViewer,
+        // Always wrap in ColorFiltered to avoid reparenting the PdfViewer when theme changes.
+        child: ColorFiltered(colorFilter: colorFilter, child: pdfViewer),
       ),
     );
   }
 
-  ColorFilter? _getPdfColorFilter(ReaderTheme theme) {
+  ColorFilter _getPdfColorFilter(ReaderTheme theme) {
     switch (theme) {
       case ReaderTheme.darkBlue:
-        // Maps White(255) to Dark Blue(26, 39, 68) and Black(0) to Light Gray(224)
-        return const ColorFilter.matrix([
-          -0.776,
-          0,
-          0,
-          0,
-          224,
-          0,
-          -0.725,
-          0,
-          0,
-          224,
-          0,
-          0,
-          -0.612,
-          0,
-          224,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]);
+        // Use difference with a calculated "pivot" color to map white to dark and black to light.
+        // This is much more compatible than matrices with negative coefficients.
+        // Target background: #1A2744 (26, 39, 68) -> Pivot: (229, 216, 187) -> 0xFFE5D8BB
+        return const ColorFilter.mode(Color(0xFFE5D8BB), BlendMode.difference);
       case ReaderTheme.black:
-        // Maps White(255) to Blackish(10, 11, 14) and Black(0) to White(255)
-        return const ColorFilter.matrix([
-          -0.961,
-          0,
-          0,
-          0,
-          255,
-          0,
-          -0.957,
-          0,
-          0,
-          255,
-          0,
-          0,
-          -0.945,
-          0,
-          255,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]);
+        // Pure inversion: White (255) -> Black (0), Black (0) -> White (255)
+        return const ColorFilter.mode(Colors.white, BlendMode.difference);
       case ReaderTheme.cream:
-        // Multiply keeps black text pure black but tints the white background to cream
+        // Dim/Cream: Multiply with the target color
         return const ColorFilter.mode(Color(0xFFF5F0E1), BlendMode.multiply);
       case ReaderTheme.white:
-        return null;
+        // Identity matrix - does nothing
+        return const ColorFilter.matrix([
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]);
     }
   }
 }
