@@ -148,6 +148,59 @@ class BookService {
     return importedBooks;
   }
 
+  Future<List<Book>> pickBooks() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['epub', 'pdf'],
+      allowMultiple: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      debugPrint('No files picked');
+      return [];
+    }
+
+    final List<Book> importedBooks = [];
+    final existingBooks = await _dbService.getBooks();
+
+    for (var pickedFile in result.files) {
+      if (pickedFile.path == null) continue;
+      final file = File(pickedFile.path!);
+
+      // Check if already in DB
+      if (existingBooks.any((b) => b.filePath == file.path)) {
+        debugPrint('Already in library: ${file.path}');
+        continue;
+      }
+
+      final extension = p.extension(file.path).toLowerCase();
+      Book? book;
+      if (extension == '.epub') {
+        book = await _processEpub(file);
+      } else if (extension == '.pdf') {
+        book = await _processPdf(file);
+      }
+
+      if (book != null) {
+        final isDuplicate = existingBooks.any(
+          (b) =>
+              b.filePath == book!.filePath ||
+              (book.contentHash != null && b.contentHash == book.contentHash),
+        );
+
+        if (!isDuplicate) {
+          final id = await _dbService.insertBook(book);
+          importedBooks.add(book.copyWith(id: id));
+          debugPrint('Imported: ${book.title}');
+        } else {
+          debugPrint('Duplicate book found, skipping: ${book.title}');
+        }
+      }
+    }
+
+    return importedBooks;
+  }
+
   Future<List<Book>> scanPath(String path) async {
     final directory = Directory(path);
     if (!await directory.exists()) return [];

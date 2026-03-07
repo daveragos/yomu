@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book_model.dart';
 import '../providers/library_provider.dart';
-import '../services/database_service.dart';
 import '../core/constants.dart';
 import 'google_image_search_screen.dart';
 import '../services/book_service.dart';
@@ -75,13 +74,12 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
       audioPath: _audioTracks.isNotEmpty ? _audioTracks.first.path : null,
     );
 
-    await DatabaseService().updateBook(updatedBook);
-    ref.read(libraryProvider.notifier).loadBooks();
+    await ref.read(libraryProvider.notifier).updateBook(updatedBook);
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Book updated')));
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(content: Text('Book updated')));
     }
   }
 
@@ -124,15 +122,17 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
       });
 
       if (duplicatesCount > 0 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              duplicatesCount == result.paths.length
-                  ? 'All selected files are already in this book.'
-                  : 'Skipped $duplicatesCount duplicate files.',
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                duplicatesCount == result.paths.length
+                    ? 'All selected files are already in this book.'
+                    : 'Skipped $duplicatesCount duplicate files.',
+              ),
             ),
-          ),
-        );
+          );
       }
     }
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import '../core/constants.dart';
 import '../components/book_card.dart';
 import '../components/glass_container.dart';
@@ -8,7 +7,6 @@ import '../providers/library_provider.dart';
 import '../models/book_model.dart';
 import '../services/book_service.dart';
 import 'reading_screen.dart';
-import 'file_selection_screen.dart';
 import './library/widgets/empty_library_view.dart';
 import './library/widgets/library_header.dart';
 import './library/widgets/add_book_fab.dart';
@@ -255,41 +253,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final hasPermission = await bookService.requestPermissions();
     if (!hasPermission) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Storage permission is required to import books.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Storage permission is required to import books.'),
+            ),
+          );
       }
       return;
     }
 
-    final directoryPath = await FilePicker.platform.getDirectoryPath();
-    if (directoryPath == null) return;
+    // Use pickBooks directly which uses pickFiles, bypassing getDirectoryPath restrictions
+    final importedBooks = await bookService.pickBooks();
 
-    final files = await bookService.findBookFiles(directoryPath);
-    if (files.isEmpty) {
+    if (importedBooks.isNotEmpty) {
+      // Reload books to ensure UI updates with new imports
+      await notifier.loadBooks();
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No EPUB or PDF files found in this folder.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    if (mounted) {
-      final selectedPaths = await Navigator.push<List<String>>(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              FileSelectionScreen(directoryPath: directoryPath, files: files),
-        ),
-      );
-
-      if (selectedPaths != null && selectedPaths.isNotEmpty) {
-        notifier.importFiles(selectedPaths);
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Successfully imported ${importedBooks.length} books.',
+              ),
+              action: SnackBarAction(
+                label: 'OK',
+                onPressed: () {},
+                textColor: YomuConstants.accent,
+              ),
+            ),
+          );
       }
     }
   }
@@ -503,9 +499,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
       _clearSelection();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Category added to selected books')),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(content: Text('Category added to selected books')),
+          );
       }
     }
   }

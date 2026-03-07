@@ -166,13 +166,12 @@ class Book {
     int? currentPage,
     int? totalPages,
     int? estimatedReadingMinutes,
-    String? lastPosition,
-    String? audioPath,
-    int? audioLastPosition,
-    int? audioLastIndex,
+    Object? lastPosition = sentinel,
+    Object? audioPath = sentinel,
+    Object? audioLastPosition = sentinel,
+    Object? audioLastIndex = sentinel,
     List<AudioTrack>? audioTracks,
-
-    String? contentHash,
+    Object? contentHash = sentinel,
     bool? isDeleted,
   }) {
     return Book(
@@ -193,14 +192,25 @@ class Book {
       totalPages: totalPages ?? this.totalPages,
       estimatedReadingMinutes:
           estimatedReadingMinutes ?? this.estimatedReadingMinutes,
-      lastPosition: lastPosition ?? this.lastPosition,
-      audioPath: audioPath ?? this.audioPath,
-      audioLastPosition: audioLastPosition ?? this.audioLastPosition,
-      audioLastIndex: audioLastIndex ?? this.audioLastIndex,
+      lastPosition: lastPosition == sentinel
+          ? this.lastPosition
+          : (lastPosition as String?),
+      audioPath: audioPath == sentinel
+          ? this.audioPath
+          : (audioPath as String?),
+      audioLastPosition: audioLastPosition == sentinel
+          ? this.audioLastPosition
+          : (audioLastPosition as int?),
+      audioLastIndex: audioLastIndex == sentinel
+          ? this.audioLastIndex
+          : (audioLastIndex as int?),
       audioTracks: audioTracks ?? this.audioTracks,
-
-      contentHash: contentHash ?? this.contentHash,
+      contentHash: contentHash == sentinel
+          ? this.contentHash
+          : (contentHash as String?),
       isDeleted: isDeleted ?? this.isDeleted,
     );
   }
+
+  static const Object sentinel = Object();
 }

@@ -1284,23 +1284,28 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
   }
 
+  Future<void> updateBook(Book updatedBook) async {
+    await _dbService.updateBook(updatedBook);
+    _updateStateAndSync(updatedBook);
+  }
+
   Future<void> updateBookAudio(
     int bookId, {
-    String? audioPath,
-    int? audioLastPosition,
-    int? audioLastIndex,
+    Object? audioPath = Book.sentinel,
+    Object? audioLastPosition = Book.sentinel,
+    Object? audioLastIndex = Book.sentinel,
+    List<AudioTrack>? audioTracks,
   }) async {
     final book = state.allBooks.firstWhereOrNull((b) => b.id == bookId);
     if (book == null) return;
 
     final updatedBook = book.copyWith(
-      audioPath: audioPath, // Allow setting to null or a new path
-      audioLastPosition: audioLastPosition ?? book.audioLastPosition,
-      audioLastIndex: audioLastIndex ?? book.audioLastIndex,
+      audioTracks: audioTracks ?? book.audioTracks,
+      audioPath: audioPath,
+      audioLastPosition: audioLastPosition,
+      audioLastIndex: audioLastIndex,
     );
-    await _dbService.updateBook(updatedBook);
-
-    _updateStateAndSync(updatedBook);
+    await updateBook(updatedBook);
   }
 
   // Bookmark specialized methods
