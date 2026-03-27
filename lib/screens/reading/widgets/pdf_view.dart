@@ -43,6 +43,53 @@ class ReadingPdfView extends StatefulWidget {
 }
 
 class _ReadingPdfViewState extends State<ReadingPdfView> {
+  // For dark themes (darkBlue/black), we defer the BlendMode.difference color
+  // filter until the PDF viewer reports it is ready. This avoids applying the
+  // filter before the platform texture has rendered its first frame.
+  bool _filterReady = false;
+
+  // Pointer tracking for tap detection. PdfViewer's internal gesture
+  // recognizers consume taps in the gesture arena, so GestureDetector.onTap
+  // never fires. Listener operates at the pointer level and bypasses the arena.
+  DateTime? _pointerDownTime;
+  Offset? _pointerDownPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    // Light themes don't use BlendMode.difference, so the filter is safe immediately.
+    // We also consider it "ready" if the controller already reports a document is loaded.
+    if (widget.settings.theme == ReaderTheme.white ||
+        widget.settings.theme == ReaderTheme.cream ||
+        widget.controller.isReady) {
+      _filterReady = true;
+    }
+  }
+
+  @override
+  void didUpdateWidget(ReadingPdfView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.settings.theme != oldWidget.settings.theme) {
+      // Manual theme change or settings updated — safe to apply.
+      _filterReady = true;
+    }
+  }
+
+  void _onViewerReadyInternal(PdfDocument document, PdfViewerController controller) {
+    if (!_filterReady && mounted) {
+      // Small delay to ensure the platform view has painted its first frame
+      // before applying a complex blend mode (like Difference).
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          setState(() {
+            _filterReady = true;
+          });
+        }
+      });
+    }
+    widget.onViewerReady(document, controller);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorFilter = _getPdfColorFilter(widget.settings.theme);
@@ -57,7 +104,7 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
         // The matrix filters map white to the target theme background.
         backgroundColor: Colors.white,
 
-        onViewerReady: widget.onViewerReady,
+        onViewerReady: _onViewerReadyInternal,
         enableTextSelection: true,
         margin: 4.0,
         pageDropShadow: const BoxShadow(
@@ -141,11 +188,37 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
     );
 
     return Listener(
-      onPointerDown: (_) => widget.onInteraction(),
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        _pointerDownTime = DateTime.now();
+        _pointerDownPosition = event.position;
+        widget.onInteraction();
+      },
+      onPointerUp: (event) {
+        if (_pointerDownTime == null || _pointerDownPosition == null) return;
+        final elapsed = DateTime.now().difference(_pointerDownTime!);
+        final distance = (event.position - _pointerDownPosition!).distance;
+
+        // Short tap: under 300ms and minimal movement (not a scroll/pan)
+        if (elapsed < const Duration(milliseconds: 300) && distance < 20) {
+          widget.onHideControls();
+        }
+        _pointerDownTime = null;
+        _pointerDownPosition = null;
+      },
       child: Container(
         color: widget.settings.backgroundColor,
         // Always wrap in ColorFiltered to avoid reparenting the PdfViewer when theme changes.
-        child: ColorFiltered(colorFilter: colorFilter, child: pdfViewer),
+        child: AnimatedOpacity(
+          opacity: _filterReady ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeIn,
+          child: ColorFiltered(
+            key: ValueKey(widget.settings.theme),
+            colorFilter: colorFilter,
+            child: pdfViewer,
+          ),
+        ),
       ),
     );
   }

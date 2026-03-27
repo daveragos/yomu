@@ -128,6 +128,40 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   DateTime? _epubPointerDownTime;
   Offset? _epubPointerDownPosition;
+  int? _lastBookId;
+
+  void _resetReadingViewState() {
+    _epubController?.dispose();
+    _epubController = null;
+    _epubBook = null;
+    _pdfController = null;
+    _pdfPages = 0;
+    _pdfCurrentPage = 0;
+    _isPdfReady = false;
+    _initialized = false;
+    _pdfOutline = [];
+    _tocPdfOutline = [];
+    _currentPdfNode = null;
+    _currentChapter = 'Chapter 1';
+    _currentChapterIndex = 0;
+    _pageController?.dispose();
+    _pageController = null;
+    _pagesReadThisSession.clear();
+    _epubChaptersReadThisSession.clear();
+    _isAutoScrolling = false;
+    _pdfAutoScrollTicker?.stop();
+    _pdfSearcher?.dispose();
+    _pdfSearcher = null;
+    _searchResults = [];
+    _isSearching = false;
+    _activeSearchQuery = null;
+    _isSearchLoading = false;
+    _searchController.clear();
+    _bookmarks = [];
+    _highlights = [];
+    // Force reload bookmarks/highlights for the NEW book
+    _loadBookmarks();
+  }
 
   @override
   void initState() {
@@ -935,7 +969,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   double _calculateCurrentProgress(Book book) {
     if (book.filePath.toLowerCase().endsWith('.pdf')) {
       if (_pdfPages > 0) {
-        return _pdfCurrentPage / (_pdfPages - 1).clamp(1, 1000000);
+        if (_pdfPages == 1) return 1.0;
+        return _pdfCurrentPage / (_pdfPages - 1);
       }
       return book.progress;
     } else if (book.filePath.toLowerCase().endsWith('.epub')) {
@@ -1140,7 +1175,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     if (_pdfPages > 1) {
       _scrollProgressNotifier.value = (page / (_pdfPages - 1)).clamp(0.0, 1.0);
     } else {
-      _scrollProgressNotifier.value = 0.0;
+      _scrollProgressNotifier.value = 1.0;
     }
     _updatePdfCurrentChapter();
   }
@@ -1311,6 +1346,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final book = ref.watch(currentlyReadingProvider);
     final settings = ref.watch(readerSettingsProvider);
 
+    if (book != null && _lastBookId != book.id) {
+      _lastBookId = book.id;
+      _resetReadingViewState();
+    }
+
     if (_isAutoScrolling &&
         _autoScrollSpeedNotifier.value != settings.autoScrollSpeed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1407,14 +1447,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: isEpub
-                      ? null
-                      : () {
-                          _recordInteraction();
-                          setState(() {
-                            _showControls = !_showControls;
-                          });
-                        },
                   behavior: HitTestBehavior.translucent,
                   child: Stack(
                     children: [
@@ -1506,6 +1538,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               });
                             }
                             if (!_initialized) {
+                              _pageEntryTime = DateTime.now();
                               final initialPage =
                                   (book.progress * (_pdfPages - 1)).toInt();
                               _pdfCurrentPage = initialPage;
@@ -1537,9 +1570,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             _recordInteraction();
                           },
                           onHideControls: () {
-                            if (_showControls) {
-                              setState(() => _showControls = false);
-                            }
+                            _recordInteraction();
+                            setState(() => _showControls = !_showControls);
                           },
                           showControls: _showControls,
                           scrollProgressNotifier: _scrollProgressNotifier,

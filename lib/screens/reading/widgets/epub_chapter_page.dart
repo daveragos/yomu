@@ -8,6 +8,7 @@ import 'package:epub_view/epub_view.dart'
     show EpubChapter, EpubBook, EpubByteContentFile;
 import 'package:flutter_html/flutter_html.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:android_intent_plus/android_intent.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
 import 'share_quote_sheet.dart';
@@ -820,9 +821,26 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   }
 
   Future<void> _lookupDictionary(String word) async {
-    // Use first word for dictionary lookup if multiple words selected
     final lookupWord = word.trim().split(RegExp(r'\s+')).first;
     final encoded = Uri.encodeComponent(lookupWord);
+
+    if (Platform.isAndroid) {
+      try {
+        final intent = AndroidIntent(
+          action: 'android.intent.action.PROCESS_TEXT',
+          type: 'text/plain',
+          arguments: <String, dynamic>{
+            'android.intent.extra.PROCESS_TEXT': lookupWord,
+            'android.intent.extra.PROCESS_TEXT_READONLY': true,
+          },
+        );
+        await intent.launch();
+        return;
+      } catch (e) {
+        // Fallback to web search if the intent fails for any reason
+        debugPrint('Dictionary intent failed: $e');
+      }
+    }
 
     if (Platform.isIOS || Platform.isMacOS) {
       final dictUri = Uri.parse('x-dictionary:r:$encoded');
