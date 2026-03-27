@@ -195,15 +195,93 @@ class AchievementsGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final ach = sortedList[index];
             final isUnlocked = state.unlockedAchievements.contains(ach['id']);
-            return AchievementBadge(
-              title: ach['title'] as String,
-              desc: ach['desc'] as String,
-              icon: ach['icon'] as IconData,
-              isUnlocked: isUnlocked,
+            return GestureDetector(
+              onTap: () => _showAchievementDetail(
+                context,
+                title: ach['title'] as String,
+                desc: ach['desc'] as String,
+                icon: ach['icon'] as IconData,
+                isUnlocked: isUnlocked,
+              ),
+              child: AchievementBadge(
+                title: ach['title'] as String,
+                desc: ach['desc'] as String,
+                icon: ach['icon'] as IconData,
+                isUnlocked: isUnlocked,
+              ),
             );
           },
         ),
       ],
+    );
+  }
+
+  void _showAchievementDetail(
+    BuildContext context, {
+    required String title,
+    required String desc,
+    required IconData icon,
+    required bool isUnlocked,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: YomuConstants.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isUnlocked
+                    ? YomuConstants.accent.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.05),
+                border: Border.all(
+                  color: isUnlocked ? YomuConstants.accent : Colors.white10,
+                  width: 2.5,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: isUnlocked ? YomuConstants.accent : Colors.white24,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isUnlocked ? Colors.white : Colors.white38,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              desc,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isUnlocked ? Colors.white70 : Colors.white24,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isUnlocked ? 'Unlocked' : 'Keep reading to unlock!',
+              style: TextStyle(
+                color: isUnlocked ? YomuConstants.accent : Colors.white24,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

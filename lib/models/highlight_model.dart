@@ -6,6 +6,7 @@ class Highlight {
   final String? note;
   final String color; // Hex string, e.g. '#E74C3C'
   final DateTime createdAt;
+  final String position; // Granular position string (CFI or PDF offset)
 
   const Highlight({
     this.id,
@@ -15,6 +16,7 @@ class Highlight {
     this.note,
     required this.color,
     required this.createdAt,
+    required this.position,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +28,7 @@ class Highlight {
       'note': note,
       'color': color,
       'createdAt': createdAt.toIso8601String(),
+      'position': position,
     };
   }
 
@@ -38,6 +41,7 @@ class Highlight {
       note: map['note'] as String?,
       color: map['color'] as String,
       createdAt: DateTime.parse(map['createdAt'] as String),
+      position: map['position'] as String? ?? '',
     );
   }
 
@@ -49,6 +53,7 @@ class Highlight {
     String? note,
     String? color,
     DateTime? createdAt,
+    String? position,
   }) {
     return Highlight(
       id: id ?? this.id,
@@ -58,6 +63,7 @@ class Highlight {
       note: note ?? this.note,
       color: color ?? this.color,
       createdAt: createdAt ?? this.createdAt,
+      position: position ?? this.position,
     );
   }
 }

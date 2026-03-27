@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:io' as io;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +17,8 @@ import '../models/reader_settings_model.dart';
 import '../models/bookmark_model.dart';
 import '../models/search_result_model.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:battery_plus/battery_plus.dart';
 
 import './reading/widgets/reading_header.dart';
 import './reading/widgets/reading_search_overlay.dart';
@@ -32,6 +34,7 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
 import '../models/highlight_model.dart';
 import '../services/database_service.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -129,6 +132,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   DateTime? _epubPointerDownTime;
   Offset? _epubPointerDownPosition;
   int? _lastBookId;
+  int _batteryLevel = 100;
+  final Battery _battery = Battery();
+  StreamSubscription<BatteryState>? _batterySubscription;
 
   void _resetReadingViewState() {
     _epubController?.dispose();
@@ -166,6 +172,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   @override
   void initState() {
     super.initState();
+    Future.microtask(() {
+      if (mounted) ref.read(libraryProvider.notifier).setReadingActive(true);
+    });
+    _getInitialBattery();
+    _startBatterySubscription();
     _updateTime();
     _currentTimeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _updateTime();
@@ -198,6 +209,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _checkFirstLaunch();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBookmarks();
+      ref.read(libraryProvider.notifier).setReadingActive(true);
     });
   }
 
@@ -716,6 +728,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   }
 
   @override
+  void deactivate() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    Future.microtask(() {
+      if (mounted) ref.read(libraryProvider.notifier).setReadingActive(false);
+    });
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _audioPlayer.dispose();
     _epubController?.dispose();
@@ -723,6 +744,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _heartbeatTimer?.cancel();
     _debounceTimer?.cancel();
     _currentTimeTimer?.cancel();
+    _batterySubscription?.cancel();
     _audioDebounceTimer?.cancel();
     _pullDistanceNotifier.dispose();
     _isPullingDownNotifier.dispose();
@@ -779,7 +801,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       });
     }
 
-    _pdfController!.goToPage(
+    _pdfController?.goToPage(
       pageNumber: targetPage,
       // duration: const Duration(milliseconds: 300),
       anchor: PdfPageAnchor.top,
@@ -816,6 +838,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   void _recordInteraction() {
     _lastInteractionTime = DateTime.now();
+  }
+
+  void _setControlsVisibility(bool visible) {
+    setState(() => _showControls = visible);
+    SystemChrome.setEnabledSystemUIMode(
+      visible ? SystemUiMode.edgeToEdge : SystemUiMode.immersiveSticky,
+    );
+  }
+
+  void _toggleControls() {
+    _recordInteraction();
+    _setControlsVisibility(!_showControls);
   }
 
   Bookmark? _getCurrentBookmark() {
@@ -923,7 +957,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   void _initEpub(Book book) {
     if (_epubController != null) return;
     final controller = EpubController(
-      document: EpubDocument.openFile(File(book.filePath)),
+      document: EpubDocument.openFile(io.File(book.filePath)),
       epubCfi: book.lastPosition,
     );
     _epubController = controller;
@@ -1471,8 +1505,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             // Short tap: under 300ms and minimal movement
                             if (elapsed < const Duration(milliseconds: 300) &&
                                 distance < 20) {
-                              _recordInteraction();
-                              setState(() => _showControls = !_showControls);
+                              _toggleControls();
                             }
                             _epubPointerDownTime = null;
                             _epubPointerDownPosition = null;
@@ -1498,13 +1531,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 setState(() => _initialScrollProgress = 0.0),
                             onHideControls: () {
                               if (_showControls) {
-                                setState(() => _showControls = false);
+                                _setControlsVisibility(false);
                               }
                             },
-                            onToggleControls: () {
-                              _recordInteraction();
-                              setState(() => _showControls = !_showControls);
-                            },
+                            onToggleControls: _toggleControls,
                             onInteraction: _recordInteraction,
                             searchQuery: _activeSearchQuery,
                             epubBook: _epubBook,
@@ -1569,10 +1599,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onInteraction: () {
                             _recordInteraction();
                           },
-                          onHideControls: () {
-                            _recordInteraction();
-                            setState(() => _showControls = !_showControls);
-                          },
+                          onHideControls: _toggleControls,
                           showControls: _showControls,
                           scrollProgressNotifier: _scrollProgressNotifier,
                         ),
@@ -1598,6 +1625,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                     settings: settings,
                     currentTime: currentTime,
                     currentChapter: _currentChapter,
+                    batteryLevel: _batteryLevel,
                     scrollProgressNotifier: _scrollProgressNotifier,
                     totalChapters: _chapters.length,
                     currentChapterIndex: _currentChapterIndex,
@@ -1987,6 +2015,87 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     return '${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _getInitialBattery() async {
+    try {
+      final level = await _battery.batteryLevel;
+      if (mounted) setState(() => _batteryLevel = level);
+    } catch (e) {
+      debugPrint('Error getting battery level: $e');
+    }
+  }
+
+  void _startBatterySubscription() {
+    _batterySubscription = _battery.onBatteryStateChanged.listen((state) async {
+      final level = await _battery.batteryLevel;
+      if (mounted) setState(() => _batteryLevel = level);
+    });
+  }
+
+  Future<void> _exportToMarkdown(Book book) async {
+    final bookmarks = await ref
+        .read(libraryProvider.notifier)
+        .getBookmarks(book.id!);
+    final highlights = _highlights; // Already loaded in state
+
+    final buffer = StringBuffer();
+    buffer.writeln('# ${book.title}');
+    buffer.writeln('*Exported with Yomu — ${DateTime.now().year}*');
+    buffer.writeln();
+    if (book.author != null) buffer.writeln('**Author:** ${book.author}');
+    buffer.writeln('**Exported on:** ${_formatDate(DateTime.now())}');
+    buffer.writeln();
+
+    if (bookmarks.isNotEmpty) {
+      buffer.writeln('## Bookmarks');
+      for (final b in bookmarks) {
+        buffer.writeln(
+          '- ${b.title} (${(b.progress * 100).toStringAsFixed(1)}%) — ${_formatDate(b.createdAt)}',
+        );
+      }
+      buffer.writeln();
+    }
+
+    buffer.writeln('## Highlights & Notes');
+    for (final h in highlights) {
+      buffer.writeln('> ${h.text}');
+      buffer.writeln();
+      if (h.note != null && h.note!.isNotEmpty) {
+        buffer.writeln('**Note:** ${h.note}');
+        buffer.writeln();
+      }
+      final pos = h.position.contains(':')
+          ? 'Chapter ${int.parse(h.position.split(':')[0]) + 1}'
+          : 'Page ${h.chapterIndex + 1}';
+      buffer.writeln('*Position: $pos — ${_formatDate(h.createdAt)}*');
+      buffer.writeln('---');
+    }
+    
+    buffer.writeln('---');
+    buffer.writeln('*Exported with Yomu*');
+
+    if (bookmarks.isEmpty && highlights.isEmpty) {
+      buffer.writeln('*No bookmarks or highlights found.*');
+    }
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final fileName =
+          '${book.title.replaceAll(RegExp(r'[^\w\s-]'), '')}_annotations.md';
+      final file = io.File(p.join(directory.path, fileName));
+      await file.writeAsString(buffer.toString());
+
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], subject: '${book.title} - Annotations');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to export: $e')));
+      }
+    }
+  }
+
   void _showNavigationSheet({
     required Book book,
     required ReaderSettings settings,
@@ -2016,6 +2125,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           currentPdfNode: _currentPdfNode,
           totalPages: _pdfPages,
           focusJump: focusJump,
+          onExport: () => _exportToMarkdown(book),
           onChapterTap: (index) {
             Navigator.pop(context);
             if (index != _currentChapterIndex) {
@@ -2052,6 +2162,31 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           },
           getBookmarks: () =>
               ref.read(libraryProvider.notifier).getBookmarks(book.id!),
+          highlights: _highlights,
+          onHighlightTap: (h) {
+            Navigator.pop(context);
+            if (book.filePath.toLowerCase().endsWith('.epub')) {
+              if (h.position.contains(':')) {
+                final parts = h.position.split(':');
+                final index = int.tryParse(parts[0]) ?? h.chapterIndex;
+                final progress = double.tryParse(parts[1]) ?? 0.0;
+                if (index >= 0 && index < _chapters.length) {
+                  setState(() {
+                    _currentChapterIndex = index;
+                    _initialScrollProgress = progress;
+                    _currentChapter =
+                        _chapters[index].Title ?? 'Chapter ${index + 1}';
+                  });
+                  _pageController?.jumpToPage(index);
+                }
+              }
+            } else {
+              // PDF
+              if (h.chapterIndex != _pdfCurrentPage) {
+                _jumpToPdfPage(h.chapterIndex + 1);
+              }
+            }
+          },
           onDeleteBookmark: (bookmark) async {
             await ref
                 .read(libraryProvider.notifier)

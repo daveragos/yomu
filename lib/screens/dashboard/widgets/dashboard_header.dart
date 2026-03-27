@@ -55,7 +55,7 @@ class DashboardHeader extends ConsumerWidget {
                         ? 'Good Afternoon, '
                         : 'Good Evening, ',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 24,
+                      fontSize: 18,
                       color: YomuConstants.textSecondary,
                       height: 1.2,
                     ),
@@ -63,7 +63,7 @@ class DashboardHeader extends ConsumerWidget {
                   TextSpan(
                     text: rankName,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontSize: 36,
+                      fontSize: 26,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
                       color: YomuConstants.textPrimary,
@@ -71,6 +71,8 @@ class DashboardHeader extends ConsumerWidget {
                   ),
                 ],
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 16),
             _buildXPProgressBar(libraryState),

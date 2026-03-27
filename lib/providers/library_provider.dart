@@ -54,6 +54,7 @@ class LibraryState {
   final int reminderMinute;
 
   final int lastCelebratedLevel;
+  final bool isReading;
 
   LibraryState({
     required this.allBooks,
@@ -90,6 +91,7 @@ class LibraryState {
     this.notificationsEnabled = true,
     this.reminderHour = 20,
     this.reminderMinute = 0,
+    this.isReading = false,
   });
 
   double get weeklyGoalValue {
@@ -198,6 +200,7 @@ class LibraryState {
     bool? notificationsEnabled,
     int? reminderHour,
     int? reminderMinute,
+    bool? isReading,
   }) {
     return LibraryState(
       allBooks: allBooks ?? this.allBooks,
@@ -234,6 +237,7 @@ class LibraryState {
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       reminderHour: reminderHour ?? this.reminderHour,
       reminderMinute: reminderMinute ?? this.reminderMinute,
+      isReading: isReading ?? this.isReading,
     );
   }
 }
@@ -269,6 +273,10 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         ),
       ) {
     _init();
+  }
+
+  void setReadingActive(bool active) {
+    state = state.copyWith(isReading: active);
   }
 
   Future<void> _init() async {
@@ -968,11 +976,13 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     );
     for (var achievement in newAchievements) {
       final title = _getAchievementTitle(achievement);
-      NotificationService().showNotification(
-        id: achievement.hashCode,
-        title: 'Achievement Unlocked!',
-        body: 'You earned the "$title" badge!',
-      );
+      if (!state.isReading) {
+        NotificationService().showNotification(
+          id: achievement.hashCode,
+          title: 'Achievement Unlocked!',
+          body: 'You earned the "$title" badge!',
+        );
+      }
     }
 
     state = state.copyWith(
@@ -1097,7 +1107,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         final wasCompleted = oldQuests.any(
           (oq) => oq.id == q.id && oq.isCompleted,
         );
-        if (q.isCompleted && !wasCompleted) {
+        if (q.isCompleted && !wasCompleted && !state.isReading) {
           NotificationService().showNotification(
             id: q.id.hashCode,
             title: 'Quest Completed!',
@@ -1122,18 +1132,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           state.unlockedAchievements.length,
         );
 
-        if (newRank.name != oldRank.name) {
-          NotificationService().showNotification(
-            id: 1001,
-            title: 'Rank Up!',
-            body: 'Congratulations! You are now a ${newRank.name}!',
-          );
-        } else {
-          NotificationService().showNotification(
-            id: 1002,
-            title: 'Level Up!',
-            body: 'You reached Level ${stats.level}!',
-          );
+        if (!state.isReading) {
+          if (newRank.name != oldRank.name) {
+            NotificationService().showNotification(
+              id: 1001,
+              title: 'Rank Up!',
+              body: 'Congratulations! You are now a ${newRank.name}!',
+            );
+          } else {
+            NotificationService().showNotification(
+              id: 1002,
+              title: 'Level Up!',
+              body: 'You reached Level ${stats.level}!',
+            );
+          }
         }
       }
 

@@ -310,7 +310,7 @@ class SettingsScreen extends ConsumerWidget {
       child: Column(
         children: [
           const Text(
-            'Yomu v1.0.0',
+            'Yomu v1.0.1',
             style: TextStyle(color: Colors.white24, fontSize: 12),
           ),
         ],

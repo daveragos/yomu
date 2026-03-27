@@ -3,6 +3,7 @@ import 'package:epub_view/epub_view.dart' show EpubChapter;
 import 'package:pdfrx/pdfrx.dart' show PdfOutlineNode;
 import '../../../models/book_model.dart';
 import '../../../models/bookmark_model.dart';
+import '../../../models/highlight_model.dart';
 import '../../../core/constants.dart';
 
 class NavigationSheet extends StatefulWidget {
@@ -16,11 +17,14 @@ class NavigationSheet extends StatefulWidget {
   final Function(int) onChapterTap;
   final Function(PdfOutlineNode) onPdfOutlineTap;
   final Future<List<Bookmark>> Function() getBookmarks;
-  final Function(Bookmark) onDeleteBookmark;
+  final List<Highlight> highlights;
+  final Function(Highlight) onHighlightTap;
+  final Future<void> Function(Bookmark) onDeleteBookmark;
   final Function(Bookmark) onBookmarkTap;
   final String Function(DateTime) formatDate;
   final Function(int)? onJumpToPage;
   final Function(double)? onJumpToPercent;
+  final VoidCallback? onExport;
   final bool focusJump;
   final int totalPages;
 
@@ -36,11 +40,14 @@ class NavigationSheet extends StatefulWidget {
     required this.onChapterTap,
     required this.onPdfOutlineTap,
     required this.getBookmarks,
+    required this.highlights,
+    required this.onHighlightTap,
     required this.onDeleteBookmark,
     required this.onBookmarkTap,
     required this.formatDate,
     this.onJumpToPage,
     this.onJumpToPercent,
+    this.onExport,
     this.focusJump = false,
     this.totalPages = 0,
   });
@@ -134,7 +141,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
               controller: _jumpController,
               focusNode: _jumpFocusNode,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
               decoration: InputDecoration(
                 hintText: isEpub
                     ? 'Jump to %'
@@ -239,43 +246,158 @@ class _NavigationSheetState extends State<NavigationSheet> {
         return FutureBuilder<List<Bookmark>>(
           future: widget.getBookmarks(),
           builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
-                child: Text(
-                  'No bookmarks found',
-                  style: TextStyle(color: Colors.white54),
+            if (!snapshot.hasData ||
+                (snapshot.data!.isEmpty && widget.highlights.isEmpty)) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'No bookmarks or highlights found',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                    if (widget.onExport != null) ...[
+                      const SizedBox(height: 16),
+                      TextButton.icon(
+                        onPressed: widget.onExport,
+                        icon: const Icon(Icons.ios_share_rounded, size: 18),
+                        label: const Text('Export Current Book'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: YomuConstants.accent,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               );
             }
 
             final bookmarks = snapshot.data!;
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: bookmarks.length,
-              itemBuilder: (context, index) {
-                final bookmark = bookmarks[index];
-                return ListTile(
-                  title: Text(
-                    bookmark.title,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  subtitle: Text(
-                    '${(bookmark.progress * 100).toStringAsFixed(1)}% • ${widget.formatDate(bookmark.createdAt)}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: Colors.white38,
+            return Column(
+              children: [
+                if (widget.onExport != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          onPressed: widget.onExport,
+                          icon: const Icon(Icons.ios_share_rounded, size: 18),
+                          label: const Text('Export Annotations'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: YomuConstants.accent,
+                          ),
+                        ),
+                      ],
                     ),
-                    onPressed: () async {
-                      await widget.onDeleteBookmark(bookmark);
-                      setSheetState(() {});
-                    },
                   ),
-                  onTap: () => widget.onBookmarkTap(bookmark),
-                );
-              },
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    children: [
+                      if (bookmarks.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            'BOOKMARKS',
+                            style: TextStyle(
+                              color: YomuConstants.accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        ...bookmarks.map(
+                          (bookmark) => ListTile(
+                            title: Text(
+                              bookmark.title,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              '${(bookmark.progress * 100).toStringAsFixed(1)}% • ${widget.formatDate(bookmark.createdAt)}',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.white38,
+                              ),
+                              onPressed: () async {
+                                await widget.onDeleteBookmark(bookmark);
+                                setSheetState(() {});
+                              },
+                            ),
+                            onTap: () => widget.onBookmarkTap(bookmark),
+                          ),
+                        ),
+                      ],
+                      if (widget.highlights.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(
+                            left: 16,
+                            right: 16,
+                            top: 16,
+                            bottom: 8,
+                          ),
+                          child: Text(
+                            'HIGHLIGHTS & NOTES',
+                            style: TextStyle(
+                              color: YomuConstants.accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        ...widget.highlights.map(
+                          (h) => ListTile(
+                            title: Text(
+                              h.text,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (h.note != null && h.note!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      'Note: ${h.note}',
+                                      style: const TextStyle(
+                                        color: YomuConstants.accent,
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                Text(
+                                  widget.formatDate(h.createdAt),
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            onTap: () => widget.onHighlightTap(h),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             );
           },
         );

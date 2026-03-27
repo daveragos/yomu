@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
+import '../../../core/constants.dart';
 import 'share_quote_sheet.dart';
 
 class EpubChapterPage extends StatefulWidget {
@@ -724,6 +725,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                                   text: selectedText,
                                   color: hexColor,
                                   createdAt: DateTime.now(),
+                                  position: '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
                                 ),
                               );
                               selectableRegionState.hideToolbar();
@@ -754,6 +756,22 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      SizedBox(
+                        width: btnSize,
+                        height: btnSize,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.sticky_note_2_rounded,
+                            color: YomuConstants.accent,
+                            size: iconSize,
+                          ),
+                          onPressed: () {
+                            selectableRegionState.hideToolbar();
+                            _showNoteDialog(context, selectedText, existingHighlight);
+                          },
+                        ),
+                      ),
                       SizedBox(
                         width: btnSize,
                         height: btnSize,
@@ -817,6 +835,62 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           ),
         ),
       ],
+    );
+  }
+
+  void _showNoteDialog(BuildContext context, String text, Highlight? existing) {
+    final controller = TextEditingController(text: existing?.note ?? '');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: widget.settings.menuBackgroundColor,
+        title: Text(
+          existing != null ? 'Edit Note' : 'Add Note',
+          style: const TextStyle(color: YomuConstants.accent, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          decoration: InputDecoration(
+            hintText: 'Type your note here...',
+            hintStyle: TextStyle(color: widget.settings.secondaryTextColor),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('CANCEL', style: TextStyle(color: widget.settings.secondaryTextColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              final hexColor = existing?.color ??
+                  '#${const Color(0xFFF1C40F).toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+              widget.onHighlight(
+                Highlight(
+                  id: existing?.id,
+                  bookId: 0,
+                  chapterIndex: widget.index,
+                  text: text,
+                  note: controller.text.trim(),
+                  color: hexColor,
+                  createdAt: existing?.createdAt ?? DateTime.now(),
+                  position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
+                ),
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('SAVE', style: TextStyle(color: YomuConstants.accent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 

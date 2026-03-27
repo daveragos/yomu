@@ -7,6 +7,7 @@ class ReadingFooter extends StatelessWidget {
   final ReaderSettings settings;
   final String currentTime;
   final String currentChapter;
+  final int batteryLevel;
   final ValueNotifier<double> scrollProgressNotifier;
   final int totalChapters;
   final int currentChapterIndex;
@@ -17,6 +18,7 @@ class ReadingFooter extends StatelessWidget {
     required this.settings,
     required this.currentTime,
     required this.currentChapter,
+    required this.batteryLevel,
     required this.scrollProgressNotifier,
     required this.totalChapters,
     required this.currentChapterIndex,
@@ -27,17 +29,33 @@ class ReadingFooter extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
+        color: settings.backgroundColor,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
             Row(
               children: [
                 Icon(
-                  Icons.battery_6_bar_rounded,
+                  batteryLevel > 80
+                      ? Icons.battery_full_rounded
+                      : batteryLevel > 50
+                          ? Icons.battery_5_bar_rounded
+                          : batteryLevel > 20
+                              ? Icons.battery_3_bar_rounded
+                              : Icons.battery_alert_rounded,
                   size: 14,
                   color: settings.secondaryTextColor,
                 ),
                 const SizedBox(width: 4),
+                Text(
+                  '$batteryLevel%',
+                  style: TextStyle(
+                    color: settings.secondaryTextColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
                   currentTime,
                   style: TextStyle(
@@ -69,10 +87,15 @@ class ReadingFooter extends StatelessWidget {
               builder: (context, scrollProgress, _) {
                 if (book.filePath.toLowerCase().endsWith('.epub') &&
                     totalChapters > 0) {
-                  final overallProgress =
+                  double overallProgress =
                       ((currentChapterIndex + scrollProgress) /
                       totalChapters *
                       100);
+                  if (totalChapters == 1 ||
+                      (currentChapterIndex == totalChapters - 1 &&
+                          scrollProgress > 0.95)) {
+                    overallProgress = 100.0;
+                  }
                   return Text(
                     '${overallProgress.toStringAsFixed(1)}%',
                     style: TextStyle(
