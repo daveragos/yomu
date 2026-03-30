@@ -201,6 +201,7 @@ class DatabaseService {
           note TEXT,
           color TEXT,
           createdAt TEXT
+        )
       ''');
     }
     if (oldVersion < 15) {

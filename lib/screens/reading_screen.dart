@@ -94,7 +94,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   int _currentChapterIndex = 0;
 
   // UI state
-  bool _showControls = true;
+  final ValueNotifier<bool> _showControlsNotifier = ValueNotifier(true);
   final ValueNotifier<String> _currentTimeNotifier = ValueNotifier('');
   Timer? _currentTimeTimer;
   Timer? _audioDebounceTimer;
@@ -757,6 +757,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _pdfAutoScrollTicker?.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _showControlsNotifier.dispose();
 
     // Reset orientation to portrait-only when leaving reading screen
     SystemChrome.setPreferredOrientations([
@@ -841,7 +842,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   }
 
   void _setControlsVisibility(bool visible) {
-    setState(() => _showControls = visible);
+    if (_showControlsNotifier.value == visible) return;
+    _showControlsNotifier.value = visible;
     SystemChrome.setEnabledSystemUIMode(
       visible ? SystemUiMode.edgeToEdge : SystemUiMode.immersiveSticky,
     );
@@ -849,7 +851,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   void _toggleControls() {
     _recordInteraction();
-    _setControlsVisibility(!_showControls);
+    _setControlsVisibility(!_showControlsNotifier.value);
   }
 
   Bookmark? _getCurrentBookmark() {
@@ -1510,37 +1512,42 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             _epubPointerDownTime = null;
                             _epubPointerDownPosition = null;
                           },
-                          child: ReadingEpubView(
-                            book: book,
-                            settings: settings,
-                            chapters: _chapters,
-                            pageController: _pageController,
-                            currentChapterIndex: _currentChapterIndex,
-                            shouldJumpToBottom: _shouldJumpToBottom,
-                            initialScrollProgress: _initialScrollProgress,
-                            pullDistanceNotifier: _pullDistanceNotifier,
-                            isPullingDownNotifier: _isPullingDownNotifier,
-                            scrollProgressNotifier: _scrollProgressNotifier,
-                            autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
-                            showControls: _showControls,
-                            onPageChanged: (index) =>
-                                _handleChapterPageChange(index, book),
-                            onJumpedToBottom: () =>
-                                setState(() => _shouldJumpToBottom = false),
-                            onJumpedToPosition: () =>
-                                setState(() => _initialScrollProgress = 0.0),
-                            onHideControls: () {
-                              if (_showControls) {
-                                _setControlsVisibility(false);
-                              }
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _showControlsNotifier,
+                            builder: (context, showControls, _) {
+                              return ReadingEpubView(
+                                book: book,
+                                settings: settings,
+                                chapters: _chapters,
+                                pageController: _pageController,
+                                currentChapterIndex: _currentChapterIndex,
+                                shouldJumpToBottom: _shouldJumpToBottom,
+                                initialScrollProgress: _initialScrollProgress,
+                                onJumpedToBottom: () =>
+                                    setState(() => _shouldJumpToBottom = false),
+                                onJumpedToPosition: () =>
+                                    setState(() => _initialScrollProgress = 0.0),
+                                pullDistanceNotifier: _pullDistanceNotifier,
+                                isPullingDownNotifier: _isPullingDownNotifier,
+                                scrollProgressNotifier: _scrollProgressNotifier,
+                                autoScrollSpeedNotifier: _autoScrollSpeedNotifier,
+                                showControls: showControls,
+                                onPageChanged: (index) =>
+                                    _handleChapterPageChange(index, book),
+                                onHideControls: () {
+                                  if (_showControlsNotifier.value) {
+                                    _setControlsVisibility(false);
+                                  }
+                                },
+                                onToggleControls: _toggleControls,
+                                onInteraction: _recordInteraction,
+                                highlights: _highlights,
+                                onHighlight: _addHighlight,
+                                onDeleteHighlight: _deleteHighlight,
+                                searchQuery: _activeSearchQuery,
+                                epubBook: _epubBook,
+                              );
                             },
-                            onToggleControls: _toggleControls,
-                            onInteraction: _recordInteraction,
-                            searchQuery: _activeSearchQuery,
-                            epubBook: _epubBook,
-                            highlights: _highlights,
-                            onHighlight: _addHighlight,
-                            onDeleteHighlight: _deleteHighlight,
                           ),
                         )
                       else
@@ -1600,7 +1607,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             _recordInteraction();
                           },
                           onHideControls: _toggleControls,
-                          showControls: _showControls,
+                          showControls: _showControlsNotifier.value,
                           scrollProgressNotifier: _scrollProgressNotifier,
                         ),
                       _buildAnimatedControlsOverlay(context, book, settings),
@@ -1646,15 +1653,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   ) {
     final isEpub = book.filePath.toLowerCase().endsWith('.epub');
 
-    return Stack(
-      children: [
-        AnimatedPositioned(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          top: _showControls ? 0 : -200,
-          left: 0,
-
-          right: 0,
+    return ValueListenableBuilder<bool>(
+      valueListenable: _showControlsNotifier,
+      builder: (context, showControls, _) {
+        return Stack(
+          children: [
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              top: showControls ? 0 : -200,
+              left: 0,
+              right: 0,
           child: ValueListenableBuilder<String>(
             valueListenable: _currentTimeNotifier,
             builder: (context, currentTime, _) {
@@ -1706,10 +1715,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                   Navigator.of(context).pop();
                 },
                 onToggleSearch: () {
-                  setState(() {
-                    _isSearching = true;
-                    _showControls = true;
-                  });
+                  _isSearching = true;
+                  _setControlsVisibility(true);
+                  setState(() {});
                   _searchFocusNode.requestFocus();
                 },
                 onClearSearch: () {
@@ -1738,9 +1746,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         AnimatedPositioned(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
-          bottom: _showControls ? 0 : -800,
+          bottom: showControls ? 0 : -800,
           left: 0,
-
           right: 0,
           child: ReadingBottomControls(
             tocKey: _tocKey,
@@ -1843,6 +1850,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           ),
         ),
       ],
+    );
+      },
     );
   }
 

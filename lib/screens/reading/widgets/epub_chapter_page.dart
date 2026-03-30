@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -89,6 +90,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   Duration _lastElapsed = Duration.zero;
   String _processedHtml = '';
   SelectedContent? _selectedContent;
+  final Map<String, Uint8List> _imageCache = {};
 
   @override
   void initState() {
@@ -471,37 +473,68 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                           },
                           extensions: [
                             TagExtension(
-                              tagsToExtend: {"img"},
+                              tagsToExtend: {"img", "image"},
                               builder: (extensionContext) {
-                                final src = extensionContext.attributes['src'];
+                                final src = extensionContext.attributes['src'] ??
+                                    extensionContext.attributes['href'] ??
+                                    extensionContext.attributes['xlink:href'];
 
                                 if (src == null || widget.epubBook == null) {
                                   return const SizedBox.shrink();
                                 }
 
+                                if (src.startsWith('data:image/')) {
+                                  try {
+                                    if (!_imageCache.containsKey(src)) {
+                                      final parts = src.split(',');
+                                      if (parts.length == 2) {
+                                        _imageCache[src] = base64Decode(parts[1].trim());
+                                      }
+                                    }
+                                    final bytes = _imageCache[src];
+                                    if (bytes != null) {
+                                      return ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: MediaQuery.of(context).size.width - 40,
+                                        ),
+                                        child: Image.memory(
+                                          bytes,
+                                          fit: BoxFit.scaleDown,
+                                          gaplessPlayback: true,
+                                          filterQuality: FilterQuality.medium,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    return const SizedBox.shrink();
+                                  }
+                                }
+
                                 // Normalize path
-                                String path = src;
+                                String path = Uri.decodeComponent(src);
+                                path = path.split('?').first.split('#').first;
+                                
                                 while (path.startsWith('../')) {
                                   path = path.substring(3);
                                 }
                                 if (path.startsWith('/')) {
                                   path = path.substring(1);
                                 }
-                                // URL decode just in case
-                                path = Uri.decodeFull(path);
 
                                 final images = widget.epubBook?.Content?.Images;
                                 if (images == null) {
                                   return const SizedBox.shrink();
                                 }
 
-                                // Try exact match first, then by filename
+                                // Try exact match first
                                 EpubByteContentFile? imageFile = images[path];
 
+                                // Then try filename without directory prefixes
                                 if (imageFile == null) {
                                   final fileName = path.split('/').last;
                                   for (final file in images.values) {
-                                    if (file.FileName == fileName) {
+                                    if (file.FileName == fileName ||
+                                        file.FileName == Uri.decodeComponent(fileName)) {
                                       imageFile = file;
                                       break;
                                     }
@@ -509,15 +542,27 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                                 }
 
                                 if (imageFile != null) {
-                                  final content = imageFile.Content;
-                                  if (content != null) {
-                                    return Center(
+                                  if (!_imageCache.containsKey(path)) {
+                                    final content = imageFile.Content;
+                                    if (content != null) {
+                                      _imageCache[path] = content is Uint8List
+                                          ? content
+                                          : Uint8List.fromList(content);
+                                    }
+                                  }
+                                  
+                                  final bytes = _imageCache[path];
+                                  if (bytes != null) {
+                                    return ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: MediaQuery.of(context).size.width - 40,
+                                      ),
                                       child: Image.memory(
-                                        Uint8List.fromList(content),
-                                        width:
-                                            MediaQuery.of(context).size.width -
-                                            40,
-                                        fit: BoxFit.contain,
+                                        bytes,
+                                        key: ValueKey('img_${path.hashCode}_${bytes.length}'),
+                                        fit: BoxFit.scaleDown,
+                                        gaplessPlayback: true,
+                                        filterQuality: FilterQuality.medium,
                                       ),
                                     );
                                   }
@@ -606,6 +651,13 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                               display: Display.block,
                             ),
                             "img": Style(
+                              width: Width(
+                                MediaQuery.of(context).size.width - 40,
+                                Unit.px,
+                              ),
+                              alignment: Alignment.center,
+                            ),
+                            "image": Style(
                               width: Width(
                                 MediaQuery.of(context).size.width - 40,
                                 Unit.px,
@@ -940,27 +992,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     // Remove DOCTYPE declarations
     html = html.replaceAll(RegExp(r'<!DOCTYPE[^>]*>'), '');
 
-    final svgImageRegex = RegExp(
-      r'<svg[^>]*>.*?(<image[^>]*>).*?</svg>',
-      caseSensitive: false,
-      dotAll: true,
-    );
-
-    html = html.replaceAllMapped(svgImageRegex, (match) {
-      final imageTag = match.group(1);
-      if (imageTag != null) {
-        final hrefRegex = RegExp(
-          r'''(?:xlink:)?href=["']([^"']*)["']''',
-          caseSensitive: false,
-        );
-        final hrefMatch = hrefRegex.firstMatch(imageTag);
-        if (hrefMatch != null) {
-          final src = hrefMatch.group(1);
-          return '<img src="$src" style="width:100%; object-fit: contain;" />';
-        }
-      }
-      return match.group(0) ?? '';
-    });
+    // Prevent flutter_html from explicitly dropping the entire SVG node structure
+    // by renaming it to a generic block container. This preserves all `<image>` and `<text>` nodes.
+    html = html.replaceAll(RegExp(r'<svg', caseSensitive: false), '<div');
+    html = html.replaceAll(RegExp(r'</svg>', caseSensitive: false), '</div>');
 
     final bodyRegex = RegExp(
       r'(<body[^>]*>.*?</body>)',

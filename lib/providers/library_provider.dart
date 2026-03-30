@@ -280,19 +280,25 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   Future<void> _init() async {
-    await _loadGoal();
-    await loadBooks();
-    await _loadQuests();
+    try {
+      await _loadGoal();
+      await loadBooks();
+      await _loadQuests();
 
-    if (state.notificationsEnabled) {
-      await NotificationService().scheduleDailyReminder(
-        id: 999,
-        title: 'Time to read!',
-        body: 'Keep your streak alive and dive back into your books.',
-        hour: state.reminderHour,
-        minute: state.reminderMinute,
-      );
-      await NotificationService().scheduleWeekendBoostNotifications();
+      if (state.notificationsEnabled) {
+        await NotificationService().scheduleDailyReminder(
+          id: 999,
+          title: 'Time to read!',
+          body: 'Keep your streak alive and dive back into your books.',
+          hour: state.reminderHour,
+          minute: state.reminderMinute,
+        );
+        await NotificationService().scheduleWeekendBoostNotifications();
+      }
+    } catch (e) {
+      debugPrint('Error during LibraryNotifier init: $e');
+      // Ensure loading is stopped even on init error
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -384,33 +390,38 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
   Future<void> loadBooks() async {
     state = state.copyWith(isLoading: true);
-    final books = await _dbService.getBooks();
-    final sessions = await _dbService.getReadingSessions();
-    final questXp = await _dbService.getTotalQuestXP();
+    try {
+      final books = await _dbService.getBooks();
+      final sessions = await _dbService.getReadingSessions();
+      final questXp = await _dbService.getTotalQuestXP();
 
-    final streak = _calculateStreak(sessions);
-    final activity = _calculateDetailedActivity(sessions, books);
-    final stats = _calculateStats(sessions, books, questXp);
-    final visibleBooks = books.where((b) => !b.isDeleted).toList();
+      final streak = _calculateStreak(sessions);
+      final activity = _calculateDetailedActivity(sessions, books);
+      final stats = _calculateStats(sessions, books, questXp);
+      final visibleBooks = books.where((b) => !b.isDeleted).toList();
 
-    state = state.copyWith(
-      allBooks: visibleBooks,
-      filteredBooks: _applyFilters(visibleBooks, state),
-      isLoading: false,
-      currentStreak: streak,
-      isStreakActiveToday: _isStreakActiveToday(sessions),
-      dailyPages: activity.pages,
-      dailyMinutes: activity.minutes,
-      dailyXP: activity.xp,
-      totalXP: stats.xp,
-      level: stats.level,
-      totalPagesRead: stats.totalPages,
-      totalMinutesRead: stats.totalMinutes,
-      unlockedAchievements: stats.achievements,
-      sessionHistory: sessions,
-    );
+      state = state.copyWith(
+        allBooks: visibleBooks,
+        filteredBooks: _applyFilters(visibleBooks, state),
+        isLoading: false,
+        currentStreak: streak,
+        isStreakActiveToday: _isStreakActiveToday(sessions),
+        dailyPages: activity.pages,
+        dailyMinutes: activity.minutes,
+        dailyXP: activity.xp,
+        totalXP: stats.xp,
+        level: stats.level,
+        totalPagesRead: stats.totalPages,
+        totalMinutesRead: stats.totalMinutes,
+        unlockedAchievements: stats.achievements,
+        sessionHistory: sessions,
+      );
 
-    await _loadQuests();
+      await _loadQuests();
+    } catch (e) {
+      debugPrint('Error loading books: $e');
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   bool _isStreakActiveToday(List<Map<String, dynamic>> sessions) {
