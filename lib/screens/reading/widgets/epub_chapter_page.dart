@@ -762,13 +762,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       );
     }
 
-    const highlightColors = [
-      Color(0xFFE74C3C),
-      Color(0xFFF1C40F),
-      Color(0xFF2ECC71),
-      Color(0xFF3498DB),
-      Color(0xFF9B59B6),
-    ];
+    final highlightColors = YomuConstants.highlightColors;
 
     final anchors = selectableRegionState.contextMenuAnchors;
     final primaryAnchor = anchors.primaryAnchor;
@@ -943,10 +937,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       builder: (context) {
         return NoteEditor(
           initialMarkdown: existing?.note ?? '',
+          initialColor: existing?.color ?? '#F1C40F',
           settings: widget.settings,
           title: existing != null ? 'Edit Note' : 'Add Note',
           onSave: (newNote) {
-            final hexColor = existing?.color ?? '#${const Color(0xFFF1C40F).toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+            final hexColor = existing?.color ?? '#F1C40F';
             widget.onHighlight(Highlight(
               id: existing?.id,
               bookId: 0,
@@ -954,6 +949,18 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               text: text,
               note: newNote,
               color: hexColor,
+              createdAt: existing?.createdAt ?? DateTime.now(),
+              position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
+            ));
+          },
+          onSaveWithColor: (newNote, newColor) {
+            widget.onHighlight(Highlight(
+              id: existing?.id,
+              bookId: 0,
+              chapterIndex: widget.index,
+              text: text,
+              note: newNote,
+              color: newColor,
               createdAt: existing?.createdAt ?? DateTime.now(),
               position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
             ));

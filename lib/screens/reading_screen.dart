@@ -1349,8 +1349,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final dbService = DatabaseService();
 
     if (existing != null) {
-      // Update color of existing highlight
-      final updated = existing.copyWith(color: highlight.color);
+      // Update color and note of existing highlight
+      final updated = existing.copyWith(
+        color: highlight.color,
+        note: highlight.note,
+      );
       await dbService.updateHighlight(updated);
     } else {
       // Insert new highlight with correct bookId

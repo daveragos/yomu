@@ -18,7 +18,12 @@ class NoteEditor extends StatefulWidget {
     required this.onSave,
     this.settings,
     this.title = 'Edit Note',
+    this.initialColor,
+    this.onSaveWithColor,
   });
+
+  final String? initialColor;
+  final Function(String, String)? onSaveWithColor;
 
   @override
   State<NoteEditor> createState() => _NoteEditorState();
@@ -27,10 +32,12 @@ class NoteEditor extends StatefulWidget {
 class _NoteEditorState extends State<NoteEditor> {
   late QuillController _controller;
   final FocusNode _focusNode = FocusNode();
+  String? _currentColor;
 
   @override
   void initState() {
     super.initState();
+    _currentColor = widget.initialColor;
     _initializeController();
   }
 
@@ -83,7 +90,11 @@ class _NoteEditorState extends State<NoteEditor> {
   void _onSave() {
     final deltaToMd = DeltaToMarkdown();
     final markdown = deltaToMd.convert(_controller.document.toDelta());
-    widget.onSave(markdown);
+    if (widget.onSaveWithColor != null && _currentColor != null) {
+      widget.onSaveWithColor!(markdown, _currentColor!);
+    } else {
+      widget.onSave(markdown);
+    }
   }
 
   @override
@@ -134,6 +145,58 @@ class _NoteEditorState extends State<NoteEditor> {
               ],
             ),
           ),
+          if (_currentColor != null) ...[
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: YomuConstants.highlightColors.map((color) {
+                  final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+                  final isSelected = _currentColor == hexColor;
+                  return GestureDetector(
+                    onTap: () => setState(() => _currentColor = hexColor),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? color : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: color.withValues(alpha: 0.4),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: isSelected
+                              ? const Icon(Icons.check, size: 16, color: Colors.black)
+                              : null,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           const Divider(height: 1, color: Colors.white10),
           QuillSimpleToolbar(
             controller: _controller,

@@ -1,6 +1,10 @@
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:epub_view/epub_view.dart' show EpubChapter;
 import 'package:pdfrx/pdfrx.dart' show PdfOutlineNode;
+
 import '../../../models/book_model.dart';
 import '../../../models/bookmark_model.dart';
 import '../../../models/highlight_model.dart';
@@ -28,7 +32,7 @@ class NavigationSheet extends StatefulWidget {
   final Future<void> Function(Bookmark) onDeleteBookmark;
   final Future<void> Function(List<Bookmark>) onDeleteBookmarks;
   final void Function(Bookmark) onBookmarkTap;
-  final void Function(Highlight) onUpdateHighlight;
+  final Future<void> Function(Highlight) onUpdateHighlight;
   final String Function(DateTime) formatDate;
   final void Function(int)? onJumpToPage;
   final void Function(double)? onJumpToPercent;
@@ -78,6 +82,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
   bool _isSelectionMode = false;
   final Set<int> _selectedHighlightIds = {};
   final Set<Bookmark> _selectedBookmarks = {};
+  String? _selectedFilterColor;
 
   @override
   void initState() {
@@ -223,7 +228,65 @@ class _NavigationSheetState extends State<NavigationSheet> {
     }
   }
 
-  void _showNoteDetailSheet(BuildContext context, Highlight h) {
+  Future<void> _shareSelectedAsMarkdown(List<Bookmark> bookmarks, List<Highlight> highlights) async {
+    final buffer = StringBuffer();
+    buffer.writeln('# ${widget.book.title} - Selected Annotations');
+    buffer.writeln('*Exported with Yomu — ${DateTime.now().year}*');
+    buffer.writeln();
+    if (widget.book.author.isNotEmpty) buffer.writeln('**Author:** ${widget.book.author}');
+    buffer.writeln('**Shared on:** ${widget.formatDate(DateTime.now())}');
+    buffer.writeln();
+
+    if (bookmarks.isNotEmpty) {
+      buffer.writeln('## Bookmarks');
+      for (final b in bookmarks) {
+        buffer.writeln('- ${b.title} (${(b.progress * 100).toStringAsFixed(1)}%) — ${widget.formatDate(b.createdAt)}');
+      }
+      buffer.writeln();
+    }
+
+    if (highlights.isNotEmpty) {
+      buffer.writeln('## Highlights & Notes');
+      for (final h in highlights) {
+        buffer.writeln('> ${h.text}');
+        buffer.writeln();
+        if (h.note != null && h.note!.isNotEmpty) {
+          buffer.writeln('**Note:** ${h.note}');
+          buffer.writeln();
+        }
+        final pos = h.position.contains(':')
+            ? 'Chapter ${int.parse(h.position.split(':')[0]) + 1}'
+            : 'Page ${h.chapterIndex + 1}';
+        buffer.writeln('*Position: $pos — ${widget.formatDate(h.createdAt)}*');
+        buffer.writeln('---');
+      }
+    }
+
+    buffer.writeln();
+    buffer.writeln('*Exported with Yomu*');
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final fileName = 'yomu_selection_${DateTime.now().millisecondsSinceEpoch}.md';
+      final file = io.File('${directory.path}/$fileName');
+      await file.writeAsString(buffer.toString());
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: '${widget.book.title} - Selections',
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to share: $e')),
+        );
+      }
+    }
+  }
+
+  void _showNoteDetailSheet(BuildContext context, Highlight h, StateSetter setSheetState) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -280,23 +343,20 @@ class _NavigationSheetState extends State<NavigationSheet> {
                               backgroundColor: Colors.transparent,
                               builder: (context) => NoteEditor(
                                 initialMarkdown: h.note ?? '',
+                                initialColor: h.color,
                                 settings: widget.readerSettings,
-                                onSave: (newNote) async {
-                                  final updatedHighlight = Highlight(
-                                    id: h.id,
-                                    bookId: h.bookId,
-                                    chapterIndex: h.chapterIndex,
-                                    text: h.text,
+                                onSave: (newNote) => widget.onUpdateHighlight(h.copyWith(note: newNote)),
+                                onSaveWithColor: (newNote, newColor) async {
+                                  final updatedHighlight = h.copyWith(
                                     note: newNote,
-                                    color: h.color,
-                                    createdAt: h.createdAt,
-                                    position: h.position,
+                                    color: newColor,
                                   );
-                                  widget.onUpdateHighlight(updatedHighlight);
-                                  // The FutureBuilder in _buildBookmarksList will refresh
+                                  await widget.onUpdateHighlight(updatedHighlight);
                                 },
                               ),
-                            );
+                            ).then((_) {
+                              setSheetState(() {});
+                            });
                           },
                         ),
                         Text(
@@ -447,12 +507,17 @@ class _NavigationSheetState extends State<NavigationSheet> {
 
             // Combine and sort by date or context if needed, 
             // for now let's keep them in sections but with the new header
-            final totalCount = bookmarks.length + highlights.length;
+            final filteredHighlights = _selectedFilterColor == null
+                ? highlights
+                : highlights.where((h) => h.color == _selectedFilterColor).toList();
+            
+            final highlightsCount = highlights.length;
+            final filteredHighlightsCount = filteredHighlights.length;
 
             return Column(
               children: [
                 _AnnotationHeader(
-                  count: totalCount,
+                  count: _selectedFilterColor == null ? bookmarks.length + highlightsCount : bookmarks.length + filteredHighlightsCount,
                   isSelectionMode: _isSelectionMode,
                   selectedCount: _selectedHighlightIds.length + _selectedBookmarks.length,
                   onToggleSelection: () => setSheetState(() => _isSelectionMode = true),
@@ -475,12 +540,29 @@ class _NavigationSheetState extends State<NavigationSheet> {
                     });
                   },
                   onExport: widget.onExport,
+                  onShareSelected: () {
+                    final selectedHighlights = highlights.where((h) => _selectedHighlightIds.contains(h.id)).toList();
+                    _shareSelectedAsMarkdown(_selectedBookmarks.toList(), selectedHighlights);
+                  },
                 ),
+                if (!_isSelectionMode && highlights.isNotEmpty)
+                  _ColorFilterBar(
+                    selectedColor: _selectedFilterColor,
+                    onColorTap: (color) {
+                      setSheetState(() {
+                        if (_selectedFilterColor == color) {
+                          _selectedFilterColor = null;
+                        } else {
+                          _selectedFilterColor = color;
+                        }
+                      });
+                    },
+                  ),
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     children: [
-                      if (bookmarks.isNotEmpty) ...[
+                      if (bookmarks.isNotEmpty && _selectedFilterColor == null) ...[
                         ...bookmarks.map((bookmark) {
                           final isSelected = _selectedBookmarks.contains(bookmark);
                           return _AnnotationCard(
@@ -528,8 +610,8 @@ class _NavigationSheetState extends State<NavigationSheet> {
                           );
                         }),
                       ],
-                      if (highlights.isNotEmpty) ...[
-                        ...highlights.map((h) {
+                      if (filteredHighlights.isNotEmpty) ...[
+                        ...filteredHighlights.map((h) {
                           final isSelected = _selectedHighlightIds.contains(h.id);
                           return _AnnotationCard(
                             readerSettings: widget.readerSettings,
@@ -566,7 +648,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
                                   }
                                 });
                               } else {
-                                _showNoteDetailSheet(context, h);
+                                _showNoteDetailSheet(context, h, setSheetState);
                               }
                             },
                             onLongPress: () {
@@ -831,6 +913,7 @@ class _AnnotationHeader extends StatelessWidget {
   final VoidCallback onToggleSelection;
   final VoidCallback onDeleteSelected;
   final VoidCallback onCloseSelection;
+  final VoidCallback onShareSelected;
   final VoidCallback? onExport;
 
   const _AnnotationHeader({
@@ -840,6 +923,7 @@ class _AnnotationHeader extends StatelessWidget {
     required this.onToggleSelection,
     required this.onDeleteSelected,
     required this.onCloseSelection,
+    required this.onShareSelected,
     this.onExport,
   });
 
@@ -882,8 +966,13 @@ class _AnnotationHeader extends StatelessWidget {
           ),
           if (isSelectionMode) ...[
             IconButton(
+              icon: const Icon(Icons.ios_share_rounded, color: YomuConstants.accent, size: 20),
+              onPressed: selectedCount > 0 ? onShareSelected : null,
+              tooltip: 'Share selected',
+            ),
+            IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-              onPressed: onDeleteSelected,
+              onPressed: selectedCount > 0 ? onDeleteSelected : null,
               tooltip: 'Delete selected',
             ),
             IconButton(
@@ -906,6 +995,73 @@ class _AnnotationHeader extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ColorFilterBar extends StatelessWidget {
+  final String? selectedColor;
+  final Function(String?) onColorTap;
+
+  const _ColorFilterBar({
+    required this.selectedColor,
+    required this.onColorTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.01),
+        border: const Border(
+          bottom: BorderSide(color: Colors.white10),
+        ),
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: FilterChip(
+              label: const Text('ALL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+              selected: selectedColor == null,
+              onSelected: (_) => onColorTap(null),
+              backgroundColor: Colors.transparent,
+              selectedColor: YomuConstants.accent.withValues(alpha: 0.2),
+              checkmarkColor: YomuConstants.accent,
+              side: BorderSide(color: selectedColor == null ? YomuConstants.accent : Colors.white10),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 8),
+          ...YomuConstants.highlightColors.map((color) {
+            final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+            final isSelected = selectedColor == hexColor;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+              child: FilterChip(
+                label: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                selected: isSelected,
+                onSelected: (_) => onColorTap(hexColor),
+                backgroundColor: color.withValues(alpha: 0.1),
+                selectedColor: color.withValues(alpha: 0.3),
+                checkmarkColor: Colors.white,
+                side: BorderSide(color: isSelected ? color : Colors.transparent),
+                visualDensity: VisualDensity.compact,
+              ),
+            );
+          }),
         ],
       ),
     );

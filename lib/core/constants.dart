@@ -73,6 +73,15 @@ class YomuConstants {
     ),
   ];
 
+  // Highlight Colors
+  static const List<Color> highlightColors = [
+    Color(0xFFE74C3C), // Red
+    Color(0xFFF1C40F), // Yellow
+    Color(0xFF2ECC71), // Green
+    Color(0xFF3498DB), // Blue
+    Color(0xFF9B59B6), // Purple
+  ];
+
   static YomuRank getRankForLevel(int level, int achievementCount) {
     YomuRank current = ranks.first;
     for (final rank in ranks) {
