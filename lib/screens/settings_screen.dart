@@ -18,7 +18,7 @@ class SettingsScreen extends ConsumerWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            backgroundColor: YomuConstants.background.withOpacity(0.8),
+            backgroundColor: YomuConstants.background.withValues(alpha: 0.8),
             floating: true,
             title: const Text(
               'Settings',
@@ -57,7 +57,7 @@ class SettingsScreen extends ConsumerWidget {
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: YomuConstants.accent.withOpacity(0.8),
+          color: YomuConstants.accent.withValues(alpha: 0.8),
           fontSize: 12,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -78,7 +78,7 @@ class SettingsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: YomuConstants.accent.withOpacity(0.1),
+                    color: YomuConstants.accent.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -103,7 +103,7 @@ class SettingsScreen extends ConsumerWidget {
                       Text(
                         state.rankName,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
+                          color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 14,
                         ),
                       ),
@@ -159,9 +159,9 @@ class SettingsScreen extends ConsumerWidget {
               ),
               subtitle: Text(
                 'Keep your reading streak alive',
-                style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
               ),
-              activeColor: YomuConstants.accent,
+              activeThumbColor: YomuConstants.accent,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 8,
@@ -247,7 +247,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: Text(
                 'Support the developer and the project \u2764\uFE0F',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,
                 ),
               ),
@@ -265,7 +265,7 @@ class SettingsScreen extends ConsumerWidget {
                 }
               },
             ),
-            Divider(color: Colors.white.withOpacity(0.1), height: 1),
+            Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
             ListTile(
               leading: const Icon(
                 Icons.code_rounded,
@@ -281,7 +281,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: Text(
                 'Help build the future of Yomu \uD83D\uDE80',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,
                 ),
               ),

@@ -4,7 +4,10 @@ import 'package:pdfrx/pdfrx.dart' show PdfOutlineNode;
 import '../../../models/book_model.dart';
 import '../../../models/bookmark_model.dart';
 import '../../../models/highlight_model.dart';
+import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
+import './note_editor.dart';
+import './note_view.dart';
 
 class NavigationSheet extends StatefulWidget {
   final Book book;
@@ -17,16 +20,22 @@ class NavigationSheet extends StatefulWidget {
   final Function(int) onChapterTap;
   final Function(PdfOutlineNode) onPdfOutlineTap;
   final Future<List<Bookmark>> Function() getBookmarks;
+  final Future<List<Highlight>> Function() getHighlights;
   final List<Highlight> highlights;
   final Function(Highlight) onHighlightTap;
+  final Future<void> Function(int) onDeleteHighlight;
+  final Future<void> Function(List<int>) onDeleteHighlights;
   final Future<void> Function(Bookmark) onDeleteBookmark;
-  final Function(Bookmark) onBookmarkTap;
+  final Future<void> Function(List<Bookmark>) onDeleteBookmarks;
+  final void Function(Bookmark) onBookmarkTap;
+  final void Function(Highlight) onUpdateHighlight;
   final String Function(DateTime) formatDate;
-  final Function(int)? onJumpToPage;
-  final Function(double)? onJumpToPercent;
+  final void Function(int)? onJumpToPage;
+  final void Function(double)? onJumpToPercent;
   final VoidCallback? onExport;
   final bool focusJump;
   final int totalPages;
+  final ReaderSettings readerSettings;
 
   const NavigationSheet({
     super.key,
@@ -40,16 +49,22 @@ class NavigationSheet extends StatefulWidget {
     required this.onChapterTap,
     required this.onPdfOutlineTap,
     required this.getBookmarks,
+    required this.getHighlights,
     required this.highlights,
     required this.onHighlightTap,
+    required this.onDeleteHighlight,
+    required this.onDeleteHighlights,
     required this.onDeleteBookmark,
+    required this.onDeleteBookmarks,
     required this.onBookmarkTap,
+    required this.onUpdateHighlight,
     required this.formatDate,
     this.onJumpToPage,
     this.onJumpToPercent,
     this.onExport,
     this.focusJump = false,
     this.totalPages = 0,
+    required this.readerSettings,
   });
 
   @override
@@ -59,6 +74,10 @@ class NavigationSheet extends StatefulWidget {
 class _NavigationSheetState extends State<NavigationSheet> {
   final TextEditingController _jumpController = TextEditingController();
   final FocusNode _jumpFocusNode = FocusNode();
+  
+  bool _isSelectionMode = false;
+  final Set<int> _selectedHighlightIds = {};
+  final Set<Bookmark> _selectedBookmarks = {};
 
   @override
   void initState() {
@@ -106,7 +125,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
               unselectedLabelColor: Colors.white54,
               tabs: [
                 Tab(text: 'CHAPTERS'),
-                Tab(text: 'BOOKMARKS'),
+                Tab(text: 'ANNOTATIONS'),
               ],
             ),
             Expanded(
@@ -204,6 +223,145 @@ class _NavigationSheetState extends State<NavigationSheet> {
     }
   }
 
+  void _showNoteDetailSheet(BuildContext context, Highlight h) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: const BoxDecoration(
+          color: YomuConstants.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: YomuConstants.accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'HIGHLIGHT',
+                            style: TextStyle(
+                              color: YomuConstants.accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.edit_note_rounded, color: YomuConstants.accent),
+                          onPressed: () {
+                            Navigator.pop(context); // Close detail sheet
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (context) => NoteEditor(
+                                initialMarkdown: h.note ?? '',
+                                settings: widget.readerSettings,
+                                onSave: (newNote) async {
+                                  final updatedHighlight = Highlight(
+                                    id: h.id,
+                                    bookId: h.bookId,
+                                    chapterIndex: h.chapterIndex,
+                                    text: h.text,
+                                    note: newNote,
+                                    color: h.color,
+                                    createdAt: h.createdAt,
+                                    position: h.position,
+                                  );
+                                  widget.onUpdateHighlight(updatedHighlight);
+                                  // The FutureBuilder in _buildBookmarksList will refresh
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                        Text(
+                          widget.formatDate(h.createdAt),
+                          style: const TextStyle(
+                            color: Colors.white24,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: Text(
+                        h.text,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          height: 1.6,
+                          fontStyle: FontStyle.italic,
+                          fontFamily: 'Serif',
+                        ),
+                      ),
+                    ),
+                    if (h.note != null && h.note!.isNotEmpty) ...[
+                      const SizedBox(height: 32),
+                      Row(
+                        children: [
+                          const Icon(Icons.notes_rounded, color: YomuConstants.accent, size: 20),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'MY NOTE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      NoteView(
+                        markdown: h.note!,
+                        settings: widget.readerSettings,
+                        fontSize: 16,
+                        textColor: Colors.white70,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildChaptersList() {
     if (widget.book.filePath.toLowerCase().endsWith('.epub')) {
       return SingleChildScrollView(
@@ -243,27 +401,42 @@ class _NavigationSheetState extends State<NavigationSheet> {
   Widget _buildBookmarksList() {
     return StatefulBuilder(
       builder: (context, setSheetState) {
-        return FutureBuilder<List<Bookmark>>(
-          future: widget.getBookmarks(),
+        return FutureBuilder<List<dynamic>>(
+          future: Future.wait([
+            widget.getBookmarks(),
+            widget.getHighlights(),
+          ]),
           builder: (context, snapshot) {
-            if (!snapshot.hasData ||
-                (snapshot.data!.isEmpty && widget.highlights.isEmpty)) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final bookmarks = snapshot.data![0] as List<Bookmark>;
+            final highlights = snapshot.data![1] as List<Highlight>;
+
+            if (bookmarks.isEmpty && highlights.isEmpty) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const Icon(Icons.note_alt_outlined, size: 64, color: Colors.white10),
+                    const SizedBox(height: 16),
                     const Text(
-                      'No bookmarks or highlights found',
-                      style: TextStyle(color: Colors.white54),
+                      'No annotations found yet',
+                      style: TextStyle(color: Colors.white54, fontSize: 16),
                     ),
                     if (widget.onExport != null) ...[
-                      const SizedBox(height: 16),
-                      TextButton.icon(
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
                         onPressed: widget.onExport,
                         icon: const Icon(Icons.ios_share_rounded, size: 18),
                         label: const Text('Export Current Book'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: YomuConstants.accent,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: YomuConstants.accent,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ],
@@ -272,127 +445,140 @@ class _NavigationSheetState extends State<NavigationSheet> {
               );
             }
 
-            final bookmarks = snapshot.data!;
+            // Combine and sort by date or context if needed, 
+            // for now let's keep them in sections but with the new header
+            final totalCount = bookmarks.length + highlights.length;
+
             return Column(
               children: [
-                if (widget.onExport != null)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton.icon(
-                          onPressed: widget.onExport,
-                          icon: const Icon(Icons.ios_share_rounded, size: 18),
-                          label: const Text('Export Annotations'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: YomuConstants.accent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                _AnnotationHeader(
+                  count: totalCount,
+                  isSelectionMode: _isSelectionMode,
+                  selectedCount: _selectedHighlightIds.length + _selectedBookmarks.length,
+                  onToggleSelection: () => setSheetState(() => _isSelectionMode = true),
+                  onCloseSelection: () => setSheetState(() {
+                    _isSelectionMode = false;
+                    _selectedHighlightIds.clear();
+                    _selectedBookmarks.clear();
+                  }),
+                  onDeleteSelected: () async {
+                    if (_selectedHighlightIds.isNotEmpty) {
+                      await widget.onDeleteHighlights(_selectedHighlightIds.toList());
+                    }
+                    if (_selectedBookmarks.isNotEmpty) {
+                      await widget.onDeleteBookmarks(_selectedBookmarks.toList());
+                    }
+                    setSheetState(() {
+                      _isSelectionMode = false;
+                      _selectedHighlightIds.clear();
+                      _selectedBookmarks.clear();
+                    });
+                  },
+                  onExport: widget.onExport,
+                ),
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     children: [
                       if (bookmarks.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            'BOOKMARKS',
-                            style: TextStyle(
-                              color: YomuConstants.accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ...bookmarks.map(
-                          (bookmark) => ListTile(
-                            title: Text(
-                              bookmark.title,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            subtitle: Text(
-                              '${(bookmark.progress * 100).toStringAsFixed(1)}% • ${widget.formatDate(bookmark.createdAt)}',
-                              style: const TextStyle(
-                                color: Colors.white54,
-                                fontSize: 12,
-                              ),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.white38,
-                              ),
-                              onPressed: () async {
-                                await widget.onDeleteBookmark(bookmark);
-                                setSheetState(() {});
-                              },
-                            ),
-                            onTap: () => widget.onBookmarkTap(bookmark),
-                          ),
-                        ),
+                        ...bookmarks.map((bookmark) {
+                          final isSelected = _selectedBookmarks.contains(bookmark);
+                          return _AnnotationCard(
+                            readerSettings: widget.readerSettings,
+                            title: bookmark.title,
+                            text: '${(bookmark.progress * 100).toStringAsFixed(1)}%',
+                            date: widget.formatDate(bookmark.createdAt),
+                            isHighlight: false,
+                            isSelectionMode: _isSelectionMode,
+                            isSelected: isSelected,
+                            onSelectedChanged: (val) {
+                              setSheetState(() {
+                                if (val == true) {
+                                  _selectedBookmarks.add(bookmark);
+                                } else {
+                                  _selectedBookmarks.remove(bookmark);
+                                }
+                              });
+                            },
+                            onDelete: () async {
+                              await widget.onDeleteBookmark(bookmark);
+                              setSheetState(() {});
+                            },
+                            onTap: () {
+                              if (_isSelectionMode) {
+                                setSheetState(() {
+                                  if (isSelected) {
+                                    _selectedBookmarks.remove(bookmark);
+                                  } else {
+                                    _selectedBookmarks.add(bookmark);
+                                  }
+                                });
+                              } else {
+                                widget.onBookmarkTap(bookmark);
+                              }
+                            },
+                            onLongPress: () {
+                              if (!_isSelectionMode) {
+                                setSheetState(() {
+                                  _isSelectionMode = true;
+                                  _selectedBookmarks.add(bookmark);
+                                });
+                              }
+                            },
+                          );
+                        }),
                       ],
-                      if (widget.highlights.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.only(
-                            left: 16,
-                            right: 16,
-                            top: 16,
-                            bottom: 8,
-                          ),
-                          child: Text(
-                            'HIGHLIGHTS & NOTES',
-                            style: TextStyle(
-                              color: YomuConstants.accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ...widget.highlights.map(
-                          (h) => ListTile(
-                            title: Text(
-                              h.text,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (h.note != null && h.note!.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      'Note: ${h.note}',
-                                      style: const TextStyle(
-                                        color: YomuConstants.accent,
-                                        fontSize: 12,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ),
-                                Text(
-                                  widget.formatDate(h.createdAt),
-                                  style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            onTap: () => widget.onHighlightTap(h),
-                          ),
-                        ),
+                      if (highlights.isNotEmpty) ...[
+                        ...highlights.map((h) {
+                          final isSelected = _selectedHighlightIds.contains(h.id);
+                          return _AnnotationCard(
+                            readerSettings: widget.readerSettings,
+                            text: h.text,
+                            note: h.note,
+                            date: widget.formatDate(h.createdAt),
+                            isHighlight: true,
+                            isSelectionMode: _isSelectionMode,
+                            isSelected: isSelected,
+                            onSelectedChanged: (val) {
+                              setSheetState(() {
+                                if (val == true && h.id != null) {
+                                  _selectedHighlightIds.add(h.id!);
+                                } else if (h.id != null) {
+                                  _selectedHighlightIds.remove(h.id!);
+                                }
+                              });
+                            },
+                            onDelete: () async {
+                              if (h.id != null) {
+                                await widget.onDeleteHighlight(h.id!);
+                                setSheetState(() {});
+                              }
+                            },
+                            onTap: () {
+                              if (_isSelectionMode) {
+                                setSheetState(() {
+                                  if (h.id != null) {
+                                    if (isSelected) {
+                                      _selectedHighlightIds.remove(h.id!);
+                                    } else {
+                                      _selectedHighlightIds.add(h.id!);
+                                    }
+                                  }
+                                });
+                              } else {
+                                _showNoteDetailSheet(context, h);
+                              }
+                            },
+                            onLongPress: () {
+                              if (!_isSelectionMode && h.id != null) {
+                                setSheetState(() {
+                                  _isSelectionMode = true;
+                                  _selectedHighlightIds.add(h.id!);
+                                });
+                              }
+                            },
+                          );
+                        }),
                       ],
                     ],
                   ),
@@ -634,6 +820,274 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
             }).toList(),
           ),
       ],
+    );
+  }
+}
+
+class _AnnotationHeader extends StatelessWidget {
+  final int count;
+  final bool isSelectionMode;
+  final int selectedCount;
+  final VoidCallback onToggleSelection;
+  final VoidCallback onDeleteSelected;
+  final VoidCallback onCloseSelection;
+  final VoidCallback? onExport;
+
+  const _AnnotationHeader({
+    required this.count,
+    required this.isSelectionMode,
+    required this.selectedCount,
+    required this.onToggleSelection,
+    required this.onDeleteSelected,
+    required this.onCloseSelection,
+    this.onExport,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.02),
+        border: const Border(
+          bottom: BorderSide(color: Colors.white10),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isSelectionMode ? '$selectedCount SELECTED' : 'ANNOTATIONS',
+                  style: const TextStyle(
+                    color: YomuConstants.accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                if (!isSelectionMode)
+                  Text(
+                    '$count items',
+                    style: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 10,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+              onPressed: onDeleteSelected,
+              tooltip: 'Delete selected',
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+              onPressed: onCloseSelection,
+              tooltip: 'Cancel selection',
+            ),
+          ] else ...[
+            if (onExport != null)
+              IconButton(
+                icon: const Icon(Icons.ios_share_rounded, color: YomuConstants.accent, size: 18),
+                onPressed: onExport,
+                tooltip: 'Export',
+              ),
+            TextButton(
+              onPressed: onToggleSelection,
+              child: const Text(
+                'SELECT',
+                style: TextStyle(color: YomuConstants.accent, fontSize: 12),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AnnotationCard extends StatelessWidget {
+  final String? title;
+  final String text;
+  final String? note;
+  final String date;
+  final bool isHighlight;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final ValueChanged<bool?>? onSelectedChanged;
+  final VoidCallback? onDelete;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final ReaderSettings readerSettings;
+
+  const _AnnotationCard({
+    this.title,
+    required this.text,
+    this.note,
+    required this.date,
+    required this.isHighlight,
+    required this.isSelectionMode,
+    required this.isSelected,
+    this.onSelectedChanged,
+    this.onDelete,
+    required this.onTap,
+    required this.onLongPress,
+    required this.readerSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Material(
+        color: isSelected 
+            ? YomuConstants.accent.withValues(alpha: 0.1) 
+            : Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isSelectionMode) ...[
+                  Checkbox(
+                    value: isSelected,
+                    activeColor: YomuConstants.accent,
+                    onChanged: onSelectedChanged,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isHighlight) ...[
+                        Container(
+                          padding: const EdgeInsets.only(left: 12),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              left: BorderSide(
+                                color: YomuConstants.accent,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            text,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              height: 1.5,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          title ?? 'Bookmark',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (text.isNotEmpty && text != title)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              text,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      if (note != null && note!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.notes_rounded, 
+                                    color: YomuConstants.accent.withValues(alpha: 0.7), 
+                                    size: 14),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'NOTE',
+                                    style: TextStyle(
+                                      color: YomuConstants.accent.withValues(alpha: 0.7),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              NoteView(
+                                markdown: note!,
+                                settings: readerSettings,
+                                fontSize: 13,
+                                textColor: Colors.white70,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            date,
+                            style: const TextStyle(
+                              color: Colors.white24,
+                              fontSize: 11,
+                            ),
+                          ),
+                          if (!isSelectionMode && onDelete != null)
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, 
+                                color: Colors.white24, size: 20),
+                              onPressed: onDelete,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              style: const ButtonStyle(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

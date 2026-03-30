@@ -684,7 +684,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                   icon: Icon(
                                     Icons.delete_outline_rounded,
                                     color: settings.secondaryTextColor
-                                        .withOpacity(0.5),
+                                        .withValues(alpha: 0.5),
                                     size: 20,
                                   ),
                                   onPressed: () async {
@@ -694,7 +694,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 Icon(
                                   Icons.drag_handle,
                                   color: settings.secondaryTextColor
-                                      .withOpacity(0.3),
+                                      .withValues(alpha: 0.3),
                                   size: 20,
                                 ),
                               ],
@@ -1341,7 +1341,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         .where(
           (h) =>
               h.chapterIndex == highlight.chapterIndex &&
-              h.text == highlight.text,
+              h.text == highlight.text &&
+              h.position == highlight.position,
         )
         .firstOrNull;
 
@@ -1495,8 +1496,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           },
                           onPointerUp: (event) {
                             if (_epubPointerDownTime == null ||
-                                _epubPointerDownPosition == null)
+                                _epubPointerDownPosition == null) {
                               return;
+                            }
                             final elapsed = DateTime.now().difference(
                               _epubPointerDownTime!,
                             );
@@ -1544,6 +1546,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 highlights: _highlights,
                                 onHighlight: _addHighlight,
                                 onDeleteHighlight: _deleteHighlight,
+                                onLookup: (word) => ref
+                                    .read(libraryProvider.notifier)
+                                    .recordDictionaryLookup(word),
                                 searchQuery: _activeSearchQuery,
                                 epubBook: _epubBook,
                               );
@@ -1876,60 +1881,61 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       final List<SearchResult> results = [];
       if (book.filePath.toLowerCase().endsWith('.pdf')) {
         // PDF Search mirroring EPUB behavior
-        final doc = _pdfController?.document;
-        if (doc != null && _pdfSearcher != null) {
-          // Track the query for highlighting in the PDF view
-          _pdfSearcher!.startTextSearch(
-            query,
-            goToFirstMatch: false,
-            searchImmediately: true,
-          );
+        await _pdfController?.useDocument((doc) async {
+          if (_pdfSearcher != null) {
+            // Track the query for highlighting in the PDF view
+            _pdfSearcher!.startTextSearch(
+              query,
+              goToFirstMatch: false,
+              searchImmediately: true,
+            );
 
-          for (int i = 0; i < doc.pages.length; i++) {
-            final page = doc.pages[i];
-            final pageText = await page.loadText();
-            final plainText = pageText.fullText;
-            final lowerText = plainText.toLowerCase();
-            final lowerQuery = query.toLowerCase();
+            for (int i = 0; i < doc.pages.length; i++) {
+              final page = doc.pages[i];
+              final pageText = await page.loadText();
+              final plainText = pageText.fullText;
+              final lowerText = plainText.toLowerCase();
+              final lowerQuery = query.toLowerCase();
 
-            int startIndex = 0;
-            while (true) {
-              final index = lowerText.indexOf(lowerQuery, startIndex);
-              if (index == -1) break;
+              int startIndex = 0;
+              while (true) {
+                final index = lowerText.indexOf(lowerQuery, startIndex);
+                if (index == -1) break;
 
-              final snippetStart = (index - 40).clamp(0, plainText.length);
-              final snippetEnd = (index + query.length + 60).clamp(
-                0,
-                plainText.length,
-              );
-              final snippet = plainText
-                  .substring(snippetStart, snippetEnd)
-                  .replaceAll('\n', ' ')
-                  .trim();
+                final snippetStart = (index - 40).clamp(0, plainText.length);
+                final snippetEnd = (index + query.length + 60).clamp(
+                  0,
+                  plainText.length,
+                );
+                final snippet = plainText
+                    .substring(snippetStart, snippetEnd)
+                    .replaceAll('\n', ' ')
+                    .trim();
 
-              // Create a match object for precise navigation later
-              final match = PdfTextRangeWithFragments.fromTextRange(
-                pageText,
-                index,
-                index + query.length,
-              );
+                // Create a match object for precise navigation later
+                final match = PdfTextRangeWithFragments.fromTextRange(
+                  pageText,
+                  index,
+                  index + query.length,
+                );
 
-              results.add(
-                SearchResult(
-                  pageIndex: i,
-                  title: 'Page ${i + 1}',
-                  snippet: '...$snippet...',
-                  query: query,
-                  metadata: match,
-                ),
-              );
+                results.add(
+                  SearchResult(
+                    pageIndex: i,
+                    title: 'Page ${i + 1}',
+                    snippet: '...$snippet...',
+                    query: query,
+                    metadata: match,
+                  ),
+                );
 
-              startIndex = index + query.length;
+                startIndex = index + query.length;
+                if (results.length >= 30) break;
+              }
               if (results.length >= 30) break;
             }
-            if (results.length >= 30) break;
           }
-        }
+        });
       } else {
         // EPUB Search
         for (int i = 0; i < _chapters.length; i++) {
@@ -2050,7 +2056,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     buffer.writeln('# ${book.title}');
     buffer.writeln('*Exported with Yomu — ${DateTime.now().year}*');
     buffer.writeln();
-    if (book.author != null) buffer.writeln('**Author:** ${book.author}');
+    if (book.author.isNotEmpty) buffer.writeln('**Author:** ${book.author}');
     buffer.writeln('**Exported on:** ${_formatDate(DateTime.now())}');
     buffer.writeln();
 
@@ -2093,9 +2099,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       final file = io.File(p.join(directory.path, fileName));
       await file.writeAsString(buffer.toString());
 
-      await Share.shareXFiles([
-        XFile(file.path),
-      ], subject: '${book.title} - Annotations');
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: '${book.title} - Annotations',
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -2125,6 +2134,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       isScrollControlled: true,
       builder: (context) {
         return NavigationSheet(
+          readerSettings: settings,
           book: book,
           chapters: _chapters,
           tocChapters: _epubBook?.Chapters ?? [],
@@ -2135,6 +2145,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           totalPages: _pdfPages,
           focusJump: focusJump,
           onExport: () => _exportToMarkdown(book),
+          onUpdateHighlight: (h) async {
+            await DatabaseService().updateHighlight(h);
+            final updatedHighlights =
+                await DatabaseService().getHighlightsForBook(book.id!);
+            if (mounted) {
+              setState(() {
+                _highlights = updatedHighlights;
+              });
+            }
+          },
           onChapterTap: (index) {
             Navigator.pop(context);
             if (index != _currentChapterIndex) {
@@ -2171,6 +2191,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           },
           getBookmarks: () =>
               ref.read(libraryProvider.notifier).getBookmarks(book.id!),
+          getHighlights: () =>
+              DatabaseService().getHighlightsForBook(book.id!),
           highlights: _highlights,
           onHighlightTap: (h) {
             Navigator.pop(context);
@@ -2196,10 +2218,33 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               }
             }
           },
+          onDeleteHighlight: (id) async {
+            await _deleteHighlight(id);
+          },
+          onDeleteHighlights: (ids) async {
+            final dbService = DatabaseService();
+            for (final id in ids) {
+              await dbService.deleteHighlight(id);
+            }
+            if (book.id != null) {
+              final highlights = await dbService.getHighlightsForBook(book.id!);
+              if (mounted) {
+                setState(() => _highlights = highlights);
+              }
+            }
+          },
           onDeleteBookmark: (bookmark) async {
             await ref
                 .read(libraryProvider.notifier)
                 .deleteBookmark(bookmark.id!);
+            await _loadBookmarks();
+          },
+          onDeleteBookmarks: (bookmarks) async {
+            for (final bookmark in bookmarks) {
+              await ref
+                  .read(libraryProvider.notifier)
+                  .deleteBookmark(bookmark.id!);
+            }
             await _loadBookmarks();
           },
           onBookmarkTap: (bookmark) {

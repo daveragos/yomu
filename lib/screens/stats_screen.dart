@@ -118,13 +118,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     return Row(
       children: [
         Expanded(
-          child: Container(
-            child: StatBadge(
-              label: 'Streak',
-              value: '${state.currentStreak}',
-              icon: Icons.local_fire_department,
-              color: YomuConstants.accent,
-            ),
+          child: StatBadge(
+            label: 'Streak',
+            value: '${state.currentStreak}',
+            icon: Icons.local_fire_department,
+            color: YomuConstants.accent,
           ),
         ),
         const SizedBox(width: 12),

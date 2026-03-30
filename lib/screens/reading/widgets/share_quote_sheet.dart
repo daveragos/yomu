@@ -204,7 +204,7 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 scrollDirection: Axis.horizontal,
                 itemCount: _styles.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final style = _styles[index];
                   final isSelected = index == _selectedStyle;

@@ -185,7 +185,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
             Text(
               title,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -196,12 +196,12 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isActive
-                      ? YomuConstants.accent.withOpacity(0.2)
+                      ? YomuConstants.accent.withValues(alpha: 0.2)
                       : Colors.white10,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: isActive
-                        ? YomuConstants.accent.withOpacity(0.5)
+                        ? YomuConstants.accent.withValues(alpha: 0.5)
                         : Colors.transparent,
                   ),
                 ),

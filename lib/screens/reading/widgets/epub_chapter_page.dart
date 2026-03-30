@@ -14,6 +14,7 @@ import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
 import '../../../core/constants.dart';
 import 'share_quote_sheet.dart';
+import 'note_editor.dart';
 
 class EpubChapterPage extends StatefulWidget {
   final int index;
@@ -43,6 +44,7 @@ class EpubChapterPage extends StatefulWidget {
   final List<Highlight> highlights;
   final Function(Highlight) onHighlight;
   final Function(int) onDeleteHighlight;
+  final Function(String)? onLookup;
 
   const EpubChapterPage({
     super.key,
@@ -69,6 +71,7 @@ class EpubChapterPage extends StatefulWidget {
     required this.highlights,
     required this.onHighlight,
     required this.onDeleteHighlight,
+    this.onLookup,
     this.searchQuery,
     this.epubBook,
     this.bookTitle,
@@ -91,6 +94,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   String _processedHtml = '';
   SelectedContent? _selectedContent;
   final Map<String, Uint8List> _imageCache = {};
+  final GlobalKey _contentKey = GlobalKey();
 
   @override
   void initState() {
@@ -171,7 +175,63 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
     String content = _cleanHtml(chapter.HtmlContent ?? '');
 
-    // Inject EPUB CSS if publisher defaults are on
+    // Inject highlight spans for saved highlights
+    final chapterHighlights = widget.highlights
+        .where((h) => h.chapterIndex == widget.index)
+        .toList();
+    chapterHighlights.sort((a, b) => b.text.length.compareTo(a.text.length));
+    for (final highlight in chapterHighlights) {
+      // Create a regex that is extremely lenient with HTML whitespace and nested tags
+      final normalizedText = highlight.text.replaceAll(RegExp(r'\s+'), ' ');
+      final wsPattern = r'(?:\s|&nbsp;|&zwj;|&#160;|&#xa0;|&#x20;|<[^>]+>)+';
+      final escapedText = RegExp.escape(normalizedText).replaceAll(' ', wsPattern);
+      
+      // Lookahead ensures we don't start matching inside an HTML tag
+      final regex = RegExp('(?![^<]*>)$escapedText', caseSensitive: false);
+      final rgba = _hexToRgba(highlight.color, 0.35);
+      
+      final matches = regex.allMatches(content).toList();
+      if (matches.isEmpty) continue;
+
+      int targetMatchIndex = 0;
+      final parts = highlight.position.split(':');
+      if (parts.length >= 3 && parts[1] == 'exact') {
+        targetMatchIndex = int.tryParse(parts[2]) ?? 0;
+      } else {
+        double targetRatio = 0.0;
+        if (parts.length >= 2) {
+          targetRatio = double.tryParse(parts.last) ?? 0.0;
+        }
+        double minDistance = double.infinity;
+        for (int i = 0; i < matches.length; i++) {
+          final matchRatio = matches[i].start / content.length;
+          final distance = (matchRatio - targetRatio).abs();
+          if (distance < minDistance) {
+            minDistance = distance;
+            targetMatchIndex = i;
+          }
+        }
+      }
+
+      int currentMatchIndex = 0;
+      content = content.replaceAllMapped(regex, (match) {
+        final result = currentMatchIndex == targetMatchIndex
+            ? '<span style="background-color: $rgba; border-bottom: 2px solid ${highlight.color};">${match.group(0)}</span>'
+            : match.group(0)!;
+        currentMatchIndex++;
+        return result;
+      });
+    }
+
+    final query = widget.searchQuery;
+    if (query != null && query.isNotEmpty) {
+      final escapedQuery = RegExp.escape(query);
+      final regex = RegExp('(?![^<]*>)$escapedQuery', caseSensitive: false);
+      content = content.replaceAllMapped(regex, (match) {
+        return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
+      });
+    }
+
     if (settings.usePublisherDefaults && book != null) {
       final cssFiles = book.Content?.Css;
       if (cssFiles != null && cssFiles.isNotEmpty) {
@@ -188,30 +248,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       }
     }
 
-    // Inject highlight spans for saved highlights
-    final chapterHighlights = widget.highlights
-        .where((h) => h.chapterIndex == widget.index)
-        .toList();
-    // Sort by text length descending so longer matches are applied first
-    chapterHighlights.sort((a, b) => b.text.length.compareTo(a.text.length));
-    for (final highlight in chapterHighlights) {
-      final escapedText = RegExp.escape(highlight.text);
-      final regex = RegExp('(?![^<]*>)$escapedText');
-      final rgba = _hexToRgba(highlight.color, 0.35);
-      content = content.replaceAllMapped(regex, (match) {
-        return '<span style="background-color: $rgba; border-bottom: 2px solid ${highlight.color};">${match.group(0)}</span>';
-      });
-    }
-
-    final query = widget.searchQuery;
-    if (query != null && query.isNotEmpty) {
-      final escapedQuery = RegExp.escape(query);
-      final regex = RegExp('(?![^<]*>)$escapedQuery', caseSensitive: false);
-      content = content.replaceAllMapped(regex, (match) {
-        return '<span style="background-color: #2ECC71; color: #000000; border-radius: 2px; padding: 0 2px;">${match.group(0)}</span>';
-      });
-    }
-
     setState(() {
       _processedHtml = content;
     });
@@ -225,8 +261,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           _scrollController.jumpTo(maxScroll);
           widget.onJumpedToBottom();
         } else {
-          // If maxScroll is 0, the content might not be laid out yet.
-          // Retry after a short delay.
           Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted && _scrollController.hasClients) {
               final double newMaxScroll =
@@ -335,7 +369,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               ? (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0)
               : 1.0;
 
-          // Only update progress if we're the current page AND initial position is restored
           if (widget.isCurrentPage && _isInitialPositionRestored) {
             if (progressValue != widget.scrollProgressNotifier.value) {
               widget.scrollProgressNotifier.value = progressValue;
@@ -372,6 +405,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: SelectionArea(
+                key: _contentKey,
                 onSelectionChanged: (content) {
                   _selectedContent = content;
                 },
@@ -414,10 +448,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                           onLinkTap: (url, attributes, element) {
                             if (url == null ||
                                 url.isEmpty ||
-                                widget.pageController == null)
+                                widget.pageController == null) {
                               return;
+                            }
 
-                            // Clean up url (e.g., ../Text/chapter2.xhtml#sec1 -> Text/chapter2.xhtml)
                             String targetUrl = url;
                             while (targetUrl.startsWith('../')) {
                               targetUrl = targetUrl.substring(3);
@@ -425,11 +459,9 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
                             final parts = targetUrl.split('#');
                             final targetFile = parts[0];
-
                             final anchor = parts.length > 1 ? parts[1] : null;
 
                             if (targetFile.isEmpty && anchor != null) {
-                              // Anchor-only link in the current file
                               for (int i = 0; i < widget.chapters.length; i++) {
                                 final ch = widget.chapters[i];
                                 if (ch.Anchor == anchor &&
@@ -442,28 +474,25 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                               return;
                             }
 
-                            // Find target chapter by file + anchor
                             int? targetIndex;
                             int? fileOnlyIndex;
                             for (int i = 0; i < widget.chapters.length; i++) {
-                              final ch = widget.chapters[i];
-                              final chapterFile = ch.ContentFileName ?? '';
-                              if (chapterFile.isEmpty) continue;
-                              final fileMatches =
-                                  chapterFile == targetFile ||
-                                  chapterFile.endsWith('/$targetFile') ||
-                                  chapterFile.endsWith(targetFile);
-                              if (!fileMatches) continue;
+                               final ch = widget.chapters[i];
+                               final chapterFile = ch.ContentFileName ?? '';
+                               if (chapterFile.isEmpty) continue;
+                               final fileMatches =
+                                   chapterFile == targetFile ||
+                                   chapterFile.endsWith('/$targetFile') ||
+                                   chapterFile.endsWith(targetFile);
+                               if (!fileMatches) continue;
 
-                              // Prefer exact anchor match
-                              if (anchor != null &&
-                                  anchor.isNotEmpty &&
-                                  ch.Anchor == anchor) {
-                                targetIndex = i;
-                                break;
-                              }
-                              // Track first file-only match as fallback
-                              fileOnlyIndex ??= i;
+                               if (anchor != null &&
+                                   anchor.isNotEmpty &&
+                                   ch.Anchor == anchor) {
+                                 targetIndex = i;
+                                 break;
+                               }
+                               fileOnlyIndex ??= i;
                             }
 
                             targetIndex ??= fileOnlyIndex;
@@ -510,7 +539,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                                   }
                                 }
 
-                                // Normalize path
                                 String path = Uri.decodeComponent(src);
                                 path = path.split('?').first.split('#').first;
                                 
@@ -522,14 +550,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                                 }
 
                                 final images = widget.epubBook?.Content?.Images;
-                                if (images == null) {
-                                  return const SizedBox.shrink();
-                                }
+                                if (images == null) return const SizedBox.shrink();
 
-                                // Try exact match first
                                 EpubByteContentFile? imageFile = images[path];
 
-                                // Then try filename without directory prefixes
                                 if (imageFile == null) {
                                   final fileName = path.split('/').last;
                                   for (final file in images.values) {
@@ -575,93 +599,54 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                             "body": Style(
                               margin: Margins.zero,
                               padding: HtmlPaddings.zero,
-                              fontSize: FontSize(
-                                widget.settings.textSize,
-                                Unit.px,
-                              ),
-                              lineHeight: LineHeight(
-                                widget.settings.lineHeight,
-                                units: "",
-                              ),
+                              fontSize: FontSize(widget.settings.textSize, Unit.px),
+                              lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
                               color: widget.settings.textColor,
-                              textAlign: _convertTextAlign(
-                                widget.settings.textAlign,
-                              ),
-                              fontFamily: widget.settings.typeface == 'System'
-                                  ? null
-                                  : widget.settings.typeface,
+                              textAlign: _convertTextAlign(widget.settings.textAlign),
+                              fontFamily: widget.settings.typeface == 'System' ? null : widget.settings.typeface,
                             ),
                             "p": Style(
                               margin: Margins.only(bottom: 16),
-                              lineHeight: LineHeight(
-                                widget.settings.lineHeight,
-                                units: "",
-                              ),
+                              lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
                             ),
                             "h1": Style(
-                              fontSize: FontSize(
-                                widget.settings.textSize * 1.5,
-                                Unit.px,
-                              ),
+                              fontSize: FontSize(widget.settings.textSize * 1.5, Unit.px),
                               fontWeight: FontWeight.bold,
                               margin: Margins.only(top: 24, bottom: 12),
                             ),
                             "h2": Style(
-                              fontSize: FontSize(
-                                widget.settings.textSize * 1.3,
-                                Unit.px,
-                              ),
+                              fontSize: FontSize(widget.settings.textSize * 1.3, Unit.px),
                               fontWeight: FontWeight.bold,
                               margin: Margins.only(top: 20, bottom: 10),
                             ),
                             "h3": Style(
-                              fontSize: FontSize(
-                                widget.settings.textSize * 1.1,
-                                Unit.px,
-                              ),
+                              fontSize: FontSize(widget.settings.textSize * 1.1, Unit.px),
                               fontWeight: FontWeight.bold,
                               margin: Margins.only(top: 16, bottom: 8),
                             ),
                             "blockquote": Style(
-                              margin: Margins.only(
-                                left: 20,
-                                right: 20,
-                                bottom: 16,
-                              ),
+                              margin: Margins.only(left: 20, right: 20, bottom: 16),
                               padding: HtmlPaddings.only(left: 12),
-                              border: Border(
-                                left: BorderSide(
-                                  color: widget.settings.secondaryTextColor,
-                                  width: 3,
-                                ),
-                              ),
+                              border: Border(left: BorderSide(color: widget.settings.secondaryTextColor, width: 3)),
                             ),
                             "code": Style(
                               fontFamily: "monospace",
-                              backgroundColor: widget.settings.textColor
-                                  .withValues(alpha: 0.1),
+                              backgroundColor: widget.settings.textColor.withValues(alpha: 0.1),
                               padding: HtmlPaddings.symmetric(horizontal: 4),
                             ),
                             "pre": Style(
                               margin: Margins.only(bottom: 16),
                               padding: HtmlPaddings.all(12),
-                              backgroundColor: widget.settings.textColor
-                                  .withValues(alpha: 0.1),
+                              backgroundColor: widget.settings.textColor.withValues(alpha: 0.1),
                               fontFamily: "monospace",
                               display: Display.block,
                             ),
                             "img": Style(
-                              width: Width(
-                                MediaQuery.of(context).size.width - 40,
-                                Unit.px,
-                              ),
+                              width: Width(MediaQuery.of(context).size.width - 40, Unit.px),
                               alignment: Alignment.center,
                             ),
                             "image": Style(
-                              width: Width(
-                                MediaQuery.of(context).size.width - 40,
-                                Unit.px,
-                              ),
+                              width: Width(MediaQuery.of(context).size.width - 40, Unit.px),
                               alignment: Alignment.center,
                             ),
                           },
@@ -689,10 +674,86 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     });
   }
 
-  Widget _buildHighlightMenu(
-    BuildContext context,
-    SelectableRegionState selectableRegionState,
-  ) {
+  int? _findOccurrenceIndex(String selectedText, Offset primaryAnchor) {
+    final RenderBox? contentBox = _contentKey.currentContext?.findRenderObject() as RenderBox?;
+    if (contentBox == null) return null;
+
+    final List<RenderParagraph> paragraphs = [];
+    void collectParagraphs(RenderObject node) {
+      if (node is RenderParagraph) {
+        if (node.text.toPlainText().isNotEmpty) paragraphs.add(node);
+      }
+      node.visitChildren(collectParagraphs);
+    }
+    collectParagraphs(contentBox);
+
+    RenderParagraph? targetParagraph;
+    double minDistance = double.infinity;
+
+    for (final p in paragraphs) {
+      final text = p.text.toPlainText();
+      if (text.contains(selectedText)) {
+        final bounds = p.paintBounds;
+        final globalOffset = p.localToGlobal(Offset.zero);
+        final globalBounds = globalOffset & bounds.size;
+        
+        double distance = 0.0;
+        if (globalBounds.contains(primaryAnchor)) {
+          distance = 0.0;
+        } else {
+          final center = globalBounds.center;
+          distance = (center.dy - primaryAnchor.dy).abs() + (center.dx - primaryAnchor.dx).abs() * 0.1;
+        }
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          targetParagraph = p;
+        }
+      }
+    }
+
+    if (targetParagraph == null) return null;
+
+    int occurrenceIndex = 0;
+    for (final p in paragraphs) {
+      final text = p.text.toPlainText();
+      if (p == targetParagraph) {
+        final localOffset = p.globalToLocal(primaryAnchor);
+        final textPos = p.getPositionForOffset(localOffset).offset;
+        
+        int bestMatchIndex = 0;
+        int closestTextDistance = 999999;
+        int searchIndex = 0;
+        int localCount = 0;
+        
+        while (true) {
+          searchIndex = text.indexOf(selectedText, searchIndex);
+          if (searchIndex == -1) break;
+          final dist = (searchIndex - textPos).abs();
+          if (dist < closestTextDistance) {
+            closestTextDistance = dist;
+            bestMatchIndex = localCount;
+          }
+          localCount++;
+          searchIndex += selectedText.length;
+        }
+        
+        occurrenceIndex += bestMatchIndex;
+        break;
+      } else {
+        int searchIndex = 0;
+        while (true) {
+          searchIndex = text.indexOf(selectedText, searchIndex);
+          if (searchIndex == -1) break;
+          occurrenceIndex++;
+          searchIndex += selectedText.length;
+        }
+      }
+    }
+    return occurrenceIndex;
+  }
+
+  Widget _buildHighlightMenu(BuildContext context, SelectableRegionState selectableRegionState) {
     final selectedText = _selectedContent?.plainText;
     if (selectedText == null || selectedText.isEmpty) {
       return AdaptiveTextSelectionToolbar.buttonItems(
@@ -702,35 +763,58 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     }
 
     const highlightColors = [
-      Color(0xFFE74C3C), // Red
-      Color(0xFFF1C40F), // Yellow
-      Color(0xFF2ECC71), // Green
-      Color(0xFF3498DB), // Blue
-      Color(0xFF9B59B6), // Purple
+      Color(0xFFE74C3C),
+      Color(0xFFF1C40F),
+      Color(0xFF2ECC71),
+      Color(0xFF3498DB),
+      Color(0xFF9B59B6),
     ];
-
-    // Check if this text is already highlighted
-    final existingHighlight = widget.highlights
-        .where((h) => h.chapterIndex == widget.index && h.text == selectedText)
-        .firstOrNull;
-
-    final textColor = widget.settings.menuIconColor;
-    const iconSize = 20.0;
-    const btnSize = 36.0;
 
     final anchors = selectableRegionState.contextMenuAnchors;
     final primaryAnchor = anchors.primaryAnchor;
+    final occurrenceIndex = _findOccurrenceIndex(selectedText, primaryAnchor);
+
+    Highlight? existingHighlight;
+    for (final h in widget.highlights) {
+      if (h.chapterIndex == widget.index && h.text == selectedText) {
+        final parts = h.position.split(':');
+        if (parts.length >= 3 && parts[1] == 'exact') {
+          if (occurrenceIndex != null && int.tryParse(parts[2]) == occurrenceIndex) {
+            existingHighlight = h;
+            break;
+          }
+        }
+      }
+    }
+
+    if (existingHighlight == null) {
+      double exactRatio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0
+          ? (_scrollController.offset / _scrollController.position.maxScrollExtent).clamp(0.0, 1.0)
+          : 0.0;
+      double minDistance = double.infinity;
+      for (final h in widget.highlights) {
+        if (h.chapterIndex == widget.index && h.text == selectedText) {
+          final parts = h.position.split(':');
+          if (parts.length < 3 || parts[1] != 'exact') {
+            double targetRatio = double.tryParse(parts.last) ?? 0.0;
+            final distance = (targetRatio - exactRatio).abs();
+            if (distance < minDistance) {
+              minDistance = distance;
+              existingHighlight = h;
+            }
+          }
+        }
+      }
+    }
+
+    final textColor = widget.settings.menuIconColor;
+    const btnSize = 36.0;
+    const iconSize = 20.0;
     final screenWidth = MediaQuery.of(context).size.width;
-    const toolbarHeight = 80.0; // 2 rows × 36 + padding
     const toolbarWidth = 188.0;
-    final left = (primaryAnchor.dx - toolbarWidth / 2).clamp(
-      8.0,
-      screenWidth - toolbarWidth - 8.0,
-    );
-    final top = (primaryAnchor.dy - toolbarHeight - 8).clamp(
-      8.0,
-      double.infinity,
-    );
+    const toolbarHeight = 80.0;
+    final left = (primaryAnchor.dx - toolbarWidth / 2).clamp(8.0, screenWidth - toolbarWidth - 8.0);
+    final top = (primaryAnchor.dy - toolbarHeight - 8).clamp(8.0, double.infinity);
 
     return Stack(
       children: [
@@ -743,68 +827,52 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               decoration: BoxDecoration(
                 color: widget.settings.menuBackgroundColor,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x40000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
+                boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 12, offset: Offset(0, 4))],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              constraints: const BoxConstraints(minWidth: 188),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Row 1: Highlight colors
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ...highlightColors.map(
-                        (color) => SizedBox(
-                          width: btnSize,
-                          height: btnSize,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: Icon(Icons.circle, color: color, size: 22),
-                            onPressed: () {
-                              final hexColor =
-                                  '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-                              widget.onHighlight(
-                                Highlight(
-                                  bookId: 0,
-                                  chapterIndex: widget.index,
-                                  text: selectedText,
-                                  color: hexColor,
-                                  createdAt: DateTime.now(),
-                                  position: '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
-                                ),
-                              );
-                              selectableRegionState.hideToolbar();
-                            },
-                          ),
+                      ...highlightColors.map((color) => SizedBox(
+                        width: btnSize,
+                        height: btnSize,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(Icons.circle, color: color, size: 22),
+                          onPressed: () {
+                            final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+                            widget.onHighlight(Highlight(
+                              bookId: 0,
+                              chapterIndex: widget.index,
+                              text: selectedText,
+                              color: hexColor,
+                              createdAt: DateTime.now(),
+                              position: '${widget.index}:${occurrenceIndex != null ? 'exact:$occurrenceIndex' : (_scrollController.hasClients ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0)}',
+                            ));
+                            selectableRegionState.hideToolbar();
+                            selectableRegionState.clearSelection();
+                          },
                         ),
-                      ),
+                      )),
                       if (existingHighlight != null)
                         SizedBox(
                           width: btnSize,
                           height: btnSize,
                           child: IconButton(
                             padding: EdgeInsets.zero,
-                            icon: Icon(
-                              Icons.highlight_remove,
-                              color: textColor,
-                              size: iconSize,
-                            ),
+                            icon: Icon(Icons.highlight_remove, color: textColor, size: iconSize),
                             onPressed: () {
-                              widget.onDeleteHighlight(existingHighlight.id!);
+                              widget.onDeleteHighlight(existingHighlight!.id!);
                               selectableRegionState.hideToolbar();
+                              selectableRegionState.clearSelection();
                             },
                           ),
                         ),
                     ],
                   ),
-                  // Row 2: Actions
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -813,14 +881,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                         height: btnSize,
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          icon: Icon(
-                            Icons.sticky_note_2_rounded,
-                            color: YomuConstants.accent,
-                            size: iconSize,
-                          ),
+                          icon: Icon(Icons.sticky_note_2_rounded, color: YomuConstants.accent, size: iconSize),
                           onPressed: () {
                             selectableRegionState.hideToolbar();
-                            _showNoteDialog(context, selectedText, existingHighlight);
+                            _showNoteSheet(context, selectedText, existingHighlight);
                           },
                         ),
                       ),
@@ -829,15 +893,9 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                         height: btnSize,
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          icon: Icon(
-                            Icons.copy_rounded,
-                            color: textColor,
-                            size: iconSize,
-                          ),
+                          icon: Icon(Icons.copy_rounded, color: textColor, size: iconSize),
                           onPressed: () {
-                            Clipboard.setData(
-                              ClipboardData(text: selectedText),
-                            );
+                            Clipboard.setData(ClipboardData(text: selectedText));
                             selectableRegionState.hideToolbar();
                           },
                         ),
@@ -847,11 +905,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                         height: btnSize,
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          icon: Icon(
-                            Icons.menu_book_rounded,
-                            color: textColor,
-                            size: iconSize,
-                          ),
+                          icon: Icon(Icons.menu_book_rounded, color: textColor, size: iconSize),
                           onPressed: () {
                             _lookupDictionary(selectedText);
                             selectableRegionState.hideToolbar();
@@ -863,19 +917,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                         height: btnSize,
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          icon: Icon(
-                            Icons.share_rounded,
-                            color: textColor,
-                            size: iconSize,
-                          ),
+                          icon: Icon(Icons.share_rounded, color: textColor, size: iconSize),
                           onPressed: () {
                             selectableRegionState.hideToolbar();
-                            ShareQuoteSheet.show(
-                              context,
-                              text: selectedText,
-                              bookTitle: widget.bookTitle,
-                              bookAuthor: widget.bookAuthor,
-                            );
+                            ShareQuoteSheet.show(context, text: selectedText, bookTitle: widget.bookTitle, bookAuthor: widget.bookAuthor);
                           },
                         ),
                       ),
@@ -890,150 +935,95 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     );
   }
 
-  void _showNoteDialog(BuildContext context, String text, Highlight? existing) {
-    final controller = TextEditingController(text: existing?.note ?? '');
-    showDialog(
+  void _showNoteSheet(BuildContext context, String text, Highlight? existing) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: widget.settings.menuBackgroundColor,
-        title: Text(
-          existing != null ? 'Edit Note' : 'Add Note',
-          style: const TextStyle(color: YomuConstants.accent, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 4,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-          decoration: InputDecoration(
-            hintText: 'Type your note here...',
-            hintStyle: TextStyle(color: widget.settings.secondaryTextColor),
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('CANCEL', style: TextStyle(color: widget.settings.secondaryTextColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              final hexColor = existing?.color ??
-                  '#${const Color(0xFFF1C40F).toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-              widget.onHighlight(
-                Highlight(
-                  id: existing?.id,
-                  bookId: 0,
-                  chapterIndex: widget.index,
-                  text: text,
-                  note: controller.text.trim(),
-                  color: hexColor,
-                  createdAt: existing?.createdAt ?? DateTime.now(),
-                  position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
-                ),
-              );
-              Navigator.pop(context);
-            },
-            child: const Text('SAVE', style: TextStyle(color: YomuConstants.accent, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return NoteEditor(
+          initialMarkdown: existing?.note ?? '',
+          settings: widget.settings,
+          title: existing != null ? 'Edit Note' : 'Add Note',
+          onSave: (newNote) {
+            final hexColor = existing?.color ?? '#${const Color(0xFFF1C40F).toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+            widget.onHighlight(Highlight(
+              id: existing?.id,
+              bookId: 0,
+              chapterIndex: widget.index,
+              text: text,
+              note: newNote,
+              color: hexColor,
+              createdAt: existing?.createdAt ?? DateTime.now(),
+              position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
+            ));
+          },
+        );
+      },
     );
   }
 
   Future<void> _lookupDictionary(String word) async {
     final lookupWord = word.trim().split(RegExp(r'\s+')).first;
     final encoded = Uri.encodeComponent(lookupWord);
-
     if (Platform.isAndroid) {
       try {
         final intent = AndroidIntent(
           action: 'android.intent.action.PROCESS_TEXT',
           type: 'text/plain',
-          arguments: <String, dynamic>{
+          arguments: {
             'android.intent.extra.PROCESS_TEXT': lookupWord,
             'android.intent.extra.PROCESS_TEXT_READONLY': true,
           },
         );
         await intent.launch();
+        widget.onLookup?.call(lookupWord);
         return;
       } catch (e) {
-        // Fallback to web search if the intent fails for any reason
         debugPrint('Dictionary intent failed: $e');
       }
     }
-
     if (Platform.isIOS || Platform.isMacOS) {
       final dictUri = Uri.parse('x-dictionary:r:$encoded');
       if (await canLaunchUrl(dictUri)) {
         await launchUrl(dictUri);
+        widget.onLookup?.call(lookupWord);
         return;
       }
     }
-
-    // Fallback: Google define search
-    final searchUri = Uri.parse(
-      'https://www.google.com/search?q=define+$encoded',
-    );
-    await launchUrl(searchUri, mode: LaunchMode.externalApplication);
+    final searchUri = Uri.parse('https://www.google.com/search?q=define+$encoded');
+    if (await canLaunchUrl(searchUri)) {
+      await launchUrl(searchUri, mode: LaunchMode.externalApplication);
+      widget.onLookup?.call(lookupWord);
+    }
   }
 
   String _cleanHtml(String html) {
     if (html.isEmpty) return html;
-
-    // Remove XML declarations
     html = html.replaceAll(RegExp(r'<\?xml[^>]*\?>'), '');
-
-    // Remove DOCTYPE declarations
     html = html.replaceAll(RegExp(r'<!DOCTYPE[^>]*>'), '');
-
-    // Prevent flutter_html from explicitly dropping the entire SVG node structure
-    // by renaming it to a generic block container. This preserves all `<image>` and `<text>` nodes.
     html = html.replaceAll(RegExp(r'<svg', caseSensitive: false), '<div');
     html = html.replaceAll(RegExp(r'</svg>', caseSensitive: false), '</div>');
-
-    final bodyRegex = RegExp(
-      r'(<body[^>]*>.*?</body>)',
-      caseSensitive: false,
-      dotAll: true,
-    );
+    final bodyRegex = RegExp(r'(<body[^>]*>.*?</body>)', caseSensitive: false, dotAll: true);
     final bodyMatch = bodyRegex.firstMatch(html);
-    if (bodyMatch != null) {
-      final bodyContent = bodyMatch.group(1);
-      if (bodyContent != null) {
-        return bodyContent;
-      }
-    }
-
-    if (!html.toLowerCase().contains('<body')) {
-      return '<body>$html</body>';
-    }
-
+    if (bodyMatch != null) return bodyMatch.group(1) ?? html;
+    if (!html.toLowerCase().contains('<body')) return '<body>$html</body>';
     return html;
   }
 
   TextAlign _convertTextAlign(TextAlign? textAlign) {
     switch (textAlign) {
-      case TextAlign.left:
-        return TextAlign.left;
-      case TextAlign.center:
-        return TextAlign.center;
-      case TextAlign.right:
-        return TextAlign.right;
-      case TextAlign.justify:
-        return TextAlign.justify;
-      default:
-        return TextAlign.left;
+      case TextAlign.left: return TextAlign.left;
+      case TextAlign.center: return TextAlign.center;
+      case TextAlign.right: return TextAlign.right;
+      case TextAlign.justify: return TextAlign.justify;
+      default: return TextAlign.left;
     }
   }
 
   String _hexToRgba(String hex, double alpha) {
     final clean = hex.replaceFirst('#', '');
+    if (clean.length != 6) return 'rgba(255, 255, 255, $alpha)';
     final r = int.parse(clean.substring(0, 2), radix: 16);
     final g = int.parse(clean.substring(2, 4), radix: 16);
     final b = int.parse(clean.substring(4, 6), radix: 16);

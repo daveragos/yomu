@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/book_model.dart';
 import '../../../core/constants.dart';
-import 'dart:ui';
 
 class ReadingAudioSection extends StatelessWidget {
   final ReaderSettings settings;

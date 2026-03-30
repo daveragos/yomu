@@ -23,7 +23,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 16,
+      version: 17,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -102,6 +102,13 @@ class DatabaseService {
         color TEXT,
         createdAt TEXT,
         position TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE dictionary_lookups(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT,
+        timestamp TEXT
       )
     ''');
   }
@@ -210,6 +217,15 @@ class DatabaseService {
     }
     if (oldVersion < 16) {
       await db.execute('ALTER TABLE highlights ADD COLUMN position TEXT DEFAULT ""');
+    }
+    if (oldVersion < 17) {
+      await db.execute('''
+        CREATE TABLE dictionary_lookups(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          word TEXT,
+          timestamp TEXT
+        )
+      ''');
     }
   }
 
@@ -393,5 +409,22 @@ class DatabaseService {
       where: 'bookId = ?',
       whereArgs: [bookId],
     );
+  }
+
+  // Dictionary Lookup CRUD
+  Future<int> insertDictionaryLookup(String word) async {
+    final db = await database;
+    return await db.insert('dictionary_lookups', {
+      'word': word,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<int> getDictionaryLookupCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM dictionary_lookups',
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 }

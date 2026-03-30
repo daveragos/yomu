@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:pdfrx/pdfrx.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';

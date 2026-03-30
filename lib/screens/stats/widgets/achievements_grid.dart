@@ -162,6 +162,24 @@ class AchievementsGrid extends StatelessWidget {
         'desc': 'Read on both Sat and Sun',
         'icon': Icons.umbrella,
       },
+      {
+        'id': 'the_translator',
+        'title': 'Word Seeker',
+        'desc': 'Look up your first word',
+        'icon': Icons.search,
+      },
+      {
+        'id': 'vocabulary_builder',
+        'title': 'Vocab Builder',
+        'desc': 'Total 20 words looked up',
+        'icon': Icons.menu_book,
+      },
+      {
+        'id': 'polyglot',
+        'title': 'Lexicoguru',
+        'desc': 'Total 100 words looked up',
+        'icon': Icons.psychology,
+      },
     ];
 
     final sortedList = List<Map<String, dynamic>>.from(achievementList);

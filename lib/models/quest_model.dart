@@ -1,4 +1,4 @@
-enum QuestType { pages, minutes, earlyBird, nightOwl, bookFinished }
+enum QuestType { pages, minutes, earlyBird, nightOwl, bookFinished, dictionaryLookup }
 
 class DailyQuest {
   final String id;

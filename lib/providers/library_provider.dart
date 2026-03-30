@@ -55,6 +55,7 @@ class LibraryState {
 
   final int lastCelebratedLevel;
   final bool isReading;
+  final int totalLookups;
 
   LibraryState({
     required this.allBooks,
@@ -92,6 +93,7 @@ class LibraryState {
     this.reminderHour = 20,
     this.reminderMinute = 0,
     this.isReading = false,
+    this.totalLookups = 0,
   });
 
   double get weeklyGoalValue {
@@ -201,6 +203,7 @@ class LibraryState {
     int? reminderHour,
     int? reminderMinute,
     bool? isReading,
+    int? totalLookups,
   }) {
     return LibraryState(
       allBooks: allBooks ?? this.allBooks,
@@ -238,6 +241,7 @@ class LibraryState {
       reminderHour: reminderHour ?? this.reminderHour,
       reminderMinute: reminderMinute ?? this.reminderMinute,
       isReading: isReading ?? this.isReading,
+      totalLookups: totalLookups ?? this.totalLookups,
     );
   }
 }
@@ -341,6 +345,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       notificationsEnabled: notificationsEnabled,
       reminderHour: reminderHour,
       reminderMinute: reminderMinute,
+      totalLookups: prefs.getInt('totalLookups') ?? 0,
     );
   }
 
@@ -394,10 +399,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final books = await _dbService.getBooks();
       final sessions = await _dbService.getReadingSessions();
       final questXp = await _dbService.getTotalQuestXP();
+      final lookupCount = await _dbService.getDictionaryLookupCount();
 
       final streak = _calculateStreak(sessions);
       final activity = _calculateDetailedActivity(sessions, books);
-      final stats = _calculateStats(sessions, books, questXp);
+      final stats = _calculateStats(sessions, books, questXp, lookupCount);
       final visibleBooks = books.where((b) => !b.isDeleted).toList();
 
       state = state.copyWith(
@@ -415,6 +421,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         totalMinutesRead: stats.totalMinutes,
         unlockedAchievements: stats.achievements,
         sessionHistory: sessions,
+        totalLookups: lookupCount,
       );
 
       await _loadQuests();
@@ -488,6 +495,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     List<Map<String, dynamic>> sessions,
     List<Book> books,
     int questXp,
+    int lookupCount,
   ) {
     int totalPages = 0;
     int totalMinutes = 0;
@@ -585,6 +593,10 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (ts.hour >= 6 && ts.hour < 9) achievements.add('early_bird');
       if (ts.hour >= 22 || ts.hour < 1) achievements.add('night_owl');
     }
+
+    if (lookupCount >= 1) achievements.add('the_translator');
+    if (lookupCount >= 20) achievements.add('vocabulary_builder');
+    if (lookupCount >= 100) achievements.add('polyglot');
 
     return _UserStats(
       xp: xp,
@@ -978,8 +990,15 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     // Refresh stats
     final sessions = await _dbService.getReadingSessions();
     final questXp = await _dbService.getTotalQuestXP();
+    final lookupCount = await _dbService.getDictionaryLookupCount();
+    
     final activity = _calculateDetailedActivity(sessions, state.allBooks);
-    final stats = _calculateStats(sessions, state.allBooks, questXp);
+    final stats = _calculateStats(
+      sessions,
+      state.allBooks,
+      questXp,
+      lookupCount,
+    );
 
     // Check for new achievements
     final newAchievements = stats.achievements.difference(
@@ -1008,6 +1027,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       unlockedAchievements: stats.achievements,
       sessionHistory: sessions,
       isStreakActiveToday: _isStreakActiveToday(sessions),
+      totalLookups: lookupCount,
     );
 
     await _updateQuests(finalPages, finalMinutes);
@@ -1045,6 +1065,12 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         return 'Collector';
       case 'weekend_warrior':
         return 'Weekend Warrior';
+      case 'the_translator':
+        return 'Word Seeker';
+      case 'vocabulary_builder':
+        return 'Vocab Builder';
+      case 'polyglot':
+        return 'Lexicoguru';
       default:
         return 'New Achievement';
     }
@@ -1084,6 +1110,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           }
           break;
         case QuestType.bookFinished:
+          break;
+        case QuestType.dictionaryLookup:
+          newVal += 1;
           break;
       }
 
@@ -1127,10 +1156,15 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         }
       }
 
-      // Reload stats to reflect quest XP
       final sessions = await _dbService.getReadingSessions();
       final questXp = await _dbService.getTotalQuestXP();
-      final stats = _calculateStats(sessions, state.allBooks, questXp);
+      final lookupCount = await _dbService.getDictionaryLookupCount();
+      final stats = _calculateStats(
+        sessions,
+        state.allBooks,
+        questXp,
+        lookupCount,
+      );
 
       // Check for level up notification
       if (stats.level > state.level) {
@@ -1360,6 +1394,45 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     if (currentBook?.id == updatedBook.id) {
       _ref.read(currentlyReadingProvider.notifier).state = updatedBook;
     }
+  }
+
+  Future<void> recordDictionaryLookup(String word) async {
+    await _dbService.insertDictionaryLookup(word);
+    final count = await _dbService.getDictionaryLookupCount();
+
+    state = state.copyWith(totalLookups: count);
+
+    // Update dictionary-related quests
+    final updatedQuests = <DailyQuest>[];
+    bool changed = false;
+
+    for (var quest in state.dailyQuests) {
+      if (quest.type == QuestType.dictionaryLookup && !quest.isCompleted) {
+        int newVal = quest.currentValue + 1;
+        bool newlyCompleted = newVal >= quest.targetValue;
+        updatedQuests.add(
+          quest.copyWith(
+            currentValue: newlyCompleted ? quest.targetValue : newVal,
+            isCompleted: newlyCompleted,
+          ),
+        );
+        await _dbService.updateQuestProgress(
+          quest.id,
+          newVal,
+          newlyCompleted,
+        );
+        changed = true;
+      } else {
+        updatedQuests.add(quest);
+      }
+    }
+
+    if (changed) {
+      state = state.copyWith(dailyQuests: updatedQuests);
+    }
+
+    // Refresh achievements and level
+    await loadBooks();
   }
 }
 

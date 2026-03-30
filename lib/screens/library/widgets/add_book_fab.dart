@@ -26,10 +26,6 @@ class AddBookFab extends StatelessWidget {
     return AnimatedBuilder(
       animation: animationController,
       builder: (context, child) {
-        final isOpening = animationController.status == AnimationStatus.forward;
-        final isClosing = animationController.status == AnimationStatus.reverse;
-        final isOpened =
-            animationController.status == AnimationStatus.completed;
         final shouldShowSubMenu = animationController.value > 0;
 
         return Column(

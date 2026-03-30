@@ -132,13 +132,13 @@ class DashboardHeader extends ConsumerWidget {
                 gradient: LinearGradient(
                   colors: [
                     YomuConstants.accent,
-                    YomuConstants.accent.withOpacity(0.6),
+                    YomuConstants.accent.withValues(alpha: 0.6),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(3),
                 boxShadow: [
                   BoxShadow(
-                    color: YomuConstants.accent.withOpacity(0.3),
+                    color: YomuConstants.accent.withValues(alpha: 0.3),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
