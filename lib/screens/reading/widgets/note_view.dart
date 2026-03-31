@@ -22,7 +22,7 @@ class NoteView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (markdown.isEmpty) {
+    if (markdown.trim().isEmpty) {
       return const Text(
         'No content',
         style: TextStyle(color: Colors.white38, fontStyle: FontStyle.italic),
@@ -77,9 +77,34 @@ class NoteView extends StatelessWidget {
             const VerticalSpacing(0, 0),
             null,
           ),
+          bold: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+          italic: const TextStyle(
+            fontStyle: FontStyle.italic,
+          ),
+          strikeThrough: const TextStyle(
+            decoration: TextDecoration.lineThrough,
+          ),
           link: const TextStyle(
             color: YomuConstants.accent,
             decoration: TextDecoration.underline,
+          ),
+          quote: DefaultTextBlockStyle(
+            TextStyle(
+              color: Colors.white70,
+              fontSize: fontSize ?? 16,
+              fontStyle: FontStyle.italic,
+            ),
+            const HorizontalSpacing(12, 0),
+            const VerticalSpacing(8, 8),
+            const VerticalSpacing(0, 0),
+            BoxDecoration(
+              border: Border(
+                left: BorderSide(color: YomuConstants.accent, width: 4),
+              ),
+            ),
           ),
           code: DefaultTextBlockStyle(
             TextStyle(
@@ -99,12 +124,15 @@ class NoteView extends StatelessWidget {
   }
 
   Document _parseMarkdown(String markdownText) {
+    if (markdownText.trim().isEmpty) return Document();
+
     final mdDocument = md.Document(
       encodeHtml: false,
       extensionSet: md.ExtensionSet.gitHubFlavored,
     );
     final mdToDelta = MarkdownToDelta(markdownDocument: mdDocument);
     final delta = mdToDelta.convert(markdownText);
+    if (delta.isEmpty) return Document();
     return Document.fromDelta(delta);
   }
 }

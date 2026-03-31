@@ -12,6 +12,7 @@ import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
 import './note_editor.dart';
 import './note_view.dart';
+import './share_quote_sheet.dart';
 
 class NavigationSheet extends StatefulWidget {
   final Book book;
@@ -286,6 +287,21 @@ class _NavigationSheetState extends State<NavigationSheet> {
     }
   }
 
+  Future<void> _shareQuotes(List<Highlight> highlights) async {
+    if (highlights.isEmpty) return;
+
+    final quoteText = highlights.map((h) => h.text).join(' ... ');
+    
+    if (mounted) {
+      ShareQuoteSheet.show(
+        context,
+        text: quoteText,
+        bookTitle: widget.book.title,
+        bookAuthor: widget.book.author,
+      );
+    }
+  }
+
   void _showNoteDetailSheet(BuildContext context, Highlight h, StateSetter setSheetState) {
     showModalBottomSheet(
       context: context,
@@ -543,6 +559,10 @@ class _NavigationSheetState extends State<NavigationSheet> {
                   onShareSelected: () {
                     final selectedHighlights = highlights.where((h) => _selectedHighlightIds.contains(h.id)).toList();
                     _shareSelectedAsMarkdown(_selectedBookmarks.toList(), selectedHighlights);
+                  },
+                  onShareQuote: () {
+                    final selectedHighlights = highlights.where((h) => _selectedHighlightIds.contains(h.id)).toList();
+                    _shareQuotes(selectedHighlights);
                   },
                 ),
                 if (!_isSelectionMode && highlights.isNotEmpty)
@@ -914,6 +934,7 @@ class _AnnotationHeader extends StatelessWidget {
   final VoidCallback onDeleteSelected;
   final VoidCallback onCloseSelection;
   final VoidCallback onShareSelected;
+  final VoidCallback onShareQuote;
   final VoidCallback? onExport;
 
   const _AnnotationHeader({
@@ -924,6 +945,7 @@ class _AnnotationHeader extends StatelessWidget {
     required this.onDeleteSelected,
     required this.onCloseSelection,
     required this.onShareSelected,
+    required this.onShareQuote,
     this.onExport,
   });
 
@@ -966,9 +988,14 @@ class _AnnotationHeader extends StatelessWidget {
           ),
           if (isSelectionMode) ...[
             IconButton(
+              icon: const Icon(Icons.format_quote_rounded, color: YomuConstants.accent, size: 20),
+              onPressed: selectedCount > 0 ? onShareQuote : null,
+              tooltip: 'Share as Quote',
+            ),
+            IconButton(
               icon: const Icon(Icons.ios_share_rounded, color: YomuConstants.accent, size: 20),
               onPressed: selectedCount > 0 ? onShareSelected : null,
-              tooltip: 'Share selected',
+              tooltip: 'Share Markdown',
             ),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),

@@ -71,12 +71,15 @@ class _NoteEditorState extends State<NoteEditor> {
   }
 
   Document _parseMarkdown(String markdownText) {
+    if (markdownText.trim().isEmpty) return Document();
+
     final mdDocument = md.Document(
       encodeHtml: false,
       extensionSet: md.ExtensionSet.gitHubFlavored,
     );
     final mdToDelta = MarkdownToDelta(markdownDocument: mdDocument);
     final delta = mdToDelta.convert(markdownText);
+    if (delta.isEmpty) return Document();
     return Document.fromDelta(delta);
   }
 
@@ -105,188 +108,194 @@ class _NoteEditorState extends State<NoteEditor> {
         color: widget.settings?.menuBackgroundColor ?? YomuConstants.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
       ),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 8, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.title,
-                  style: const TextStyle(
-                    color: YomuConstants.accent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: true,
+        body: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                TextButton(
-                  onPressed: () {
-                    _onSave();
-                    Navigator.pop(context);
-                  },
-                  child: const Text(
-                    'SAVE',
-                    style: TextStyle(
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 8, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.title,
+                    style: const TextStyle(
                       color: YomuConstants.accent,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (_currentColor != null) ...[
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: YomuConstants.highlightColors.map((color) {
-                  final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-                  final isSelected = _currentColor == hexColor;
-                  return GestureDetector(
-                    onTap: () => setState(() => _currentColor = hexColor),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected ? color : Colors.transparent,
-                          width: 2,
-                        ),
+                  TextButton(
+                    onPressed: () {
+                      _onSave();
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'SAVE',
+                      style: TextStyle(
+                        color: YomuConstants.accent,
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Center(
-                        child: Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: color.withValues(alpha: 0.4),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    )
-                                  ]
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_currentColor != null) ...[
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: YomuConstants.highlightColors.map((color) {
+                    final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+                    final isSelected = _currentColor == hexColor;
+                    return GestureDetector(
+                      onTap: () => setState(() => _currentColor = hexColor),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? color : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: color.withValues(alpha: 0.4),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      )
+                                    ]
+                                  : null,
+                            ),
+                            child: isSelected
+                                ? const Icon(Icons.check, size: 16, color: Colors.black)
                                 : null,
                           ),
-                          child: isSelected
-                              ? const Icon(Icons.check, size: 16, color: Colors.black)
-                              : null,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            const Divider(height: 1, color: Colors.white10),
+            QuillSimpleToolbar(
+              controller: _controller,
+              config: QuillSimpleToolbarConfig(
+                multiRowsDisplay: false,
+                showAlignmentButtons: false,
+                showDirection: false,
+                showFontFamily: false,
+                showFontSize: false,
+                showBoldButton: true,
+                showItalicButton: true,
+                showSmallButton: false,
+                showUnderLineButton: false,
+                showStrikeThrough: true,
+                showInlineCode: true,
+                showColorButton: false,
+                showBackgroundColorButton: false,
+                showClearFormat: true,
+                showLink: true,
+                showListCheck: true,
+                showCodeBlock: true,
+                showQuote: true,
+                showListNumbers: true,
+                showListBullets: true,
+                showSearchButton: false,
+                showSubscript: false,
+                showSuperscript: false,
+                showIndent: false,
+                buttonOptions: QuillSimpleToolbarButtonOptions(
+                  base: QuillToolbarBaseButtonOptions(
+                    iconTheme: QuillIconTheme(
+                      iconButtonUnselectedData: IconButtonData(
+                        color: Colors.white70,
+                      ),
+                      iconButtonSelectedData: IconButtonData(
+                        color: YomuConstants.accent,
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              YomuConstants.accent.withValues(alpha: 0.12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
+            const Divider(height: 1, color: Colors.white10),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: QuillEditor(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  scrollController: ScrollController(),
+                  config: QuillEditorConfig(
+                    padding: EdgeInsets.zero,
+                    autoFocus: true,
+                    expands: false,
+                    placeholder: 'Write something amazing...',
+                    customStyles: DefaultStyles(
+                      paragraph: DefaultTextBlockStyle(
+                        const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          height: 1.6,
+                        ),
+                        const HorizontalSpacing(0, 0),
+                        const VerticalSpacing(0, 0),
+                        const VerticalSpacing(0, 0),
+                        null,
+                      ),
+                      placeHolder: DefaultTextBlockStyle(
+                        const TextStyle(
+                          color: Colors.white24,
+                          fontSize: 18,
+                        ),
+                        const HorizontalSpacing(0, 0),
+                        const VerticalSpacing(0, 0),
+                        const VerticalSpacing(0, 0),
+                        null,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
-          const Divider(height: 1, color: Colors.white10),
-          QuillSimpleToolbar(
-            controller: _controller,
-            config: QuillSimpleToolbarConfig(
-              multiRowsDisplay: false,
-              showAlignmentButtons: false,
-              showDirection: false,
-              showFontFamily: false,
-              showFontSize: false,
-              showBoldButton: true,
-              showItalicButton: true,
-              showSmallButton: false,
-              showUnderLineButton: true,
-              showStrikeThrough: true,
-              showInlineCode: true,
-              showColorButton: false,
-              showBackgroundColorButton: false,
-              showClearFormat: true,
-              showLink: true,
-              showListCheck: true,
-              showCodeBlock: true,
-              showQuote: true,
-              showListNumbers: true,
-              showListBullets: true,
-              showSearchButton: false,
-              showSubscript: false,
-              showSuperscript: false,
-              showIndent: false,
-              buttonOptions: QuillSimpleToolbarButtonOptions(
-                base: QuillToolbarBaseButtonOptions(
-                  iconTheme: QuillIconTheme(
-                    iconButtonUnselectedData: IconButtonData(
-                      color: Colors.white70,
-                    ),
-                    iconButtonSelectedData: IconButtonData(
-                      color: YomuConstants.accent,
-                      style: IconButton.styleFrom(
-                        backgroundColor:
-                            YomuConstants.accent.withValues(alpha: 0.12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const Divider(height: 1, color: Colors.white10),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: QuillEditor(
-                controller: _controller,
-                focusNode: _focusNode,
-                scrollController: ScrollController(),
-                config: QuillEditorConfig(
-                  padding: EdgeInsets.zero,
-                  autoFocus: true,
-                  expands: false,
-                  placeholder: 'Write something amazing...',
-                  customStyles: DefaultStyles(
-                    paragraph: DefaultTextBlockStyle(
-                      const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        height: 1.6,
-                      ),
-                      const HorizontalSpacing(0, 0),
-                      const VerticalSpacing(0, 0),
-                      const VerticalSpacing(0, 0),
-                      null,
-                    ),
-                    placeHolder: DefaultTextBlockStyle(
-                      const TextStyle(
-                        color: Colors.white24,
-                        fontSize: 18,
-                      ),
-                      const HorizontalSpacing(0, 0),
-                      const VerticalSpacing(0, 0),
-                      const VerticalSpacing(0, 0),
-                      null,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
