@@ -58,11 +58,7 @@ class BookService {
       final deviceInfo = DeviceInfoPlugin();
       final androidInfo = await deviceInfo.androidInfo;
 
-      if (androidInfo.version.sdkInt >= 30) {
-        if (await Permission.manageExternalStorage.isGranted) return true;
-        final status = await Permission.manageExternalStorage.request();
-        return status.isGranted;
-      } else {
+      if (androidInfo.version.sdkInt < 30) {
         if (await Permission.storage.isGranted) return true;
         final status = await Permission.storage.request();
         return status.isGranted;

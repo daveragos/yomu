@@ -2,7 +2,7 @@ name: yomu
 description: "Yomu is a free book + audiobook reader for everyone."
 publish_to: "none"
 
-version: 1.1.0+4
+version: 1.1.1+5
 
 environment:
   sdk: ^3.10.7
