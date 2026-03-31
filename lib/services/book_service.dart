@@ -8,40 +8,10 @@ import 'package:file_picker/file_picker.dart';
 import '../models/book_model.dart';
 import 'database_service.dart';
 import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
 
 class BookService {
   final DatabaseService _dbService = DatabaseService();
-
-  Future<List<File>> findBookFiles(String directoryPath) async {
-    final directory = Directory(directoryPath);
-    final List<File> files = [];
-    if (!await directory.exists()) return [];
-
-    try {
-      final Stream<FileSystemEntity> entityStream = directory.list(
-        recursive: true,
-        followLinks: false,
-      );
-
-      await for (var entity in entityStream.handleError(
-        (e) => debugPrint('Skip: $e'),
-      )) {
-        if (entity is File) {
-          final extension = p.extension(entity.path).toLowerCase();
-          if (extension == '.epub' || extension == '.pdf') {
-            files.add(entity);
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error finding files: $e');
-    }
-    files.sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
-    return files;
-  }
 
   Future<Book?> processFile(File file) async {
     final extension = p.extension(file.path).toLowerCase();
@@ -54,94 +24,16 @@ class BookService {
   }
 
   Future<bool> requestPermissions() async {
-    if (Platform.isAndroid) {
-      final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
-
-      if (androidInfo.version.sdkInt < 30) {
-        if (await Permission.storage.isGranted) return true;
-        final status = await Permission.storage.request();
-        return status.isGranted;
-      }
-    }
+    // With SAF/FilePicker, we don't need manifest permissions for individual file access.
+    // We only keep this for potential future features or older compatibility if needed.
     return true;
   }
 
+  /// Consistently use a multi-file picker for all devices.
+  /// This bypasses OS restrictions on folder access (like Downloads) 
+  /// and provides a unified "Add Books" experience.
   Future<List<Book>> scanDirectory() async {
-    final hasPermission = await requestPermissions();
-    if (!hasPermission) {
-      debugPrint('Permission denied for storage scanning');
-      return [];
-    }
-
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-
-    if (selectedDirectory == null) {
-      debugPrint('No directory selected');
-      return [];
-    }
-
-    debugPrint('Scanning directory: $selectedDirectory');
-    final directory = Directory(selectedDirectory);
-    final List<Book> importedBooks = [];
-    final existingBooks = await _dbService.getBooks();
-
-    try {
-      final Stream<FileSystemEntity> entityStream = directory.list(
-        recursive: true,
-        followLinks: false,
-      );
-
-      await for (var entity in entityStream.handleError((e) {
-        debugPrint('Skip restricted folder/file: $e');
-      })) {
-        if (entity is File) {
-          final path = entity.path;
-          final extension = p.extension(path).toLowerCase();
-
-          if (extension == '.epub' || extension == '.pdf') {
-            debugPrint('Processing: $path');
-
-            // Check if already in DB
-            if (existingBooks.any((b) => b.filePath == path)) {
-              debugPrint('Already in library: $path');
-              continue;
-            }
-
-            Book? book;
-            if (extension == '.epub') {
-              book = await _processEpub(entity);
-            } else if (extension == '.pdf') {
-              book = await _processPdf(entity);
-            }
-
-            final bck = book;
-            if (bck != null) {
-              final isDuplicate = existingBooks.any(
-                (b) =>
-                    b.filePath == bck.filePath ||
-                    (bck.contentHash != null &&
-                        b.contentHash == bck.contentHash),
-              );
-
-              if (!isDuplicate) {
-                final bookToInsert = bck.copyWith(folderPath: p.dirname(path));
-                final id = await _dbService.insertBook(bookToInsert);
-                importedBooks.add(bookToInsert.copyWith(id: id));
-                debugPrint('Imported: ${bck.title}');
-              } else {
-                debugPrint('Duplicate book found, skipping: ${bck.title}');
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error during directory scanning: $e');
-    }
-
-    debugPrint('Scanning finished. Imported ${importedBooks.length} books.');
-    return importedBooks;
+    return await pickBooks();
   }
 
   Future<List<Book>> pickBooks() async {
@@ -197,61 +89,6 @@ class BookService {
     return importedBooks;
   }
 
-  Future<List<Book>> scanPath(String path) async {
-    final directory = Directory(path);
-    if (!await directory.exists()) return [];
-
-    final List<Book> importedBooks = [];
-    final existingBooks = await _dbService.getBooks();
-
-    try {
-      final Stream<FileSystemEntity> entityStream = directory.list(
-        recursive: true,
-        followLinks: false,
-      );
-
-      await for (var entity in entityStream.handleError((e) {
-        debugPrint('Skip: $e');
-      })) {
-        if (entity is File) {
-          final filePath = entity.path;
-          final extension = p.extension(filePath).toLowerCase();
-
-          if (extension == '.epub' || extension == '.pdf') {
-            if (existingBooks.any((b) => b.filePath == filePath)) continue;
-
-            Book? book;
-            if (extension == '.epub') {
-              book = await _processEpub(entity);
-            } else if (extension == '.pdf') {
-              book = await _processPdf(entity);
-            }
-
-            final bck = book;
-            if (bck != null) {
-              final isDuplicate = existingBooks.any(
-                (b) =>
-                    b.filePath == bck.filePath ||
-                    (bck.contentHash != null &&
-                        b.contentHash == bck.contentHash),
-              );
-
-              if (!isDuplicate) {
-                final bookToInsert = bck.copyWith(
-                  folderPath: p.dirname(filePath),
-                );
-                final id = await _dbService.insertBook(bookToInsert);
-                importedBooks.add(bookToInsert.copyWith(id: id));
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error scanning path: $e');
-    }
-    return importedBooks;
-  }
 
   // Helper method for EPUB processing
   Future<Book?> _processEpub(File file) async {

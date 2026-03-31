@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../providers/library_provider.dart';
+import '../../../core/constants.dart';
 
 class EmptyLibraryView extends ConsumerWidget {
   final VoidCallback onImportFiles;
@@ -21,22 +21,21 @@ class EmptyLibraryView extends ConsumerWidget {
           const SizedBox(height: 16),
           const Text('Your library is empty'),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () =>
-                    ref.read(libraryProvider.notifier).scanFolder(),
-                icon: const Icon(Icons.folder_open),
-                label: const Text('Scan Folder'),
+          ElevatedButton.icon(
+            onPressed: onImportFiles,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: YomuConstants.accent,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: onImportFiles,
-                icon: const Icon(Icons.add),
-                label: const Text('Import Files'),
-              ),
-            ],
+            ),
+            icon: const Icon(Icons.add),
+            label: const Text(
+              'Add Books',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

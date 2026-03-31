@@ -1221,15 +1221,6 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     return (totalPages / totalMinutes).clamp(0.1, 100.0);
   }
 
-  Future<void> scanFolder() async {
-    state = state.copyWith(isLoading: true);
-    final newBooks = await _bookService.scanDirectory();
-    if (newBooks.isNotEmpty) {
-      await loadBooks();
-    } else {
-      state = state.copyWith(isLoading: false);
-    }
-  }
 
   Future<void> markBookAsOpened(Book book) async {
     if (book.lastReadAt == null) {

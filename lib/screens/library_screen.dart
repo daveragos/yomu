@@ -23,22 +23,16 @@ class LibraryScreen extends ConsumerStatefulWidget {
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends ConsumerState<LibraryScreen>
-    with TickerProviderStateMixin {
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
-  bool _isMenuOpen = false;
-  late AnimationController _animationController;
   final Set<int> _selectedBookIds = {};
   bool _isSelectionMode = false;
 
   final GlobalKey _fabKey = GlobalKey();
-  final GlobalKey _scanKey = GlobalKey();
-  final GlobalKey _importKey = GlobalKey();
   final GlobalKey _firstBookMenuKey = GlobalKey();
   final GlobalKey _filterKey = GlobalKey();
 
   bool _fabTutorialShown = true;
-  bool _menuTutorialShown = true;
   bool _bookCardTutorialShown = true;
 
   void _toggleSelection(Book book) {
@@ -66,10 +60,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
     _checkFirstLaunch();
   }
 
@@ -81,8 +71,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (isMainFirstLaunch) return;
 
     _fabTutorialShown = !(prefs.getBool('is_first_launch_library_fab') ?? true);
-    _menuTutorialShown =
-        !(prefs.getBool('is_first_launch_library_menu') ?? true);
     _bookCardTutorialShown =
         !(prefs.getBool('is_first_launch_library_book_card') ?? true);
 
@@ -149,48 +137,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
   }
 
-  void _showMenuTutorial() {
-    final targets = [
-      TutorialHelper.createTarget(
-        identify: "scan_target",
-        keyTarget: _scanKey,
-        alignSkip: Alignment.bottomLeft,
-        title: "Scan Folder",
-        description:
-            "Automatically detects and adds all supported books from a folder you choose.",
-        contentAlign: ContentAlign.bottom,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        textAlign: TextAlign.right,
-      ),
-      TutorialHelper.createTarget(
-        identify: "import_target",
-        keyTarget: _importKey,
-        alignSkip: Alignment.bottomLeft,
-        title: "Select Files",
-        description: "Manually pick specific EPUB or PDF files to import.",
-        contentAlign: ContentAlign.bottom,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        textAlign: TextAlign.right,
-      ),
-    ];
-
-    TutorialHelper.showTutorial(
-      context: context,
-      targets: targets,
-      onFinish: _setMenuTutorialShown,
-      onSkip: () {
-        _setMenuTutorialShown();
-        return true;
-      },
-    );
-  }
-
-  void _setMenuTutorialShown() {
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setBool('is_first_launch_library_menu', false);
-    });
-    _menuTutorialShown = true;
-  }
 
   void _showBookCardTutorial() {
     final targets = [
@@ -226,25 +172,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   void dispose() {
     _searchController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
-  void _toggleMenu() {
-    setState(() {
-      _isMenuOpen = !_isMenuOpen;
-      if (_isMenuOpen) {
-        _animationController.forward();
-        if (!_menuTutorialShown) {
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) _showMenuTutorial();
-          });
-        }
-      } else {
-        _animationController.reverse();
-      }
-    });
-  }
 
   Future<void> _handleSelectiveImport() async {
     final notifier = ref.read(libraryProvider.notifier);
@@ -339,19 +269,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ),
         child: AddBookFab(
           key: _fabKey,
-          scanKey: _scanKey,
-          importKey: _importKey,
-          isMenuOpen: _isMenuOpen,
-          animationController: _animationController,
-          onToggleMenu: _toggleMenu,
-          onScanFolder: () {
-            _toggleMenu();
-            ref.read(libraryProvider.notifier).scanFolder();
-          },
-          onImportFiles: () {
-            _toggleMenu();
-            _handleSelectiveImport();
-          },
+          onPressed: _handleSelectiveImport,
         ),
       ),
     );
