@@ -137,6 +137,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   StreamSubscription<BatteryState>? _batterySubscription;
 
   void _resetReadingViewState() {
+    // Switch between EPUB and PDF theme preferences on open
+    final book = ref.read(currentlyReadingProvider);
+    if (book != null) {
+      final isPdf = book.filePath.toLowerCase().endsWith('.pdf');
+      Future.microtask(() {
+        if (mounted) {
+          final settings = ref.read(readerSettingsProvider);
+          if (isPdf) {
+            // For PDFs, always force white on open
+            ref.read(readerSettingsProvider.notifier).setTheme(ReaderTheme.white);
+          } else if (settings.epubTheme != null) {
+            // For EPUBs, restore the last used epubTheme preference
+            ref.read(readerSettingsProvider.notifier).setTheme(settings.epubTheme!);
+          }
+        }
+      });
+    }
+
     _epubController?.dispose();
     _epubController = null;
     _epubBook = null;

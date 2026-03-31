@@ -12,6 +12,7 @@ enum ReaderLockState { none, zoom, all }
 /// Reader display settings model
 class ReaderSettings {
   final ReaderTheme theme;
+  final ReaderTheme? epubTheme;
   final String typeface;
   final double textSize;
   final double lineHeight;
@@ -22,6 +23,7 @@ class ReaderSettings {
 
   const ReaderSettings({
     this.theme = ReaderTheme.black,
+    this.epubTheme,
     this.typeface = 'Merriweather',
     this.textSize = 18.0,
     this.lineHeight = 1.6,
@@ -33,6 +35,7 @@ class ReaderSettings {
 
   ReaderSettings copyWith({
     ReaderTheme? theme,
+    ReaderTheme? epubTheme,
     String? typeface,
     double? textSize,
     double? lineHeight,
@@ -43,6 +46,7 @@ class ReaderSettings {
   }) {
     return ReaderSettings(
       theme: theme ?? this.theme,
+      epubTheme: epubTheme ?? this.epubTheme,
       typeface: typeface ?? this.typeface,
       textSize: textSize ?? this.textSize,
       lineHeight: lineHeight ?? this.lineHeight,
@@ -128,6 +132,7 @@ class ReaderSettings {
   Map<String, dynamic> toMap() {
     return {
       'theme': theme.index,
+      'epubTheme': epubTheme?.index,
       'typeface': typeface,
       'textSize': textSize,
       'lineHeight': lineHeight,
@@ -142,6 +147,9 @@ class ReaderSettings {
   factory ReaderSettings.fromMap(Map<String, dynamic> map) {
     return ReaderSettings(
       theme: ReaderTheme.values[map['theme'] as int? ?? 3],
+      epubTheme: map['epubTheme'] != null
+          ? ReaderTheme.values[map['epubTheme'] as int]
+          : null,
       typeface: map['typeface'] as String? ?? 'Merriweather',
       textSize: (map['textSize'] as num?)?.toDouble() ?? 18.0,
       lineHeight: (map['lineHeight'] as num?)?.toDouble() ?? 1.6,

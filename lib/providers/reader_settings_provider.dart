@@ -3,19 +3,21 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/reader_settings_model.dart';
+import './library_provider.dart';
 
 const String _readerSettingsKey = 'reader_settings';
 
 final readerSettingsProvider =
     StateNotifierProvider<ReaderSettingsNotifier, ReaderSettings>((ref) {
-      return ReaderSettingsNotifier();
-    });
+  return ReaderSettingsNotifier(ref);
+});
 
 class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
+  final Ref _ref;
   SharedPreferences? _prefs;
   Timer? _saveTimer;
 
-  ReaderSettingsNotifier() : super(ReaderSettings.defaults) {
+  ReaderSettingsNotifier(this._ref) : super(ReaderSettings.defaults) {
     _loadSettings();
   }
 
@@ -52,7 +54,23 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
   }
 
   void setTheme(ReaderTheme theme) {
-    state = state.copyWith(theme: theme, usePublisherDefaults: false);
+    final book = _ref.read(currentlyReadingProvider);
+    final isPdf = book?.filePath.toLowerCase().endsWith('.pdf') ?? false;
+
+    if (isPdf) {
+      // For PDFs, we only update the transient active theme (temporary change)
+      state = state.copyWith(
+        theme: theme,
+        usePublisherDefaults: false,
+      );
+    } else {
+      // For EPUBs, we update both active theme AND sticky epubTheme preference
+      state = state.copyWith(
+        theme: theme,
+        epubTheme: theme,
+        usePublisherDefaults: false,
+      );
+    }
     _saveSettings();
   }
 
