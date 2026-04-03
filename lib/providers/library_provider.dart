@@ -11,6 +11,7 @@ import '../services/database_service.dart';
 import '../services/book_service.dart';
 import '../models/quest_model.dart';
 import '../services/notification_service.dart';
+import '../models/vocabulary_model.dart';
 
 enum BookSortBy { title, author, recent }
 
@@ -1453,8 +1454,8 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
   }
 
-  Future<void> recordDictionaryLookup(String word) async {
-    await _dbService.insertDictionaryLookup(word);
+  Future<void> recordDictionaryLookup(String word, int bookId) async {
+    await _dbService.insertDictionaryLookup(word, bookId);
     final count = await _dbService.getDictionaryLookupCount();
 
     state = state.copyWith(totalLookups: count);
@@ -1490,6 +1491,10 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
     // Refresh achievements and level
     await loadBooks();
+  }
+
+  Future<List<VocabularyLookup>> getVocabularyForBook(int bookId) async {
+    return await _dbService.getDictionaryLookupsForBook(bookId);
   }
 
   void _queueNotification({required int id, required String title, required String body}) {

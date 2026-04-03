@@ -1,5 +1,7 @@
 import 'dart:io' as io;
 import 'dart:async';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
@@ -902,8 +904,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           final parts = b.position.split(':');
           if (parts.length > 1) {
             final double bookmarkProgress = double.tryParse(parts[1]) ?? 0.0;
-            if ((_scrollProgressNotifier.value - bookmarkProgress).abs() <
-                0.5) {
+            if (_scrollProgressNotifier.value >= bookmarkProgress &&
+                _scrollProgressNotifier.value < bookmarkProgress + 0.05) {
               return b;
             }
           }
@@ -1630,9 +1632,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 highlights: _highlights,
                                 onHighlight: _addHighlight,
                                 onDeleteHighlight: _deleteHighlight,
-                                onLookup: (word) => ref
-                                    .read(libraryProvider.notifier)
-                                    .recordDictionaryLookup(word),
+                                onLookup: _lookupDictionary,
                                 searchQuery: _activeSearchQuery,
                                 epubBook: _epubBook,
                               );
@@ -1767,15 +1767,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                     ? ValueListenableBuilder<double>(
                         valueListenable: _scrollProgressNotifier,
                         builder: (context, scrollProgress, _) {
-                          final overallProgress =
-                              (_currentChapterIndex + scrollProgress) /
-                              _chapters.length;
-                          // Use the refined calculation logic for consistency
-                          double displayProgress = overallProgress;
-                          if (_currentChapterIndex == _chapters.length - 1 &&
-                              scrollProgress > 0.99) {
-                            displayProgress = 1.0;
-                          }
+                          final displayProgress = _calculateCurrentProgress(book);
                           return Text(
                             '${(displayProgress * 100).toStringAsFixed(0)}%',
                             style: TextStyle(
@@ -2136,6 +2128,60 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         .read(libraryProvider.notifier)
         .getBookmarks(book.id!);
     final highlights = _highlights; // Already loaded in state
+    final vocabulary = await ref
+        .read(libraryProvider.notifier)
+        .getVocabularyForBook(book.id!);
+
+    bool includeVocabulary = false;
+    if (vocabulary.isNotEmpty) {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          bool includeVocab = true;
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: YomuConstants.surface,
+                title: const Text('Export Annotations', style: TextStyle(color: Colors.white)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Ready to export all annotations as Markdown.',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Include Vocabulary List', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: const Text('Add words you looked up in this book', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                      value: includeVocab,
+                      activeColor: YomuConstants.accent,
+                      checkColor: Colors.black,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) => setDialogState(() => includeVocab = val ?? true),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, null),
+                    child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, includeVocab),
+                    child: const Text('SHARE', style: TextStyle(color: YomuConstants.accent)),
+                  ),
+                ],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              );
+            },
+          );
+        },
+      );
+      if (result == null) return; // Cancelled
+      includeVocabulary = result;
+    }
 
     final buffer = StringBuffer();
     buffer.writeln('# ${book.title}');
@@ -2168,6 +2214,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           : 'Page ${h.chapterIndex + 1}';
       buffer.writeln('*Position: $pos — ${_formatDate(h.createdAt)}*');
       buffer.writeln('---');
+    }
+
+    if (includeVocabulary && vocabulary.isNotEmpty) {
+      buffer.writeln('## Vocabulary List');
+      for (final v in vocabulary) {
+        buffer.writeln('- ${v.word} — ${_formatDate(v.timestamp)}');
+      }
+      buffer.writeln();
     }
     
     buffer.writeln('---');
@@ -2230,6 +2284,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           totalPages: _pdfPages,
           focusJump: focusJump,
           onExport: () => _exportToMarkdown(book),
+          getVocabulary: () =>
+              ref.read(libraryProvider.notifier).getVocabularyForBook(book.id!),
           onUpdateHighlight: (h) async {
             await DatabaseService().updateHighlight(h);
             final updatedHighlights =
@@ -2285,15 +2341,27 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               if (h.position.contains(':')) {
                 final parts = h.position.split(':');
                 final index = int.tryParse(parts[0]) ?? h.chapterIndex;
-                final progress = double.tryParse(parts[1]) ?? 0.0;
+                // Position format is now 'index:ratio' or 'index:exact:occurrenceIndex:ratio'
+                // In both cases, the ratio for navigation is the last part.
+                final progress = double.tryParse(parts.last) ?? 0.0;
+                
                 if (index >= 0 && index < _chapters.length) {
+                  final bool isSameChapter = index == _currentChapterIndex;
                   setState(() {
                     _currentChapterIndex = index;
                     _initialScrollProgress = progress;
                     _currentChapter =
                         _chapters[index].Title ?? 'Chapter ${index + 1}';
                   });
+                  
+                  // If same chapter, jumpToPage(index) might not trigger a rebuild/didUpdateWidget 
+                  // in some PageView implementations if the index is identical,
+                  // but our state update above will propagate through the widget tree.
                   _pageController?.jumpToPage(index);
+                  
+                  if (isSameChapter) {
+                    _recordInteraction();
+                  }
                 }
               }
             } else {
@@ -2301,8 +2369,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               if (h.chapterIndex != _pdfCurrentPage) {
                 _jumpToPdfPage(h.chapterIndex + 1);
               }
+              // TODO: If PDF highlights gain granular position, handle it here
             }
           },
+          onLookup: _lookupDictionary,
           onDeleteHighlight: (id) async {
             await _deleteHighlight(id);
           },
@@ -2403,5 +2473,41 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     return duration.inHours > 0
         ? '${twoDigits(duration.inHours)}:$minutes:$seconds'
         : '$minutes:$seconds';
+  }
+
+  Future<void> _lookupDictionary(String word) async {
+    final lookupWord = word.trim().split(RegExp(r'\s+')).first;
+    final encoded = Uri.encodeComponent(lookupWord);
+
+    final book = ref.read(currentlyReadingProvider);
+    if (book != null) {
+      await ref
+          .read(libraryProvider.notifier)
+          .recordDictionaryLookup(lookupWord, book.id!);
+    }
+
+    if (io.Platform.isAndroid) {
+      try {
+        final intent = AndroidIntent(
+          action: 'android.intent.action.PROCESS_TEXT',
+          type: 'text/plain',
+          arguments: {
+            'android.intent.extra.PROCESS_TEXT': lookupWord,
+            'android.intent.extra.PROCESS_TEXT_READONLY': true,
+          },
+        );
+        await intent.launch();
+        return;
+      } catch (e) {
+        debugPrint('Dictionary intent failed: $e');
+      }
+    }
+    if (io.Platform.isIOS || io.Platform.isMacOS) {
+      final dictUri = Uri.parse('x-dictionary:r:$encoded');
+      if (await canLaunchUrl(dictUri)) {
+        await launchUrl(dictUri);
+        return;
+      }
+    }
   }
 }

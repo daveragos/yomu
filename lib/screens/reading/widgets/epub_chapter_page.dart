@@ -838,13 +838,14 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                           icon: Icon(Icons.circle, color: color, size: 22),
                           onPressed: () {
                             final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+                            final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
                             widget.onHighlight(Highlight(
                               bookId: 0,
                               chapterIndex: widget.index,
                               text: selectedText,
                               color: hexColor,
                               createdAt: DateTime.now(),
-                              position: '${widget.index}:${occurrenceIndex != null ? 'exact:$occurrenceIndex' : (_scrollController.hasClients ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0)}',
+                              position: '${widget.index}:${occurrenceIndex != null ? 'exact:$occurrenceIndex' : 'ratio'}:$ratio',
                             ));
                             selectableRegionState.hideToolbar();
                             selectableRegionState.clearSelection();
@@ -942,6 +943,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           title: existing != null ? 'Edit Note' : 'Add Note',
           onSave: (newNote) {
             final hexColor = existing?.color ?? '#F1C40F';
+            final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
             widget.onHighlight(Highlight(
               id: existing?.id,
               bookId: 0,
@@ -950,10 +952,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               note: newNote,
               color: hexColor,
               createdAt: existing?.createdAt ?? DateTime.now(),
-              position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
+              position: existing?.position ?? '${widget.index}:ratio:$ratio',
             ));
           },
           onSaveWithColor: (newNote, newColor) {
+            final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
             widget.onHighlight(Highlight(
               id: existing?.id,
               bookId: 0,
@@ -962,7 +965,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               note: newNote,
               color: newColor,
               createdAt: existing?.createdAt ?? DateTime.now(),
-              position: existing?.position ?? '${widget.index}:${_scrollController.offset / _scrollController.position.maxScrollExtent}',
+              position: existing?.position ?? '${widget.index}:ratio:$ratio',
             ));
           },
         );

@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
 import '../models/highlight_model.dart';
+import '../models/vocabulary_model.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -23,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 17,
+      version: 18,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -107,6 +108,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE dictionary_lookups(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId INTEGER,
         word TEXT,
         timestamp TEXT
       )
@@ -227,6 +229,11 @@ class DatabaseService {
         )
       ''');
     }
+    if (oldVersion < 18) {
+      await db.execute(
+        'ALTER TABLE dictionary_lookups ADD COLUMN bookId INTEGER DEFAULT 0',
+      );
+    }
   }
 
   // Book CRUD
@@ -278,6 +285,11 @@ class DatabaseService {
       );
       await txn.delete('bookmarks', where: 'bookId = ?', whereArgs: [id]);
       await txn.delete('highlights', where: 'bookId = ?', whereArgs: [id]);
+      await txn.delete(
+        'dictionary_lookups',
+        where: 'bookId = ?',
+        whereArgs: [id],
+      );
       await txn.delete('books', where: 'id = ?', whereArgs: [id]);
     });
   }
@@ -412,12 +424,42 @@ class DatabaseService {
   }
 
   // Dictionary Lookup CRUD
-  Future<int> insertDictionaryLookup(String word) async {
+  Future<int> insertDictionaryLookup(String word, int bookId) async {
     final db = await database;
+
+    // Deduplication: Check if this word was already looked up in this book
+    final existing = await db.query(
+      'dictionary_lookups',
+      where: 'word = ? AND bookId = ?',
+      whereArgs: [word, bookId],
+    );
+
+    if (existing.isNotEmpty) {
+      // Just update the timestamp
+      return await db.update(
+        'dictionary_lookups',
+        {'timestamp': DateTime.now().toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [existing.first['id']],
+      );
+    }
+
     return await db.insert('dictionary_lookups', {
+      'bookId': bookId,
       'word': word,
       'timestamp': DateTime.now().toIso8601String(),
     });
+  }
+
+  Future<List<VocabularyLookup>> getDictionaryLookupsForBook(int bookId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'dictionary_lookups',
+      where: 'bookId = ?',
+      whereArgs: [bookId],
+      orderBy: 'timestamp DESC',
+    );
+    return List.generate(maps.length, (i) => VocabularyLookup.fromMap(maps[i]));
   }
 
   Future<int> getDictionaryLookupCount() async {
