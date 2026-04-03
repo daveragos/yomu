@@ -257,7 +257,7 @@ class SettingsScreen extends ConsumerWidget {
                 size: 20,
               ),
               onTap: () async {
-                final uri = Uri.parse('https://jami.bio/daveragoose');
+                final uri = Uri.parse('https://gurshaplus.com/ragoose');
                 try {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 } catch (e) {

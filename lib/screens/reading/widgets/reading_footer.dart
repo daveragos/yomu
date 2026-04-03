@@ -11,6 +11,7 @@ class ReadingFooter extends StatelessWidget {
   final ValueNotifier<double> scrollProgressNotifier;
   final int totalChapters;
   final int currentChapterIndex;
+  final List<int>? chapterLengths;
 
   const ReadingFooter({
     super.key,
@@ -22,6 +23,7 @@ class ReadingFooter extends StatelessWidget {
     required this.scrollProgressNotifier,
     required this.totalChapters,
     required this.currentChapterIndex,
+    this.chapterLengths,
   });
 
   @override
@@ -87,10 +89,32 @@ class ReadingFooter extends StatelessWidget {
               builder: (context, scrollProgress, _) {
                 if (book.filePath.toLowerCase().endsWith('.epub') &&
                     totalChapters > 0) {
-                  double overallProgress =
-                      ((currentChapterIndex + scrollProgress) /
-                      totalChapters *
-                      100);
+                  double overallProgress;
+                  
+                  if (chapterLengths != null && 
+                      chapterLengths!.isNotEmpty && 
+                      chapterLengths!.length == totalChapters) {
+                    // Weighted progress calculation
+                    double totalLength = chapterLengths!.fold(0, (sum, len) => sum + len);
+                    if (totalLength > 0) {
+                      double accumulatedLength = 0;
+                      for (int i = 0; i < currentChapterIndex; i++) {
+                        accumulatedLength += chapterLengths![i];
+                      }
+                      double currentChapterProgress = 
+                          chapterLengths![currentChapterIndex] * scrollProgress;
+                      overallProgress = (accumulatedLength + currentChapterProgress) / totalLength * 100;
+                    } else {
+                      overallProgress = (currentChapterIndex + scrollProgress) / totalChapters * 100;
+                    }
+                  } else {
+                    // Fallback to equal chapters
+                    overallProgress =
+                        ((currentChapterIndex + scrollProgress) /
+                        totalChapters *
+                        100);
+                  }
+
                   if (totalChapters == 1 ||
                       (currentChapterIndex == totalChapters - 1 &&
                           scrollProgress > 0.95)) {

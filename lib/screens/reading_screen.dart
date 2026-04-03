@@ -135,6 +135,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   int _batteryLevel = 100;
   final Battery _battery = Battery();
   StreamSubscription<BatteryState>? _batterySubscription;
+  
+  List<int> _epubChapterLengths = [];
+  int _epubTotalLength = 0;
 
   void _resetReadingViewState() {
     // Switch between EPUB and PDF theme preferences on open
@@ -183,6 +186,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _searchController.clear();
     _bookmarks = [];
     _highlights = [];
+    _epubChapterLengths = [];
+    _epubTotalLength = 0;
     // Force reload bookmarks/highlights for the NEW book
     _loadBookmarks();
   }
@@ -830,15 +835,27 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   void _jumpToPercent(double percent, Book book) {
     if (book.filePath.toLowerCase().endsWith('.epub')) {
-      if (_chapters.isEmpty) return;
+      if (_chapters.isEmpty || _epubTotalLength == 0) return;
 
-      final double targetTotalProgress = percent * _chapters.length;
-      final int chapterIndex = targetTotalProgress.floor().clamp(
-        0,
-        _chapters.length - 1,
-      );
-      final double chapterScrollProgress = (targetTotalProgress - chapterIndex)
-          .clamp(0.0, 1.0);
+      final double targetTotalProgress = percent * _epubTotalLength;
+      int chapterIndex = 0;
+      double accumulatedLength = 0;
+
+      for (int i = 0; i < _epubChapterLengths.length; i++) {
+        final length = _epubChapterLengths[i];
+        if (accumulatedLength + length >= targetTotalProgress) {
+          chapterIndex = i;
+          break;
+        }
+        accumulatedLength += length;
+        if (i == _epubChapterLengths.length - 1) chapterIndex = i;
+      }
+
+      final double remainingLength = targetTotalProgress - accumulatedLength;
+      final double chapterLength = _epubChapterLengths[chapterIndex].toDouble();
+      final double chapterScrollProgress =
+          (chapterLength > 0 ? remainingLength / chapterLength : 0.0)
+              .clamp(0.0, 1.0);
 
       setState(() {
         _currentChapterIndex = chapterIndex;
@@ -985,17 +1002,48 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     // Extract chapters when document is loaded
     controller.document.then((document) {
       final flattenedChapters = _flattenChapters(document.Chapters ?? []);
+      
+      // Calculate chapter lengths and total length for weighted progress
+      final lengths = flattenedChapters.map((c) => c.HtmlContent?.length ?? 0).toList();
+      final total = lengths.fold(0, (sum, len) => sum + len);
+
       setState(() {
         _epubBook = document;
         _chapters = flattenedChapters;
+        _epubChapterLengths = lengths;
+        _epubTotalLength = total;
 
         // Find initial chapter index and scroll progress from overall progress
-        double totalProgress = book.progress * flattenedChapters.length;
-        _currentChapterIndex = totalProgress.floor().clamp(
-          0,
-          flattenedChapters.length - 1,
-        );
-        _initialScrollProgress = totalProgress - _currentChapterIndex;
+        if (total > 0) {
+          final double targetTotalProgress = book.progress * total.toDouble();
+          int chapterIndex = 0;
+          double accumulatedLength = 0.0;
+
+          for (int i = 0; i < lengths.length; i++) {
+            final double length = lengths[i].toDouble();
+            if (accumulatedLength + length >= targetTotalProgress) {
+              chapterIndex = i;
+              break;
+            }
+            accumulatedLength += length;
+            if (i == lengths.length - 1) chapterIndex = i;
+          }
+
+          final double remainingLength = targetTotalProgress - accumulatedLength;
+          final double chapterLength = lengths[chapterIndex].toDouble();
+          
+          _currentChapterIndex = chapterIndex;
+          _initialScrollProgress = (chapterLength > 0 ? remainingLength / chapterLength : 0.0)
+              .clamp(0.0, 1.0);
+        } else {
+          // Fallback to equal chapters if lengths are unknown
+          double totalProgress = book.progress * flattenedChapters.length;
+          _currentChapterIndex = totalProgress.floor().clamp(
+            0,
+            flattenedChapters.length - 1,
+          );
+          _initialScrollProgress = totalProgress - _currentChapterIndex;
+        }
 
         _pageController = PageController(initialPage: _currentChapterIndex);
         _currentChapter =
@@ -1028,15 +1076,28 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       }
       return book.progress;
     } else if (book.filePath.toLowerCase().endsWith('.epub')) {
-      if (_chapters.isNotEmpty) {
-        final double progress =
-            (_currentChapterIndex + _scrollProgressNotifier.value) /
-            _chapters.length;
+      if (_chapters.isNotEmpty && _epubTotalLength > 0) {
+        double accumulatedLength = 0.0;
+        for (int i = 0; i < _currentChapterIndex; i++) {
+          accumulatedLength += _epubChapterLengths[i].toDouble();
+        }
+        
+        final double currentChapterProgress = 
+            (_epubChapterLengths[_currentChapterIndex].toDouble() * _scrollProgressNotifier.value);
+            
+        final double progress = (accumulatedLength + currentChapterProgress) / _epubTotalLength.toDouble();
+
         // If we are in the last chapter and very close to the end, snap to 1.0
         if (_currentChapterIndex == _chapters.length - 1 &&
             _scrollProgressNotifier.value > 0.99) {
           return 1.0;
         }
+        return progress.clamp(0.0, 1.0);
+      } else if (_chapters.isNotEmpty) {
+        // Fallback
+        final double progress =
+            (_currentChapterIndex + _scrollProgressNotifier.value) /
+            _chapters.length;
         return progress.clamp(0.0, 1.0);
       }
     }
@@ -1344,10 +1405,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   }
 
   int _getEpubChapterWeight(int index) {
-    if (index < 0 || index >= _chapters.length) return 0;
-    final chapter = _chapters[index];
-    final contentLength = chapter.HtmlContent?.length ?? 0;
-    return contentLength < 1000 ? 1 : 10;
+    if (index < 0 || index >= _chapters.length || _epubChapterLengths.isEmpty) {
+      return 0;
+    }
+    final contentLength = _epubChapterLengths[index];
+    // Use 1000 characters as a standard "page" weight
+    return (contentLength / 1000).ceil();
   }
 
   Future<void> _addHighlight(Highlight highlight) async {
@@ -1662,6 +1725,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                     scrollProgressNotifier: _scrollProgressNotifier,
                     totalChapters: _chapters.length,
                     currentChapterIndex: _currentChapterIndex,
+                    chapterLengths: _epubChapterLengths,
                   );
                 },
               ),
