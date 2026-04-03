@@ -14,6 +14,7 @@ import 'reading_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
+import '../components/rank_up_dialog.dart';
 
 class NavigationState {
   final int current;
@@ -190,6 +191,21 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     final selectedIndex = navState.current;
     final isReverse = navState.current < navState.previous;
 
+    // Global celebration listener (Rank Up)
+    ref.listen(libraryProvider.select((s) => s.level), (previous, next) {
+      final state = ref.read(libraryProvider);
+      if (!state.isReading) {
+        _checkAndShowRankUp(context, next, state);
+      }
+    });
+
+    ref.listen(libraryProvider.select((s) => s.isReading), (previous, isReading) {
+      if (previous == true && isReading == false) {
+        final state = ref.read(libraryProvider);
+        _checkAndShowRankUp(context, state.level, state);
+      }
+    });
+
     final List<Widget> screens = [
       const DashboardScreen(), // Home
       const LibraryScreen(), // Library
@@ -312,5 +328,25 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         ),
       ),
     );
+  }
+
+  void _checkAndShowRankUp(BuildContext context, int nextLevel, LibraryState state) {
+    final currentRank = YomuConstants.getRankForLevel(
+      nextLevel,
+      state.unlockedAchievements.length,
+    );
+    final lastRank = YomuConstants.getRankForLevel(
+      state.lastCelebratedLevel,
+      state.unlockedAchievements.length,
+    );
+
+    if (currentRank.level > lastRank.level) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => RankUpDialog(level: nextLevel, rankName: state.rankName),
+      );
+      ref.read(libraryProvider.notifier).markLevelCelebrated(nextLevel);
+    }
   }
 }

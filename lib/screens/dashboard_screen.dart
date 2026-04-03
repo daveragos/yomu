@@ -10,7 +10,6 @@ import '../providers/library_provider.dart';
 import './dashboard/widgets/dashboard_header.dart';
 import './dashboard/widgets/continue_reading_card.dart';
 import './dashboard/widgets/shelf_item.dart';
-import '../components/rank_up_dialog.dart';
 import '../components/streak_widget.dart';
 import 'main_navigation.dart';
 import '../models/book_model.dart';
@@ -39,28 +38,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(libraryProvider.select((s) => s.level), (previous, next) {
-      final state = ref.read(libraryProvider);
-      final currentRank = YomuConstants.getRankForLevel(
-        next,
-        state.unlockedAchievements.length,
-      );
-      final lastRank = YomuConstants.getRankForLevel(
-        state.lastCelebratedLevel,
-        state.unlockedAchievements.length,
-      );
-
-      if (currentRank.level > lastRank.level) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) =>
-              RankUpDialog(level: next, rankName: state.rankName),
-        );
-        ref.read(libraryProvider.notifier).markLevelCelebrated(next);
-      }
-    });
-
     final libraryState = ref.watch(libraryProvider);
     final hasAnimated = ref.watch(hasDashboardAnimatedProvider);
 

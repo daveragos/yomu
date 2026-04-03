@@ -18,6 +18,18 @@ enum BookStatusFilter { all, unread, reading, finished }
 
 final currentlyReadingProvider = StateProvider<Book?>((ref) => null);
 
+class DeferredNotification {
+  final String title;
+  final String body;
+  final int id;
+
+  DeferredNotification({
+    required this.title,
+    required this.body,
+    required this.id,
+  });
+}
+
 class LibraryState {
   final List<Book> allBooks;
   final List<Book> filteredBooks;
@@ -56,6 +68,7 @@ class LibraryState {
   final int lastCelebratedLevel;
   final bool isReading;
   final int totalLookups;
+  final List<DeferredNotification> deferredNotifications;
 
   LibraryState({
     required this.allBooks,
@@ -94,6 +107,7 @@ class LibraryState {
     this.reminderMinute = 0,
     this.isReading = false,
     this.totalLookups = 0,
+    this.deferredNotifications = const [],
   });
 
   double get weeklyGoalValue {
@@ -204,6 +218,7 @@ class LibraryState {
     int? reminderMinute,
     bool? isReading,
     int? totalLookups,
+    List<DeferredNotification>? deferredNotifications,
   }) {
     return LibraryState(
       allBooks: allBooks ?? this.allBooks,
@@ -242,6 +257,7 @@ class LibraryState {
       reminderMinute: reminderMinute ?? this.reminderMinute,
       isReading: isReading ?? this.isReading,
       totalLookups: totalLookups ?? this.totalLookups,
+      deferredNotifications: deferredNotifications ?? this.deferredNotifications,
     );
   }
 }
@@ -280,7 +296,29 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   void setReadingActive(bool active) {
+    bool wasReading = state.isReading;
     state = state.copyWith(isReading: active);
+
+    // If we just stopped reading, process deferred notifications
+    if (wasReading && !active && state.deferredNotifications.isNotEmpty) {
+      _processDeferredNotifications();
+    }
+  }
+
+  void _processDeferredNotifications() async {
+    final notifications = List<DeferredNotification>.from(state.deferredNotifications);
+    state = state.copyWith(deferredNotifications: []);
+
+    for (var i = 0; i < notifications.length; i++) {
+      final dn = notifications[i];
+      // Show with a slight stagger if there are multiple
+      await Future.delayed(Duration(milliseconds: i * 1500));
+      NotificationService().showNotification(
+        id: dn.id,
+        title: dn.title,
+        body: dn.body,
+      );
+    }
   }
 
   Future<void> _init() async {
@@ -1012,6 +1050,12 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           title: 'Achievement Unlocked!',
           body: 'You earned the "$title" badge!',
         );
+      } else {
+        _queueNotification(
+          id: achievement.hashCode,
+          title: 'Achievement Unlocked!',
+          body: 'You earned the "$title" badge!',
+        );
       }
     }
 
@@ -1147,12 +1191,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         final wasCompleted = oldQuests.any(
           (oq) => oq.id == q.id && oq.isCompleted,
         );
-        if (q.isCompleted && !wasCompleted && !state.isReading) {
-          NotificationService().showNotification(
-            id: q.id.hashCode,
-            title: 'Quest Completed!',
-            body: 'You completed: ${q.title}. +${q.xpReward} XP earned!',
-          );
+        if (q.isCompleted && !wasCompleted) {
+          if (!state.isReading) {
+            NotificationService().showNotification(
+              id: q.id.hashCode,
+              title: 'Quest Completed!',
+              body: 'You completed: ${q.title}. +${q.xpReward} XP earned!',
+            );
+          } else {
+            _queueNotification(
+              id: q.id.hashCode,
+              title: 'Quest Completed!',
+              body: 'You completed: ${q.title}. +${q.xpReward} XP earned!',
+            );
+          }
         }
       }
 
@@ -1186,6 +1238,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
             );
           } else {
             NotificationService().showNotification(
+              id: 1002,
+              title: 'Level Up!',
+              body: 'You reached Level ${stats.level}!',
+            );
+          }
+        } else {
+          if (newRank.name != oldRank.name) {
+            _queueNotification(
+              id: 1001,
+              title: 'Rank Up!',
+              body: 'Congratulations! You are now a ${newRank.name}!',
+            );
+          } else {
+            _queueNotification(
               id: 1002,
               title: 'Level Up!',
               body: 'You reached Level ${stats.level}!',
@@ -1424,6 +1490,15 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
     // Refresh achievements and level
     await loadBooks();
+  }
+
+  void _queueNotification({required int id, required String title, required String body}) {
+    state = state.copyWith(
+      deferredNotifications: [
+        ...state.deferredNotifications,
+        DeferredNotification(id: id, title: title, body: body),
+      ],
+    );
   }
 }
 
