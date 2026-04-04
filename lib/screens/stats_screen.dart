@@ -115,6 +115,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   Widget _buildQuickStats(BuildContext context, LibraryState state) {
+    final Color streakColor = state.isStreakActiveToday
+        ? (state.currentStreak >= 30
+            ? Colors.amber
+            : (state.currentStreak >= 7 ? Colors.orange : Colors.redAccent))
+        : YomuConstants.textSecondary;
+
     return Row(
       children: [
         Expanded(
@@ -122,7 +128,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             label: 'Streak',
             value: '${state.currentStreak}',
             icon: Icons.local_fire_department,
-            color: YomuConstants.accent,
+            color: streakColor,
           ),
         ),
         const SizedBox(width: 12),

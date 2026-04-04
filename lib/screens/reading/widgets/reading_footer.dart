@@ -115,8 +115,7 @@ class ReadingFooter extends StatelessWidget {
                         100);
                   }
 
-                  if (totalChapters == 1 ||
-                      (currentChapterIndex == totalChapters - 1 &&
+                  if ((currentChapterIndex == totalChapters - 1 &&
                           scrollProgress > 0.99)) {
                     overallProgress = 100.0;
                   }

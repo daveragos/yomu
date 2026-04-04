@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../core/constants.dart';
 import '../providers/library_provider.dart';
 import '../components/glass_container.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -220,6 +222,26 @@ class SettingsScreen extends ConsumerWidget {
                   }
                 },
               ),
+            Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+            ListTile(
+              leading: const Icon(Icons.notification_important_rounded, color: YomuConstants.accent),
+              title: const Text(
+                'Test Notification',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                'Receive a test alert to verify reminders work.',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+              ),
+              trailing: const Icon(Icons.send_rounded, color: YomuConstants.accent, size: 20),
+              onTap: () async {
+                await NotificationService().showNotification(
+                  id: 888,
+                  title: 'Test Notification \uD83D\uDCD6',
+                  body: "Reminders are working correctly! Happy reading.",
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -309,9 +331,17 @@ class SettingsScreen extends ConsumerWidget {
     return Center(
       child: Column(
         children: [
-          const Text(
-            'Yomu v1.0.1',
-            style: TextStyle(color: Colors.white24, fontSize: 12),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final version = snapshot.hasData 
+                  ? 'v${snapshot.data!.version}+${snapshot.data!.buildNumber}' 
+                  : '...';
+              return Text(
+                'Yomu $version',
+                style: const TextStyle(color: Colors.white24, fontSize: 12),
+              );
+            },
           ),
         ],
       ),
