@@ -975,6 +975,13 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
   Future<void> _lookupDictionary(String word) async {
     final lookupWord = word.trim().split(RegExp(r'\s+')).first;
+    
+    // Delegate to parent if provided, as it handles database recording and platform intents
+    if (widget.onLookup != null) {
+      widget.onLookup!(lookupWord);
+      return;
+    }
+
     final encoded = Uri.encodeComponent(lookupWord);
     if (Platform.isAndroid) {
       try {
@@ -987,7 +994,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           },
         );
         await intent.launch();
-        widget.onLookup?.call(lookupWord);
         return;
       } catch (e) {
         debugPrint('Dictionary intent failed: $e');
@@ -997,14 +1003,12 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       final dictUri = Uri.parse('x-dictionary:r:$encoded');
       if (await canLaunchUrl(dictUri)) {
         await launchUrl(dictUri);
-        widget.onLookup?.call(lookupWord);
         return;
       }
     }
     final searchUri = Uri.parse('https://www.google.com/search?q=define+$encoded');
     if (await canLaunchUrl(searchUri)) {
       await launchUrl(searchUri, mode: LaunchMode.externalApplication);
-      widget.onLookup?.call(lookupWord);
     }
   }
 
