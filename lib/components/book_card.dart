@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constants.dart';
@@ -46,16 +47,17 @@ class _BookCardState extends State<BookCard> {
         if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
       },
       child: GlassContainer(
-        width: 150,
         padding: const EdgeInsets.all(8),
         borderRadius: YomuConstants.borderRadius,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
+            // Top: Book Cover (Fixed Aspect Ratio)
+            AspectRatio(
+              aspectRatio: 2 / 3,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(
-                  YomuConstants.borderRadius - 4,
+                  YomuConstants.borderRadius - 8,
                 ),
                 child: Stack(
                   fit: StackFit.expand,
@@ -64,10 +66,11 @@ class _BookCardState extends State<BookCard> {
                         ? CachedNetworkImage(
                             imageUrl: widget.book.coverPath,
                             fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
                             placeholder: (context, url) =>
                                 Container(color: YomuConstants.surface),
                             errorWidget: (context, url, error) => Padding(
-                              padding: const EdgeInsets.all(50.0),
+                              padding: const EdgeInsets.all(30.0),
                               child: Image.asset(
                                 'assets/icon.png',
                                 fit: BoxFit.contain,
@@ -78,31 +81,34 @@ class _BookCardState extends State<BookCard> {
                         ? Image.file(
                             File(widget.book.coverPath),
                             fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
                             errorBuilder: (context, error, stackTrace) =>
                                 Padding(
-                                  padding: const EdgeInsets.all(50.0),
+                                  padding: const EdgeInsets.all(30.0),
                                   child: Image.asset(
                                     'assets/icon.png',
                                     fit: BoxFit.contain,
+                                    alignment: Alignment.topCenter,
                                   ),
                                 ),
                           )
                         : Padding(
-                            padding: const EdgeInsets.all(40.0),
+                            padding: const EdgeInsets.all(30.0),
                             child: Image.asset(
                               'assets/icon.png',
                               fit: BoxFit.contain,
+                              alignment: Alignment.topCenter,
                             ),
                           ),
                     // New Tag
                     if (widget.book.progress == 0)
                       Positioned(
-                        top: 8,
-                        left: 8,
+                        top: 6,
+                        left: 6,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                            horizontal: 6,
+                            vertical: 3,
                           ),
                           decoration: BoxDecoration(
                             color: YomuConstants.accent,
@@ -112,7 +118,7 @@ class _BookCardState extends State<BookCard> {
                             'NEW',
                             style: TextStyle(
                               color: Colors.black,
-                              fontSize: 10,
+                              fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -120,12 +126,108 @@ class _BookCardState extends State<BookCard> {
                       ),
                     if (widget.book.isFavorite)
                       Positioned(
-                        top: 8,
-                        right: 8,
+                        top: 6,
+                        right: 6,
                         child: Icon(
                           Icons.favorite,
                           color: Colors.red,
-                          size: 20,
+                          size: 16,
+                        ),
+                      ),
+                    // Bottom Metadata Overlay (Glassy)
+                    if (widget.book.progress > 0 && widget.book.progress < 1.0)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: ClipRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                border: Border(
+                                  top: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                    width: 0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            1,
+                                          ),
+                                          child: LinearProgressIndicator(
+                                            value: widget.book.progress,
+                                            backgroundColor: Colors.white
+                                                .withValues(alpha: 0.1),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  YomuConstants.accent,
+                                                ),
+                                            minHeight: 2,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${(widget.book.progress * 100).toStringAsFixed(0)}%',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 4,
+                                    runSpacing: 0,
+                                    children: [
+                                      if (widget.book.totalPages > 0)
+                                        Text(
+                                          '${widget.book.filePath.toLowerCase().endsWith('.epub') ? 'Ch.' : 'Pg.'} ${widget.book.currentPage + 1}/${widget.book.totalPages}',
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 9,
+                                          ),
+                                        ),
+                                      if (widget.book.estimatedReadingMinutes >
+                                          0)
+                                        Text(
+                                          '• ${_formatReadingTime(widget.book.estimatedReadingMinutes)}',
+                                          style: const TextStyle(
+                                            color: Colors.white60,
+                                            fontSize: 9,
+                                          ),
+                                        ),
+                                      if (widget.book.lastReadAt != null)
+                                        Text(
+                                          '• ${_formatLastRead(widget.book.lastReadAt!)}',
+                                          style: const TextStyle(
+                                            color: Colors.white38,
+                                            fontSize: 8,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     // Selection Overlay
@@ -155,7 +257,7 @@ class _BookCardState extends State<BookCard> {
                                 color: widget.isSelected
                                     ? Colors.black
                                     : Colors.white,
-                                size: 24,
+                                size: 20,
                               ),
                             ),
                           ),
@@ -165,7 +267,8 @@ class _BookCardState extends State<BookCard> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            // Middle: Title and Author
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -175,13 +278,15 @@ class _BookCardState extends State<BookCard> {
                     children: [
                       Text(
                         widget.book.title,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
+                          height: 1.1,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         widget.book.author,
                         maxLines: 1,
@@ -205,10 +310,10 @@ class _BookCardState extends State<BookCard> {
                     onTap: () => widget.onMenuPressed!(_tapPosition),
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.all(4.0),
                       child: Icon(
                         Icons.more_vert,
-                        size: 20,
+                        size: 18,
                         color: YomuConstants.textSecondary.withValues(
                           alpha: 0.6,
                         ),
@@ -217,67 +322,6 @@ class _BookCardState extends State<BookCard> {
                   ),
               ],
             ),
-            // Progress information for books in progress
-            if (widget.book.progress > 0 && widget.book.progress < 1.0) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: widget.book.progress,
-                        backgroundColor: Colors.white.withValues(alpha: 0.05),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          YomuConstants.accent,
-                        ),
-                        minHeight: 3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${(widget.book.progress * 100).toStringAsFixed(0)}%',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: YomuConstants.textSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              if (widget.book.totalPages > 0) ...[
-                const SizedBox(height: 2),
-                Text(
-                  '${widget.book.filePath.toLowerCase().endsWith('.epub') ? 'Chapter' : 'Page'} ${widget.book.currentPage + 1} of ${widget.book.totalPages}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: YomuConstants.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-              if (widget.book.estimatedReadingMinutes > 0) ...[
-                const SizedBox(height: 2),
-                Text(
-                  _formatReadingTime(widget.book.estimatedReadingMinutes),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: YomuConstants.textSecondary.withValues(alpha: 0.8),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-              if (widget.book.lastReadAt != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _formatLastRead(widget.book.lastReadAt!),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: YomuConstants.textSecondary.withValues(alpha: 0.5),
-                    fontSize: 10,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ],
           ],
         ),
       ),

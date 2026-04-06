@@ -11,6 +11,8 @@ class GlassContainer extends StatelessWidget {
   final double opacity;
   final Color? color;
   final double borderRadius;
+  final VoidCallback? onTap;
+  final bool enabled;
 
   const GlassContainer({
     super.key,
@@ -22,14 +24,18 @@ class GlassContainer extends StatelessWidget {
     this.opacity = 0.08,
     this.color,
     this.borderRadius = YomuConstants.borderRadius,
+    this.onTap,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
+    final content = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        filter: enabled
+            ? ImageFilter.blur(sigmaX: blur, sigmaY: blur)
+            : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
         child: Container(
           width: width,
           height: height,
@@ -54,5 +60,10 @@ class GlassContainer extends StatelessWidget {
         ),
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(onTap: onTap, child: content);
+    }
+    return content;
   }
 }

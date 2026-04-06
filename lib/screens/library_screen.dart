@@ -137,7 +137,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-
   void _showBookCardTutorial() {
     final targets = [
       TutorialHelper.createTarget(
@@ -174,7 +173,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     _searchController.dispose();
     super.dispose();
   }
-
 
   Future<void> _handleSelectiveImport() async {
     final notifier = ref.read(libraryProvider.notifier);
@@ -267,10 +265,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             double.infinity,
           ),
         ),
-        child: AddBookFab(
-          key: _fabKey,
-          onPressed: _handleSelectiveImport,
-        ),
+        child: AddBookFab(key: _fabKey, onPressed: _handleSelectiveImport),
       ),
     );
   }
@@ -280,7 +275,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.65,
+        childAspectRatio: 0.57,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),

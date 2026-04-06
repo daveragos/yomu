@@ -63,22 +63,26 @@ class _ShelfItemState extends ConsumerState<ShelfItem> {
                       ? Image.asset(
                           widget.book.coverPath,
                           fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
                           errorBuilder: (context, error, stackTrace) => Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Image.asset(
                               'assets/icon.png',
                               fit: BoxFit.contain,
+                              alignment: Alignment.topCenter,
                             ),
                           ),
                         )
                       : Image.file(
                           File(widget.book.coverPath),
                           fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
                           errorBuilder: (context, error, stackTrace) => Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Image.asset(
                               'assets/icon.png',
                               fit: BoxFit.contain,
+                              alignment: Alignment.topCenter,
                             ),
                           ),
                         ),

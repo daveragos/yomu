@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../core/constants.dart';
 import '../providers/library_provider.dart';
 import '../components/glass_container.dart';
@@ -235,11 +236,73 @@ class SettingsScreen extends ConsumerWidget {
               ),
               trailing: const Icon(Icons.send_rounded, color: YomuConstants.accent, size: 20),
               onTap: () async {
-                await NotificationService().showNotification(
-                  id: 888,
-                  title: 'Test Notification \uD83D\uDCD6',
-                  body: "Reminders are working correctly! Happy reading.",
-                );
+                final status = await Permission.notification.status;
+
+                if (status.isPermanentlyDenied) {
+                  if (context.mounted) {
+                    showGeneralDialog(
+                      context: context,
+                      barrierDismissible: true,
+                      barrierLabel: '',
+                      transitionDuration: const Duration(milliseconds: 300),
+                      pageBuilder: (context, anim1, anim2) => const SizedBox(),
+                      transitionBuilder: (context, anim1, anim2, child) {
+                        return Transform.scale(
+                          scale: anim1.value,
+                          child: Opacity(
+                            opacity: anim1.value,
+                            child: AlertDialog(
+                              backgroundColor: YomuConstants.surface,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              title: const Text(
+                                'Notifications Blocked',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
+                              content: const Text(
+                                'Reading reminders are currently blocked by your system settings. Please enable them to stay on track!',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Maybe Later', style: TextStyle(color: Colors.white38)),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    openAppSettings();
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text(
+                                    'Open Settings',
+                                    style: TextStyle(color: YomuConstants.accent, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }
+                  return;
+                }
+
+                final granted = await NotificationService().requestPermissions();
+                if (granted) {
+                  await NotificationService().showNotification(
+                    id: 888,
+                    title: 'Test Notification \uD83D\uDCD6',
+                    body: "Reminders are working correctly! Happy reading.",
+                  );
+                } else if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notification permissions are required for reminders.'),
+                      backgroundColor: Colors.redAccent,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               },
             ),
           ],

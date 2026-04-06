@@ -114,9 +114,7 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
                           icon: widget.book.isFavorite
                               ? Icons.favorite
                               : Icons.favorite_border,
-                          label: widget.book.isFavorite
-                              ? 'Unfavorite'
-                              : 'Favorite',
+                          label: widget.book.isFavorite ? 'Unfavorite' : 'Favorite',
                           color: widget.book.isFavorite ? Colors.red : null,
                           onTap: () => widget.onAction('favorite'),
                         ),

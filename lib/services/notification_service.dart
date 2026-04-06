@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -47,6 +48,22 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.requestExactAlarmsPermission();
+  }
+
+  Future<bool> requestPermissions() async {
+    // Request notification permission
+    final status = await Permission.notification.request();
+    
+    // Request exact alarm permission if needed (Android 12+)
+    if (await Permission.scheduleExactAlarm.isDenied) {
+      await Permission.scheduleExactAlarm.request();
+    }
+
+    return status.isGranted;
+  }
+
+  Future<PermissionStatus> getNotificationStatus() async {
+    return await Permission.notification.status;
   }
 
   Future<void> showNotification({
