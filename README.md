@@ -67,9 +67,6 @@ lib/
 
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
-> [!TIP]
-> **Priority Contribution**: We are actively looking for a robust **Text Highlighting** feature for both EPUB and PDF readers. If you're looking for a way to make a big impact, this is it!
-
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
@@ -80,4 +77,4 @@ Contributions are what make the open-source community such an amazing place to l
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License. See [LICENSE](https://github.com/daveragos/yomu/blob/main/LICENSE) for more information.
