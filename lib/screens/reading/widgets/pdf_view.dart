@@ -213,7 +213,10 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeIn,
           child: ColorFiltered(
-            key: ValueKey(widget.settings.theme),
+            // No key here: keying by theme would tear down and rebuild the
+            // PdfViewer subtree on every theme change, resetting scroll to the
+            // top. ColorFiltered updates its filter in place, so the viewer
+            // (and its scroll position) is preserved across theme switches.
             colorFilter: colorFilter,
             child: pdfViewer,
           ),
