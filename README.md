@@ -7,31 +7,35 @@
 ## ✨ Key Features
 
 ### 📚 Versatile Reader
+
 - **Multi-Format Support**: Seamlessly read **EPUB** and **PDF** files with a smooth, optimized interface.
 - **Audiobook Integration**: Enjoy your favorite audiobooks with built-in playback controls.
 - **Smart Loading**: Efficiently handle large files with intelligent caching and background rendering.
 
 ### 📊 Intelligent Tracking
+
 - **Progress Monitoring**: Track exactly how many pages and minutes you've read.
 - **Time-Based Accuracy**: Advanced logic differentiates between active reading and skimming.
 - **Goal Setting**: Set weekly reading goals (by pages) to stay consistent.
 
 ### 🎮 Gamified Experience
-- **Ranks & Levels**: Progress from *Kohai* to *Tatsujin* based on both your **Level (XP)** and **Achievements**.
+
+- **Ranks & Levels**: Progress from _Kohai_ to _Tatsujin_ based on both your **Level (XP)** and **Achievements**.
 - **Dynamic Achievement Ranking**: Your achieved badges are automatically moved to the top of your collection for quick viewing.
 - **Level-Up Celebrations**: Visually stunning rewards and celebrations when you hit new milestones.
 - **Activity Visualizations**: Beautiful charts and insights into your reading habits.
 
-| Rank | Level Required | Achievements Required |
-| :--- | :--- | :--- |
-| **Kohai** (後輩) | 1 | 0 |
-| **Yomite** (読み手) | 5 | 2 |
-| **Senpai** (先輩) | 10 | 5 |
-| **Chousha** (著者) | 20 | 8 |
-| **Sensei** (先生) | 40 | 10 |
-| **Tatsujin** (達人) | 50 | 12 |
+| Rank                | Level Required | Achievements Required |
+| :------------------ | :------------- | :-------------------- |
+| **Kohai** (後輩)    | 1              | 0                     |
+| **Yomite** (読み手) | 5              | 2                     |
+| **Senpai** (先輩)   | 10             | 5                     |
+| **Chousha** (著者)  | 20             | 8                     |
+| **Sensei** (先生)   | 40             | 10                    |
+| **Tatsujin** (達人) | 50             | 12                    |
 
 ### 🗂️ Library Management
+
 - **Shelf Organization**: Keep your collection tidy with customizable shelves.
 - **Duplicate Prevention**: Automatic content-based hashing ensures your library stays unique.
 - **History Preservation**: Choose to keep your reading stats even if you remove a book.
@@ -60,6 +64,28 @@ lib/
 ├── screens/    # Feature-specific screens (Library, Reader, Dashboard)
 └── services/   # Database and file system services
 ```
+
+---
+
+## 🐧 Linux Prerequisites
+
+Before running Yomu on Linux, install the following system dependencies:
+
+- **zenity** - Required for the file picker dialog.
+- **[pdfium-binaries](https://github.com/bblanchon/pdfium-binaries)** - PDF rendering library (installed automatically during build, but can also be installed manually).
+
+### Arch Linux
+
+```bash
+sudo pacman -S zenity
+yay -S pdfium-binaries
+# or
+paru -S pdfium-binaries-bin
+```
+
+### Manual PDFium Installation
+
+If the automatic download fails, download the appropriate archive from [pdfium-binaries releases](https://github.com/bblanchon/pdfium-binaries/releases) and extract it into your build directory.
 
 ---
 
