@@ -18,7 +18,7 @@ packages:
     source: hosted
     version: "2.2.0"
   archive:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       name: archive
       sha256: "2fda90592c0afd219c5e285618a98da835cd10df38372666093d25dfe457a2d0"
@@ -783,7 +783,7 @@ packages:
     source: hosted
     version: "2.2.2"
   path_provider_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: path_provider_platform_interface
       sha256: "484838772624c3a4b94f1e44a3e19897fee738f2d5c4ce448443b0417f7c9dda"
@@ -895,7 +895,7 @@ packages:
     source: hosted
     version: "3.2.0"
   plugin_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: plugin_platform_interface
       sha256: "4820fbfdb9478b1ebae27888254d445073732dae3d6ea81f0b7e06d5dedc3f02"
@@ -999,6 +999,46 @@ packages:
       url: "https://github.com/KasemJaffer/receive_sharing_intent"
     source: git
     version: "1.8.1"
+  record:
+    dependency: "direct main"
+    description:
+      name: record
+      sha256: "3bbb68002de8bb2fc7178b6c955254fa882e2fe4c33fa98db4b98dd662d8a1d6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.2.0"
+  record_android:
+    dependency: transitive
+    description:
+      name: record_android
+      sha256: "68c8cb40628a460b2a8bdf746697bd798a71cca7b03b8dac20e752d50425900f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.0"
+  record_darwin:
+    dependency: transitive
+    description:
+      name: record_darwin
+      sha256: "6ff6477febaa928ae3a294014f1254c766aaf6bb8f288f02cbe7cda1b9e9be87"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
+  record_linux:
+    dependency: transitive
+    description:
+      name: record_linux
+      sha256: a2c1680b908c899e8198ad46e553adbfba4d66fe41c1314705cf3afb888f8033
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
+  record_platform_interface:
+    dependency: transitive
+    description:
+      name: record_platform_interface
+      sha256: "970b2a2c4ac4dc666adca8a41fefc3c4b0c62ef1dfc3c46ba5400def7155ac1a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
   record_use:
     dependency: transitive
     description:
@@ -1007,6 +1047,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
+  record_web:
+    dependency: transitive
+    description:
+      name: record_web
+      sha256: "15852c45e3ac621090d919373faa5400ddffaf28403525359041132526a02b1d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
+  record_windows:
+    dependency: transitive
+    description:
+      name: record_windows
+      sha256: c708162ff3195e4b8898242410b66233a5081699f519226c4afe985d1eb877e0
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.0"
   riverpod:
     dependency: transitive
     description:
@@ -1140,6 +1196,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.5.17"
+  sqflite_common_ffi:
+    dependency: "direct dev"
+    description:
+      name: sqflite_common_ffi
+      sha256: "9aad7a63bb8de6fe4c1e5367e8dcd8dfc89d491f44a526edf8e58a5a1fb1feed"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.7"
   sqflite_darwin:
     dependency: transitive
     description:
@@ -1156,6 +1220,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.4"
+  sqlite3:
+    dependency: transitive
+    description:
+      name: sqlite3
+      sha256: "8765980411f9b6733534efe9d014fad0750fa649590598772c04692deb34886b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.9.1"
   stack_trace:
     dependency: transitive
     description:

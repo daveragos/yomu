@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Voice notes on annotations -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="Yomu"
         android:name="${applicationName}"
@@ -45,12 +47,27 @@
                 <data android:mimeType="application/epub+zip" />
             </intent-filter>
 
+            <!-- Shared books with annotations (.yomu). Android has no type for
+                 the extension, so chat and file apps hand these over as
+                 generic binary or zip files; the app checks the contents. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/zip" />
+            </intent-filter>
+
             <!-- Intent filter for "Share" (SEND) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/pdf" />
                 <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/zip" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

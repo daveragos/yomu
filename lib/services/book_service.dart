@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:file_picker/file_picker.dart';
 import '../models/book_model.dart';
 import 'database_service.dart';
+import 'annotation_share_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 
@@ -78,7 +79,13 @@ class BookService {
 
         if (!isDuplicate) {
           final id = await _dbService.insertBook(book);
-          importedBooks.add(book.copyWith(id: id));
+          final inserted = book.copyWith(id: id);
+          try {
+            await AnnotationShareService().applyPendingFor(inserted);
+          } catch (e) {
+            debugPrint('Failed to attach pending annotations: $e');
+          }
+          importedBooks.add(inserted);
           debugPrint('Imported: ${book.title}');
         } else {
           debugPrint('Duplicate book found, skipping: ${book.title}');

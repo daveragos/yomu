@@ -15,6 +15,7 @@ import '../../../models/highlight_model.dart';
 import '../../../core/constants.dart';
 import 'share_quote_sheet.dart';
 import 'note_editor.dart';
+import 'voice_note_player.dart';
 
 class EpubChapterPage extends StatefulWidget {
   final int index;
@@ -883,6 +884,20 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                           },
                         ),
                       ),
+                      if (existingHighlight?.hasAudio ?? false)
+                        SizedBox(
+                          width: btnSize,
+                          height: btnSize,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            tooltip: 'Play voice note',
+                            icon: Icon(Icons.graphic_eq_rounded, color: YomuConstants.accent, size: iconSize),
+                            onPressed: () {
+                              selectableRegionState.hideToolbar();
+                              _showVoiceNoteSheet(context, existingHighlight!);
+                            },
+                          ),
+                        ),
                       SizedBox(
                         width: btnSize,
                         height: btnSize,
@@ -931,6 +946,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   }
 
   void _showNoteSheet(BuildContext context, String text, Highlight? existing) {
+    final ratio = _scrollController.hasClients &&
+            _scrollController.position.maxScrollExtent > 0
+        ? (_scrollController.offset /
+              _scrollController.position.maxScrollExtent)
+        : 0.0;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -939,37 +959,102 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         return NoteEditor(
           initialMarkdown: existing?.note ?? '',
           initialColor: existing?.color ?? '#F1C40F',
+          initialAudioFile: existing?.audioFile,
+          initialAudioDurationMs: existing?.audioDurationMs,
           settings: widget.settings,
           title: existing != null ? 'Edit Note' : 'Add Note',
-          onSave: (newNote) {
-            final hexColor = existing?.color ?? '#F1C40F';
-            final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
-            widget.onHighlight(Highlight(
-              id: existing?.id,
-              bookId: 0,
-              chapterIndex: widget.index,
-              text: text,
-              note: newNote,
-              color: hexColor,
-              createdAt: existing?.createdAt ?? DateTime.now(),
-              position: existing?.position ?? '${widget.index}:ratio:$ratio',
-            ));
-          },
-          onSaveWithColor: (newNote, newColor) {
-            final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
-            widget.onHighlight(Highlight(
-              id: existing?.id,
-              bookId: 0,
-              chapterIndex: widget.index,
-              text: text,
-              note: newNote,
-              color: newColor,
-              createdAt: existing?.createdAt ?? DateTime.now(),
-              position: existing?.position ?? '${widget.index}:ratio:$ratio',
-            ));
+          subtitle: existing?.sharedBy != null
+              ? 'Shared by ${existing!.sharedBy}'
+              : null,
+          onSave: (result) {
+            final color = result.color ?? existing?.color ?? '#F1C40F';
+            if (existing != null) {
+              widget.onHighlight(
+                existing.copyWith(
+                  note: result.markdown,
+                  color: color,
+                  audioFile: result.audioFile,
+                  audioDurationMs: result.audioDurationMs,
+                ),
+              );
+              return;
+            }
+            widget.onHighlight(
+              Highlight(
+                bookId: 0,
+                chapterIndex: widget.index,
+                text: text,
+                note: result.markdown,
+                color: color,
+                createdAt: DateTime.now(),
+                position: '${widget.index}:ratio:$ratio',
+                audioFile: result.audioFile,
+                audioDurationMs: result.audioDurationMs,
+              ),
+            );
           },
         );
       },
+    );
+  }
+
+  void _showVoiceNoteSheet(BuildContext context, Highlight highlight) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        decoration: BoxDecoration(
+          color: widget.settings.menuBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                highlight.sharedBy != null
+                    ? 'VOICE NOTE FROM ${highlight.sharedBy!.toUpperCase()}'
+                    : 'VOICE NOTE',
+                style: const TextStyle(
+                  color: YomuConstants.accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                highlight.text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 16),
+              VoiceNotePlayer(
+                fileName: highlight.audioFile!,
+                durationMs: highlight.audioDurationMs,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
