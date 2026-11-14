@@ -572,9 +572,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   Future<void> _reorderTracks(Book book, int oldIndex, int newIndex) async {
     final tracks = List<AudioTrack>.from(book.audioTracks);
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
     final track = tracks.removeAt(oldIndex);
     tracks.insert(newIndex, track);
 
@@ -665,7 +662,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                   child: ReorderableListView.builder(
                     shrinkWrap: true,
                     itemCount: tracks.length,
-                    onReorder: (oldIndex, newIndex) async {
+                    onReorderItem: (oldIndex, newIndex) async {
                       await _reorderTracks(latestBook, oldIndex, newIndex);
                     },
                     itemBuilder: (context, index) {
@@ -1969,7 +1966,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
             for (int i = 0; i < doc.pages.length; i++) {
               final page = doc.pages[i];
-              final pageText = await page.loadText();
+              final pageText = await page.loadStructuredText();
               final plainText = pageText.fullText;
               final lowerText = plainText.toLowerCase();
               final lowerQuery = query.toLowerCase();
@@ -1990,10 +1987,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                     .trim();
 
                 // Create a match object for precise navigation later
-                final match = PdfTextRangeWithFragments.fromTextRange(
-                  pageText,
-                  index,
-                  index + query.length,
+                final match = PdfPageTextRange(
+                  pageText: pageText,
+                  start: index,
+                  end: index + query.length,
                 );
 
                 results.add(
@@ -2093,8 +2090,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     });
 
     if (book.filePath.toLowerCase().endsWith('.pdf')) {
-      if (result.metadata is PdfTextMatch) {
-        _pdfSearcher?.goToMatch(result.metadata as PdfTextMatch);
+      if (result.metadata is PdfPageTextRange) {
+        _pdfSearcher?.goToMatch(result.metadata as PdfPageTextRange);
       } else {
         _jumpToPdfPage(result.pageIndex + 1);
       }
