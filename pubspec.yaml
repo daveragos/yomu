@@ -19,7 +19,7 @@ dependencies:
   just_audio: ^0.9.36
   animations: ^2.1.1
   cached_network_image: ^3.3.0
-  file_picker: ^8.0.0
+  file_picker: ^10.3.10
   sqflite: ^2.3.0
   path: ^1.8.3
   epubx: ^4.0.0
@@ -30,7 +30,7 @@ dependencies:
   device_info_plus: ^12.3.0
   epub_view: ^3.2.0
   intl: ^0.20.2
-  pdfrx: ^1.3.5
+  pdfrx: ^2.12.1
   shared_preferences: ^2.2.2
   flutter_html: ^3.0.0-beta.2
   flutter_animate: ^4.5.2
@@ -47,10 +47,23 @@ dependencies:
   tutorial_coach_mark: ^1.3.3
   share_plus: ^12.0.1
   android_intent_plus: ^6.0.0
-  image: ^3.3.0
-  flutter_quill: ^11.5.0
+  image: ^4.8.0
+  flutter_quill: ^11.6.0
   markdown_quill: ^4.3.0
   markdown: ^7.2.2
+
+dependency_overrides:
+  # epubx 4.0.0 on pub.dev is pinned to image 3; upstream's unreleased 4.0.1
+  # moves to image 4, which pdfrx 2.12 requires.
+  epubx:
+    git:
+      url: https://github.com/rbcprolabs/epubx.dart
+      ref: 1c0347b20c9123866bff760f8571ec50fefb037d
+  # epubx still declares archive ^3, but the archive APIs it uses are unchanged
+  # in archive 4, which pdfrx 2.12 requires.
+  archive: ^4.0.9
+  # flutter_html 3.0.0 imports html internals that were removed in 0.15.7.
+  html: 0.15.6
 
 dev_dependencies:
   flutter_test:

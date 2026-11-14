@@ -146,11 +146,8 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
       ),
       body: ReorderableListView.builder(
         padding: const EdgeInsets.all(YomuConstants.horizontalPadding),
-        onReorder: (oldIndex, newIndex) {
+        onReorderItem: (oldIndex, newIndex) {
           setState(() {
-            if (oldIndex < newIndex) {
-              newIndex -= 1;
-            }
             final track = _audioTracks.removeAt(oldIndex);
             _audioTracks.insert(newIndex, track);
           });

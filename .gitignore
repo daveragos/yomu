@@ -48,3 +48,6 @@ app.*.map.json
 /android/key.properties
 *.jks
 /android/upload-keystore.jks
+
+# FVM Version Cache
+.fvm/
