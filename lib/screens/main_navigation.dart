@@ -6,6 +6,8 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../core/constants.dart';
 import '../components/glass_container.dart';
 import '../providers/library_provider.dart';
+import '../models/book_model.dart';
+import '../services/annotation_share_service.dart';
 import 'dashboard_screen.dart';
 import 'library_screen.dart';
 import 'stats_screen.dart';
@@ -80,23 +82,86 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   Future<void> _handleSharedFiles(List<SharedMediaFile> files) async {
     if (files.isEmpty) return;
 
-    final paths = files.map((f) => f.path).toList();
+    final bookPaths = <String>[];
+    final packagePaths = <String>[];
+    for (final f in files) {
+      if (await AnnotationShareService.looksLikePackage(f.path)) {
+        packagePaths.add(f.path);
+      } else {
+        bookPaths.add(f.path);
+      }
+    }
+
+    if (packagePaths.isNotEmpty) {
+      await _importAnnotatedPackages(packagePaths);
+      return;
+    }
+
     // Import files and get the list of imported/matching books
-    final books = await ref.read(libraryProvider.notifier).importFiles(paths);
+    final books = await ref
+        .read(libraryProvider.notifier)
+        .importFiles(bookPaths);
 
     // After import, try to open the first one
-    if (books.isNotEmpty) {
-      final book = books.first;
-      ref.read(currentlyReadingProvider.notifier).state = book;
-      ref.read(libraryProvider.notifier).markBookAsOpened(book);
+    if (books.isNotEmpty) _openBook(books.first);
+  }
 
-      // Navigate to ReadingScreen
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ReadingScreen()),
+  Future<void> _importAnnotatedPackages(List<String> paths) async {
+    final notifier = ref.read(libraryProvider.notifier);
+    SharedImportResult? toOpen;
+    final messages = <String>[];
+
+    for (final path in paths) {
+      try {
+        final result = await notifier.importAnnotatedPackage(path);
+        final from = result.manifest.sharedBy ?? 'another reader';
+        if (result.isPending) {
+          messages.add(
+            'Saved notes from $from for "${result.manifest.title}". '
+            'They will appear when you add that exact book.',
+          );
+        } else {
+          final count = result.added + result.updated;
+          messages.add(
+            count == 0
+                ? 'Opened "${result.manifest.title}" from $from.'
+                : 'Added $count ${count == 1 ? 'annotation' : 'annotations'} '
+                      'from $from to "${result.manifest.title}".',
+          );
+          toOpen ??= result;
+        }
+      } catch (e) {
+        debugPrint('Failed to import annotated book: $e');
+        messages.add(
+          e is FormatException
+              ? e.message
+              : 'Could not open the shared book.',
         );
       }
+    }
+
+    if (toOpen?.book != null) _openBook(toOpen!.book!);
+    if (mounted && messages.isNotEmpty) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(messages.join('\n')),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+    }
+  }
+
+  void _openBook(Book book) {
+    ref.read(currentlyReadingProvider.notifier).state = book;
+    ref.read(libraryProvider.notifier).markBookAsOpened(book);
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ReadingScreen()),
+      );
     }
   }
 

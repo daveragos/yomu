@@ -36,6 +36,9 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
 import '../models/highlight_model.dart';
 import '../services/database_service.dart';
+import '../services/annotation_audio_service.dart';
+import '../services/annotation_share_service.dart';
+import './reading/widgets/share_annotations_dialog.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
@@ -1416,6 +1419,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     final book = ref.read(currentlyReadingProvider);
     if (book?.id == null) return;
 
+    final dbService = DatabaseService();
+
+    // Edits of a saved highlight (note, color, voice note) arrive with its id.
+    if (highlight.id != null) {
+      await dbService.updateHighlight(highlight.copyWith(bookId: book!.id!));
+      final highlights = await dbService.getHighlightsForBook(book.id!);
+      if (mounted) setState(() => _highlights = highlights);
+      return;
+    }
+
     // Check if this exact text+chapter already has a highlight
     final existing = _highlights
         .where(
@@ -1426,14 +1439,21 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         )
         .firstOrNull;
 
-    final dbService = DatabaseService();
-
     if (existing != null) {
       // Update color and note of existing highlight
-      final updated = existing.copyWith(
+      var updated = existing.copyWith(
         color: highlight.color,
         note: highlight.note,
       );
+      if (highlight.hasAudio) {
+        if (existing.audioFile != highlight.audioFile) {
+          await AnnotationAudioService.delete(existing.audioFile);
+        }
+        updated = updated.copyWith(
+          audioFile: highlight.audioFile,
+          audioDurationMs: highlight.audioDurationMs,
+        );
+      }
       await dbService.updateHighlight(updated);
     } else {
       // Insert new highlight with correct bookId
@@ -2250,6 +2270,58 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     }
   }
 
+  /// Shares the book as a `.yomu` file carrying its highlights, notes and
+  /// voice notes, so whoever opens it in Yomu sees them on the same book.
+  Future<void> _shareWithAnnotations(Book book) async {
+    final highlights = await DatabaseService().getHighlightsForBook(book.id!);
+    final savedName = await AnnotationShareService.savedSharerName();
+    if (!mounted) return;
+
+    final options = await ShareAnnotationsDialog.show(
+      context,
+      bookTitle: book.title,
+      annotationCount: highlights.length,
+      voiceNoteCount: highlights.where((h) => h.hasAudio).length,
+      initialName: savedName,
+    );
+    if (options == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    await AnnotationShareService.saveSharerName(options.name);
+
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Preparing book to share…'),
+          duration: Duration(minutes: 1),
+        ),
+      );
+
+    try {
+      final file = await AnnotationShareService().buildPackage(
+        book: book,
+        sharerName: options.name,
+        includeBook: options.includeBook,
+      );
+      messenger.hideCurrentSnackBar();
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/octet-stream')],
+          subject: '${book.title} (with notes from ${options.name})',
+          text:
+              'Open this file with Yomu to read "${book.title}" with my notes.',
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to share annotated book: $e');
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not prepare the book to share.')),
+        );
+    }
+  }
+
   void _showNavigationSheet({
     required Book book,
     required ReaderSettings settings,
@@ -2281,6 +2353,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           totalPages: _pdfPages,
           focusJump: focusJump,
           onExport: () => _exportToMarkdown(book),
+          onShareAnnotated: () => _shareWithAnnotations(book),
           getVocabulary: () =>
               ref.read(libraryProvider.notifier).getVocabularyForBook(book.id!),
           onUpdateHighlight: (h) async {

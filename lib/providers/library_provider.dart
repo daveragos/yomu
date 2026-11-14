@@ -9,6 +9,7 @@ import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
+import '../services/annotation_share_service.dart';
 import '../models/quest_model.dart';
 import '../services/notification_service.dart';
 import '../models/vocabulary_model.dart';
@@ -941,7 +942,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         if (duplicate == null) {
           final bookToInsert = book.copyWith(folderPath: p.dirname(path));
           final id = await _dbService.insertBook(bookToInsert);
-          result.add(bookToInsert.copyWith(id: id));
+          final inserted = bookToInsert.copyWith(id: id);
+          await _attachPendingAnnotations(inserted);
+          result.add(inserted);
         } else if (duplicate.isDeleted) {
           debugPrint('Restoring soft-deleted book: ${duplicate.title}');
           final bookToUpdate = duplicate.copyWith(
@@ -951,6 +954,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           );
           await _dbService.updateBook(bookToUpdate);
           await _dbService.restoreBook(duplicate.id!);
+          await _attachPendingAnnotations(bookToUpdate);
           result.add(bookToUpdate);
         } else {
           debugPrint('Duplicate book found, skipping: ${book.title}');
@@ -960,6 +964,33 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
     await loadBooks();
     return result;
+  }
+
+  /// Imports a `.yomu` package: the shared book (unless the exact same book
+  /// is already in the library) plus its annotations and voice notes.
+  Future<SharedImportResult> importAnnotatedPackage(String path) async {
+    final result = await AnnotationShareService().importPackage(
+      path,
+      addBookToLibrary: (bookPath) async =>
+          (await importFiles([bookPath])).firstOrNull,
+    );
+    await loadBooks();
+    return result;
+  }
+
+  /// Attaches annotations someone shared before this exact book was added.
+  Future<void> _attachPendingAnnotations(Book book) async {
+    try {
+      final applied = await AnnotationShareService().applyPendingFor(book);
+      for (final r in applied) {
+        debugPrint(
+          'Attached ${r.added} shared annotations to ${book.title} '
+          'from ${r.manifest.sharedBy}',
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to attach pending annotations: $e');
+    }
   }
 
   Future<void> updateBookProgress(

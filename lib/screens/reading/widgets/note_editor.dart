@@ -5,12 +5,32 @@ import 'package:markdown_quill/markdown_quill.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../../core/constants.dart';
 import '../../../models/reader_settings_model.dart';
+import '../../../services/annotation_audio_service.dart';
+import 'voice_note_recorder.dart';
+
+class NoteEditorResult {
+  final String markdown;
+  final String? color;
+  final String? audioFile;
+  final int? audioDurationMs;
+
+  const NoteEditorResult({
+    required this.markdown,
+    this.color,
+    this.audioFile,
+    this.audioDurationMs,
+  });
+}
 
 class NoteEditor extends StatefulWidget {
   final String initialMarkdown;
-  final Function(String) onSave;
+  final void Function(NoteEditorResult result) onSave;
   final ReaderSettings? settings;
   final String title;
+  final String? subtitle;
+  final String? initialColor;
+  final String? initialAudioFile;
+  final int? initialAudioDurationMs;
 
   const NoteEditor({
     super.key,
@@ -18,12 +38,11 @@ class NoteEditor extends StatefulWidget {
     required this.onSave,
     this.settings,
     this.title = 'Edit Note',
+    this.subtitle,
     this.initialColor,
-    this.onSaveWithColor,
+    this.initialAudioFile,
+    this.initialAudioDurationMs,
   });
-
-  final String? initialColor;
-  final Function(String, String)? onSaveWithColor;
 
   @override
   State<NoteEditor> createState() => _NoteEditorState();
@@ -33,11 +52,20 @@ class _NoteEditorState extends State<NoteEditor> {
   late QuillController _controller;
   final FocusNode _focusNode = FocusNode();
   String? _currentColor;
+  String? _audioFile;
+  int? _audioDurationMs;
+  bool _saved = false;
+
+  /// Recordings made while this editor was open. Any that are not kept when
+  /// the note is saved, or all of them if it is dismissed, get deleted.
+  final Set<String> _sessionRecordings = {};
 
   @override
   void initState() {
     super.initState();
     _currentColor = widget.initialColor;
+    _audioFile = widget.initialAudioFile;
+    _audioDurationMs = widget.initialAudioDurationMs;
     _initializeController();
   }
 
@@ -85,19 +113,58 @@ class _NoteEditorState extends State<NoteEditor> {
 
   @override
   void dispose() {
+    if (!_saved) {
+      AnnotationAudioService.deleteAll(_sessionRecordings);
+    }
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
+  void _onRecorded(String fileName, int durationMs) {
+    setState(() {
+      // Drop an unsaved take that this one replaces.
+      if (_audioFile != null && _sessionRecordings.contains(_audioFile)) {
+        AnnotationAudioService.delete(_audioFile);
+        _sessionRecordings.remove(_audioFile);
+      }
+      _sessionRecordings.add(fileName);
+      _audioFile = fileName;
+      _audioDurationMs = durationMs;
+    });
+  }
+
+  void _onAudioRemoved() {
+    setState(() {
+      if (_audioFile != null && _sessionRecordings.remove(_audioFile)) {
+        AnnotationAudioService.delete(_audioFile);
+      }
+      _audioFile = null;
+      _audioDurationMs = null;
+    });
+  }
+
   void _onSave() {
     final deltaToMd = DeltaToMarkdown();
     final markdown = deltaToMd.convert(_controller.document.toDelta());
-    if (widget.onSaveWithColor != null && _currentColor != null) {
-      widget.onSaveWithColor!(markdown, _currentColor!);
-    } else {
-      widget.onSave(markdown);
+    _saved = true;
+
+    final initialAudio = widget.initialAudioFile;
+    if (initialAudio != null && initialAudio != _audioFile) {
+      AnnotationAudioService.delete(initialAudio);
     }
+    AnnotationAudioService.deleteAll(
+      _sessionRecordings.where((f) => f != _audioFile),
+    );
+
+    widget.onSave(
+      NoteEditorResult(
+        markdown: markdown,
+        color: _currentColor,
+        audioFile: _audioFile,
+        audioDurationMs: _audioFile == null ? null : _audioDurationMs,
+      ),
+    );
   }
 
   @override
@@ -129,12 +196,28 @@ class _NoteEditorState extends State<NoteEditor> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.title,
-                    style: const TextStyle(
-                      color: YomuConstants.accent,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            color: YomuConstants.accent,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (widget.subtitle != null)
+                          Text(
+                            widget.subtitle!,
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   TextButton(
@@ -205,6 +288,15 @@ class _NoteEditorState extends State<NoteEditor> {
               ),
               const SizedBox(height: 16),
             ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: VoiceNoteRecorder(
+                fileName: _audioFile,
+                durationMs: _audioDurationMs,
+                onRecorded: _onRecorded,
+                onRemoved: _onAudioRemoved,
+              ),
+            ),
             const Divider(height: 1, color: Colors.white10),
             QuillSimpleToolbar(
               controller: _controller,

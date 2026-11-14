@@ -4,6 +4,7 @@ import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
 import '../models/highlight_model.dart';
 import '../models/vocabulary_model.dart';
+import 'annotation_audio_service.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -24,7 +25,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 18,
+      version: 19,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -102,7 +103,11 @@ class DatabaseService {
         note TEXT,
         color TEXT,
         createdAt TEXT,
-        position TEXT
+        position TEXT,
+        uid TEXT,
+        audioFile TEXT,
+        audioDurationMs INTEGER,
+        sharedBy TEXT
       )
     ''');
     await db.execute('''
@@ -234,6 +239,14 @@ class DatabaseService {
         'ALTER TABLE dictionary_lookups ADD COLUMN bookId INTEGER DEFAULT 0',
       );
     }
+    if (oldVersion < 19) {
+      await db.execute('ALTER TABLE highlights ADD COLUMN uid TEXT');
+      await db.execute('ALTER TABLE highlights ADD COLUMN audioFile TEXT');
+      await db.execute(
+        'ALTER TABLE highlights ADD COLUMN audioDurationMs INTEGER',
+      );
+      await db.execute('ALTER TABLE highlights ADD COLUMN sharedBy TEXT');
+    }
   }
 
   // Book CRUD
@@ -277,6 +290,7 @@ class DatabaseService {
 
   Future<void> hardDeleteBook(int id) async {
     final db = await database;
+    final audioFiles = await _audioFilesForBook(db, id);
     await db.transaction((txn) async {
       await txn.delete(
         'reading_sessions',
@@ -292,6 +306,7 @@ class DatabaseService {
       );
       await txn.delete('books', where: 'id = ?', whereArgs: [id]);
     });
+    await AnnotationAudioService.deleteAll(audioFiles);
   }
 
   Future<int> restoreBook(int id) async {
@@ -385,7 +400,10 @@ class DatabaseService {
   // Highlight CRUD
   Future<int> insertHighlight(Highlight highlight) async {
     final db = await database;
-    return await db.insert('highlights', highlight.toMap());
+    final withUid = highlight.uid == null
+        ? highlight.copyWith(uid: Highlight.generateUid())
+        : highlight;
+    return await db.insert('highlights', withUid.toMap());
   }
 
   Future<List<Highlight>> getHighlightsForBook(int bookId) async {
@@ -397,6 +415,17 @@ class DatabaseService {
       orderBy: 'createdAt DESC',
     );
     return List.generate(maps.length, (i) => Highlight.fromMap(maps[i]));
+  }
+
+  Future<Highlight?> getHighlightByUid(int bookId, String uid) async {
+    final db = await database;
+    final maps = await db.query(
+      'highlights',
+      where: 'bookId = ? AND uid = ?',
+      whereArgs: [bookId, uid],
+      limit: 1,
+    );
+    return maps.isEmpty ? null : Highlight.fromMap(maps.first);
   }
 
   Future<int> updateHighlight(Highlight highlight) async {
@@ -411,16 +440,43 @@ class DatabaseService {
 
   Future<int> deleteHighlight(int id) async {
     final db = await database;
-    return await db.delete('highlights', where: 'id = ?', whereArgs: [id]);
+    final rows = await db.query(
+      'highlights',
+      columns: ['audioFile'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    final count = await db.delete(
+      'highlights',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await AnnotationAudioService.deleteAll(
+      rows.map((r) => r['audioFile'] as String?),
+    );
+    return count;
   }
 
   Future<int> deleteHighlightsForBook(int bookId) async {
     final db = await database;
-    return await db.delete(
+    final audioFiles = await _audioFilesForBook(db, bookId);
+    final count = await db.delete(
       'highlights',
       where: 'bookId = ?',
       whereArgs: [bookId],
     );
+    await AnnotationAudioService.deleteAll(audioFiles);
+    return count;
+  }
+
+  Future<List<String?>> _audioFilesForBook(Database db, int bookId) async {
+    final rows = await db.query(
+      'highlights',
+      columns: ['audioFile'],
+      where: 'bookId = ? AND audioFile IS NOT NULL',
+      whereArgs: [bookId],
+    );
+    return rows.map((r) => r['audioFile'] as String?).toList();
   }
 
   // Dictionary Lookup CRUD

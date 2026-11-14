@@ -13,6 +13,7 @@ import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
 import './note_editor.dart';
 import './note_view.dart';
+import './voice_note_player.dart';
 import './share_quote_sheet.dart';
 
 class NavigationSheet extends StatefulWidget {
@@ -41,6 +42,7 @@ class NavigationSheet extends StatefulWidget {
   final void Function(int)? onJumpToPage;
   final void Function(double)? onJumpToPercent;
   final VoidCallback? onExport;
+  final VoidCallback? onShareAnnotated;
   final bool focusJump;
   final int totalPages;
   final ReaderSettings readerSettings;
@@ -72,6 +74,7 @@ class NavigationSheet extends StatefulWidget {
     this.onJumpToPage,
     this.onJumpToPercent,
     this.onExport,
+    this.onShareAnnotated,
     this.focusJump = false,
     this.totalPages = 0,
     required this.readerSettings,
@@ -505,18 +508,24 @@ class _NavigationSheetState extends State<NavigationSheet> {
                               builder: (context) => NoteEditor(
                                 initialMarkdown: h.note ?? '',
                                 initialColor: h.color,
+                                initialAudioFile: h.audioFile,
+                                initialAudioDurationMs: h.audioDurationMs,
                                 settings: widget.readerSettings,
-                                onSave: (newNote) => widget.onUpdateHighlight(
-                                  h.copyWith(note: newNote),
-                                ),
-                                onSaveWithColor: (newNote, newColor) async {
-                                  final updatedHighlight = h.copyWith(
-                                    note: newNote,
-                                    color: newColor,
-                                  );
+                                subtitle: h.sharedBy != null
+                                    ? 'Shared by ${h.sharedBy}'
+                                    : null,
+                                onSave: (result) async {
                                   await widget.onUpdateHighlight(
-                                    updatedHighlight,
+                                    h.copyWith(
+                                      note: result.markdown,
+                                      color: result.color,
+                                      audioFile: result.audioFile,
+                                      audioDurationMs: result.audioDurationMs,
+                                    ),
                                   );
+                                  if (mounted) {
+                                    setState(() => _refreshAnnotations());
+                                  }
                                 },
                               ),
                             ).then((_) {
@@ -552,6 +561,25 @@ class _NavigationSheetState extends State<NavigationSheet> {
                         ),
                       ),
                     ),
+                    if (h.hasAudio) ...[
+                      const SizedBox(height: 32),
+                      Text(
+                        h.sharedBy != null
+                            ? 'VOICE NOTE FROM ${h.sharedBy!.toUpperCase()}'
+                            : 'MY VOICE NOTE',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      VoiceNotePlayer(
+                        fileName: h.audioFile!,
+                        durationMs: h.audioDurationMs,
+                      ),
+                    ],
                     if (h.note != null && h.note!.isNotEmpty) ...[
                       const SizedBox(height: 32),
                       Row(
@@ -562,8 +590,10 @@ class _NavigationSheetState extends State<NavigationSheet> {
                             size: 20,
                           ),
                           const SizedBox(width: 10),
-                          const Text(
-                            'MY NOTE',
+                          Text(
+                            h.sharedBy != null
+                                ? 'NOTE FROM ${h.sharedBy!.toUpperCase()}'
+                                : 'MY NOTE',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -724,6 +754,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
                     setSheetState(() {});
                   },
                   onExport: widget.onExport,
+                  onShareAnnotated: widget.onShareAnnotated,
                   onShareSelected: () {
                     final selectedHighlights = highlights
                         .where((h) => _selectedHighlightIds.contains(h.id))
@@ -830,6 +861,9 @@ class _NavigationSheetState extends State<NavigationSheet> {
                             readerSettings: widget.readerSettings,
                             text: h.text,
                             note: h.note,
+                            audioFile: h.audioFile,
+                            audioDurationMs: h.audioDurationMs,
+                            sharedBy: h.sharedBy,
                             date: widget.formatDate(h.createdAt),
                             isHighlight: true,
                             isSelectionMode: _isSelectionMode,
@@ -1198,6 +1232,7 @@ class _AnnotationHeader extends StatelessWidget {
   final VoidCallback onShareSelected;
   final VoidCallback onShareQuote;
   final VoidCallback? onExport;
+  final VoidCallback? onShareAnnotated;
 
   const _AnnotationHeader({
     required this.count,
@@ -1209,6 +1244,7 @@ class _AnnotationHeader extends StatelessWidget {
     required this.onShareSelected,
     required this.onShareQuote,
     this.onExport,
+    this.onShareAnnotated,
   });
 
   @override
@@ -1281,6 +1317,16 @@ class _AnnotationHeader extends StatelessWidget {
               tooltip: 'Cancel selection',
             ),
           ] else ...[
+            if (onShareAnnotated != null)
+              IconButton(
+                icon: const Icon(
+                  Icons.group_add_outlined,
+                  color: YomuConstants.accent,
+                  size: 20,
+                ),
+                onPressed: onShareAnnotated,
+                tooltip: 'Share book with annotations',
+              ),
             if (onExport != null)
               IconButton(
                 icon: const Icon(
@@ -1384,6 +1430,9 @@ class _AnnotationCard extends StatelessWidget {
   final String? title;
   final String text;
   final String? note;
+  final String? audioFile;
+  final int? audioDurationMs;
+  final String? sharedBy;
   final String date;
   final bool isHighlight;
   final bool isSelectionMode;
@@ -1399,6 +1448,9 @@ class _AnnotationCard extends StatelessWidget {
     this.title,
     required this.text,
     this.note,
+    this.audioFile,
+    this.audioDurationMs,
+    this.sharedBy,
     required this.date,
     required this.isHighlight,
     required this.isSelectionMode,
@@ -1441,6 +1493,34 @@ class _AnnotationCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (sharedBy != null) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline_rounded,
+                              size: 14,
+                              color: YomuConstants.accent.withValues(
+                                alpha: 0.8,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Shared by $sharedBy',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: YomuConstants.accent.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       if (isHighlight) ...[
                         Container(
                           padding: const EdgeInsets.only(left: 12),
@@ -1532,6 +1612,14 @@ class _AnnotationCard extends StatelessWidget {
                           ),
                         ),
                       ],
+                      if (audioFile != null && audioFile!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        VoiceNotePlayer(
+                          fileName: audioFile!,
+                          durationMs: audioDurationMs,
+                          dense: true,
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1550,7 +1638,9 @@ class _AnnotationCard extends StatelessWidget {
                                   isHighlight)
                                 IconButton(
                                   icon: Icon(
-                                    (note != null && note!.isNotEmpty)
+                                    (note != null && note!.isNotEmpty) ||
+                                            (audioFile != null &&
+                                                audioFile!.isNotEmpty)
                                         ? Icons.sticky_note_2_outlined
                                         : Icons.add_comment_outlined,
                                     color: YomuConstants.accent,
