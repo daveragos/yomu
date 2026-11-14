@@ -6,6 +6,7 @@ import '../providers/library_provider.dart';
 import '../core/constants.dart';
 import 'google_image_search_screen.dart';
 import '../services/book_service.dart';
+import '../services/file_storage_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 
@@ -107,19 +108,15 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
     );
 
     if (result != null && result.paths.isNotEmpty) {
-      int duplicatesCount = 0;
-      setState(() {
-        for (final path in result.paths) {
-          if (path != null) {
-            // Avoid duplicates
-            if (!_audioTracks.any((t) => t.path == path)) {
-              _audioTracks.add(AudioTrack(path: path, title: p.basename(path)));
-            } else {
-              duplicatesCount++;
-            }
-          }
-        }
-      });
+      // Copies the picked files out of the cache dir and skips duplicates.
+      final imported = await FileStorageService.importAudioTracks(
+        result.paths,
+        widget.book.id,
+        _audioTracks,
+      );
+      if (!mounted) return;
+      final duplicatesCount = imported.duplicates;
+      setState(() => _audioTracks.addAll(imported.added));
 
       if (duplicatesCount > 0 && mounted) {
         ScaffoldMessenger.of(context)

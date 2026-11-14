@@ -36,6 +36,7 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
 import '../models/highlight_model.dart';
 import '../services/database_service.dart';
+import '../services/file_storage_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
@@ -478,17 +479,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     );
 
     if (result != null && result.paths.isNotEmpty) {
-      final List<AudioTrack> newTracks = List.from(book.audioTracks);
-      int duplicatesCount = 0;
-      for (final path in result.paths) {
-        if (path != null) {
-          if (!newTracks.any((t) => t.path == path)) {
-            newTracks.add(AudioTrack(path: path, title: p.basename(path)));
-          } else {
-            duplicatesCount++;
-          }
-        }
-      }
+      // Copies the picked files out of the cache dir and skips duplicates.
+      final imported = await FileStorageService.importAudioTracks(
+        result.paths,
+        book.id,
+        book.audioTracks,
+      );
+      final List<AudioTrack> newTracks = [
+        ...book.audioTracks,
+        ...imported.added,
+      ];
+      final duplicatesCount = imported.duplicates;
 
       if (duplicatesCount > 0 && mounted) {
         ScaffoldMessenger.of(context)

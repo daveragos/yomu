@@ -325,6 +325,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   Future<void> _init() async {
     try {
       await _loadGoal();
+      try {
+        await _dbService.migrateCachedFilePaths();
+      } catch (e) {
+        debugPrint('Error moving books out of the cache dir: $e');
+      }
       await loadBooks();
       await _loadQuests();
 
