@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -36,29 +37,35 @@ class NotificationService {
       },
     );
 
-    // Request permissions for Android 13+ and exact alarms
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+    // Request the notification permission on Android 13+. The exact-alarm
+    // permission is deliberately not requested: it opens a system settings
+    // page, and reminders fall back to inexact alarms without it.
+    await _android?.requestNotificationsPermission();
+  }
 
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestExactAlarmsPermission();
+  AndroidFlutterLocalNotificationsPlugin? get _android => _notifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+
+  /// Exact alarms need the "Alarms & reminders" permission, which Android 14+
+  /// denies by default. Without it, scheduling an exact alarm throws, so use
+  /// an inexact alarm instead; Android may then deliver it a little late.
+  Future<AndroidScheduleMode> _androidScheduleMode() async {
+    final android = _android;
+    if (android == null) return AndroidScheduleMode.exactAllowWhileIdle;
+    try {
+      if (await android.canScheduleExactNotifications() ?? false) {
+        return AndroidScheduleMode.exactAllowWhileIdle;
+      }
+    } catch (e) {
+      debugPrint('Could not check exact alarm permission: $e');
+    }
+    return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
   Future<bool> requestPermissions() async {
-    // Request notification permission
     final status = await Permission.notification.request();
-    
-    // Request exact alarm permission if needed (Android 12+)
-    if (await Permission.scheduleExactAlarm.isDenied) {
-      await Permission.scheduleExactAlarm.request();
-    }
-
     return status.isGranted;
   }
 
@@ -114,12 +121,14 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _androidScheduleMode(),
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 
   Future<void> scheduleWeekendBoostNotifications() async {
+    final scheduleMode = await _androidScheduleMode();
+
     // Saturday 10:00 AM
     await _notifications.zonedSchedule(
       id: 1000,
@@ -138,7 +147,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: scheduleMode,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
 
@@ -160,7 +169,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: scheduleMode,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
   }

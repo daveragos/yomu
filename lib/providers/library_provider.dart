@@ -329,14 +329,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       await _loadQuests();
 
       if (state.notificationsEnabled) {
-        await NotificationService().scheduleDailyReminder(
-          id: 999,
-          title: 'Time to read!',
-          body: 'Keep your streak alive and dive back into your books.',
-          hour: state.reminderHour,
-          minute: state.reminderMinute,
-        );
-        await NotificationService().scheduleWeekendBoostNotifications();
+        await _syncReminders();
       }
     } catch (e) {
       debugPrint('Error during LibraryNotifier init: $e');
@@ -410,19 +403,31 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       reminderMinute: minute ?? state.reminderMinute,
     );
 
-    if (state.notificationsEnabled) {
-      await NotificationService().scheduleDailyReminder(
-        id: 999,
-        title: 'Time to read!',
-        body: 'Keep your streak alive and dive back into your books.',
-        hour: state.reminderHour,
-        minute: state.reminderMinute,
-      );
-      await NotificationService().scheduleWeekendBoostNotifications();
-    } else {
-      await NotificationService().cancel(id: 999);
-      await NotificationService().cancel(id: 1000);
-      await NotificationService().cancel(id: 1001);
+    await _syncReminders();
+  }
+
+  /// Schedules or cancels the daily and weekend reminders to match the
+  /// current settings. Failures are logged rather than thrown, so a
+  /// scheduling problem can't break startup or the settings toggle.
+  Future<void> _syncReminders() async {
+    final notifications = NotificationService();
+    try {
+      if (state.notificationsEnabled) {
+        await notifications.scheduleDailyReminder(
+          id: 999,
+          title: 'Time to read!',
+          body: 'Keep your streak alive and dive back into your books.',
+          hour: state.reminderHour,
+          minute: state.reminderMinute,
+        );
+        await notifications.scheduleWeekendBoostNotifications();
+      } else {
+        await notifications.cancel(id: 999);
+        await notifications.cancel(id: 1000);
+        await notifications.cancel(id: 1001);
+      }
+    } catch (e) {
+      debugPrint('Failed to update reading reminders: $e');
     }
   }
 
