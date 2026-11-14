@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:file_picker/file_picker.dart';
 import '../models/book_model.dart';
 import 'database_service.dart';
+import 'file_storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 
@@ -55,34 +56,51 @@ class BookService {
       if (pickedFile.path == null) continue;
       final file = File(pickedFile.path!);
 
-      // Check if already in DB
-      if (existingBooks.any((b) => b.filePath == file.path)) {
-        debugPrint('Already in library: ${file.path}');
-        continue;
-      }
-
-      final extension = p.extension(file.path).toLowerCase();
-      Book? book;
-      if (extension == '.epub') {
-        book = await _processEpub(file);
-      } else if (extension == '.pdf') {
-        book = await _processPdf(file);
-      }
-
-      if (book != null) {
-        final isDuplicate = existingBooks.any(
-          (b) =>
-              b.filePath == book!.filePath ||
-              (book.contentHash != null && b.contentHash == book.contentHash),
-        );
-
-        if (!isDuplicate) {
-          final id = await _dbService.insertBook(book);
-          importedBooks.add(book.copyWith(id: id));
-          debugPrint('Imported: ${book.title}');
-        } else {
-          debugPrint('Duplicate book found, skipping: ${book.title}');
+      try {
+        // Check if already in DB
+        if (existingBooks.any((b) => b.filePath == file.path)) {
+          debugPrint('Already in library: ${file.path}');
+          continue;
         }
+
+        final extension = p.extension(file.path).toLowerCase();
+        Book? book;
+        if (extension == '.epub') {
+          book = await _processEpub(file);
+        } else if (extension == '.pdf') {
+          book = await _processPdf(file);
+        }
+
+        if (book != null) {
+          final isDuplicate = existingBooks.any(
+            (b) =>
+                b.filePath == book!.filePath ||
+                (book.contentHash != null &&
+                    b.contentHash == book.contentHash),
+          );
+
+          if (!isDuplicate) {
+            // The picked path is a cache copy that Android may clear, so
+            // keep our own copy and store that path instead.
+            final stored = await FileStorageService.copyInto(
+              file,
+              await FileStorageService.booksDir(),
+            );
+            final storedBook = book.copyWith(
+              filePath: stored.path,
+              folderPath: stored.parent.path,
+            );
+            final id = await _dbService.insertBook(storedBook);
+            final saved = storedBook.copyWith(id: id);
+            importedBooks.add(saved);
+            existingBooks.add(saved);
+            debugPrint('Imported: ${book.title}');
+          } else {
+            debugPrint('Duplicate book found, skipping: ${book.title}');
+          }
+        }
+      } finally {
+        await FileStorageService.deleteCachedCopy(file.path);
       }
     }
 
