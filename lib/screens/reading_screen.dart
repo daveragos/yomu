@@ -2424,7 +2424,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         // EPUB Search
         for (int i = 0; i < _chapters.length; i++) {
           final chapter = _chapters[i];
-          final content = chapter.HtmlContent ?? '';
+          // Only the body the reader shows: epubx appends the rest of a
+          // Calibre-split book to each chapter's HtmlContent.
+          final content = cleanChapterHtml(chapter.HtmlContent ?? '');
           final plainText = stripHtml(content);
 
           int startIndex = 0;
