@@ -15,6 +15,8 @@ import 'file_storage_service.dart';
 ///   pointing at the original file would stop opening after a relaunch.
 /// - On Android, file_picker hands back a copy in the app's cache dir,
 ///   which the OS or "Clear cache" may wipe at any time.
+/// - On iOS, a picked or opened file is a copy in the app's `tmp` or caches
+///   folder, which iOS clears when it needs space.
 abstract final class LibraryFiles {
   /// Whether [path] is already in Yomu's own storage.
   static Future<bool> isStored(String path) async {
@@ -23,11 +25,12 @@ abstract final class LibraryFiles {
   }
 
   /// The path to record for a book imported from [path]: a copy in the
-  /// app's `books` folder (reusing an identical earlier copy) on a desktop
-  /// or when [path] is in the cache dir; elsewhere, [path] itself.
+  /// app's `books` folder (reusing an identical earlier copy) on a desktop,
+  /// on iOS, or when [path] is in the cache dir; elsewhere, [path] itself.
   static Future<String> keep(String path) async {
     if (await isStored(path)) return path;
-    if (!PlatformCaps.isDesktop && !await FileStorageService.isInCache(path)) {
+    if (!PlatformCaps.keepsOwnBookCopies &&
+        !await FileStorageService.isInCache(path)) {
       return path;
     }
 
@@ -54,10 +57,10 @@ abstract final class LibraryFiles {
 
   /// Whether an entry stored at [storedPath] should be pointed at a fresh
   /// import of the same book: its file can't be read any more, or (on a
-  /// desktop) it was never copied into Yomu's storage.
+  /// desktop or iOS) it was never copied into Yomu's storage.
   static Future<bool> needsRelink(String storedPath) async {
     if (!await isReadable(storedPath)) return true;
-    return PlatformCaps.isDesktop && !await isStored(storedPath);
+    return PlatformCaps.keepsOwnBookCopies && !await isStored(storedPath);
   }
 
   /// Whether the file at [path] exists and the app may read it.

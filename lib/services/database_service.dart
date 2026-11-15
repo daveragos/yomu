@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -354,6 +355,53 @@ class DatabaseService {
       await txn.delete('books', where: 'id = ?', whereArgs: [id]);
     });
     await AnnotationAudioService.deleteAll(audioFiles);
+  }
+
+  static const _appFolderKey = 'ios_app_folder';
+
+  /// Points stored file paths at the app's folder after iOS moved it.
+  ///
+  /// iOS keeps an app's files in a folder whose path has an ID in it
+  /// (`.../Data/Application/<ID>/Documents`), and gives the folder a new ID
+  /// when the app is reinstalled or updated, so every absolute path in the
+  /// database (books, covers, audio, voice notes) would point at the old
+  /// one. The last folder is remembered, and when it changes, every text
+  /// column has the old folder's path replaced by the new one.
+  Future<void> followMovedAppFolder() async {
+    if (!Platform.isIOS) return;
+    final current = dirname(
+      (await getApplicationDocumentsDirectory()).path,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final previous = prefs.getString(_appFolderKey);
+    if (previous != null && previous != current) {
+      final db = await database;
+      var changed = 0;
+      await db.transaction((txn) async {
+        final tables = await txn.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type = 'table' "
+          "AND name NOT LIKE 'sqlite_%' AND name != 'android_metadata'",
+        );
+        for (final table in tables.map((t) => t['name'] as String)) {
+          final columns = await txn.rawQuery('PRAGMA table_info("$table")');
+          for (final column in columns) {
+            final type = (column['type'] as String? ?? '').toUpperCase();
+            if (!type.contains('TEXT')) continue;
+            final name = column['name'] as String;
+            // The same folder is sometimes written /private/var/...
+            for (final old in ['/private$previous', previous]) {
+              changed += await txn.rawUpdate(
+                'UPDATE "$table" SET "$name" = replace("$name", ?, ?) '
+                'WHERE instr("$name", ?) > 0',
+                [old, current, old],
+              );
+            }
+          }
+        }
+      });
+      debugPrint('App folder moved; updated $changed stored paths');
+    }
+    if (previous != current) await prefs.setString(_appFolderKey, current);
   }
 
   static const _cacheMigrationKey = 'migrated_files_out_of_cache';

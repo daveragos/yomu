@@ -61,8 +61,8 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     super.initState();
     _checkFirstLaunch();
 
-    // On a computer, books arrive from Finder instead of a share sheet.
-    if (PlatformCaps.isDesktop) {
+    // On a Mac, books arrive from Finder; on an iPhone, from "Open in Yomu".
+    if (PlatformCaps.hasOpenFilesChannel) {
       DesktopOpenFiles.listen((paths) {
         if (!mounted) return;
         _handleSharedFiles([

@@ -12,7 +12,20 @@ abstract final class PlatformCaps {
       Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
   /// Books opened or shared from other apps (`receive_sharing_intent`).
-  static bool get hasShareIntents => isMobile;
+  ///
+  /// Android only: on iOS the plugin needs a share extension, which Yomu
+  /// doesn't have. iPhones hand books over through [hasOpenFilesChannel].
+  static bool get hasShareIntents => Platform.isAndroid;
+
+  /// Books the system asks Yomu to open, through the `yomu/open_files`
+  /// channel: Finder's Open With on macOS, "Open in Yomu" on iOS.
+  static bool get hasOpenFilesChannel => Platform.isMacOS || Platform.isIOS;
+
+  /// The app keeps its own copy of every book it imports, instead of
+  /// pointing at the picked file. Desktops need this for the sandbox (see
+  /// `LibraryFiles`); on iOS a picked or opened file is a temporary copy
+  /// that the system may delete.
+  static bool get keepsOwnBookCopies => isDesktop || Platform.isIOS;
 
   /// Runtime permission prompts and the app-settings shortcut
   /// (`permission_handler`).

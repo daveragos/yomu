@@ -54,6 +54,7 @@ import '../components/desktop/adaptive_sheet.dart';
 import '../components/desktop/route_shortcuts.dart';
 import '../core/platform_caps.dart';
 import '../services/library_files.dart';
+import '../services/system_dictionary.dart';
 import '../core/breakpoints.dart';
 import './reading/widgets/reader_column.dart';
 import './reading/paging/epub_page_turner.dart';
@@ -539,7 +540,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   Future<void> _pickAudio(Book book) async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
+      type: FileStorageService.audioPickerType,
+      allowedExtensions: FileStorageService.audioPickerExtensions,
       allowMultiple: true,
     );
 
@@ -3024,6 +3026,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         debugPrint('Dictionary intent failed: $e');
       }
     }
+    if (io.Platform.isIOS && await SystemDictionary.show(lookupWord)) return;
     if (io.Platform.isIOS || io.Platform.isMacOS) {
       final dictUri = Uri.parse('x-dictionary:r:$encoded');
       if (await canLaunchUrl(dictUri)) {
