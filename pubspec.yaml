@@ -57,11 +57,10 @@ dependencies:
 
 dependency_overrides:
   # epubx 4.0.0 on pub.dev is pinned to image 3; upstream's unreleased 4.0.1
-  # moves to image 4, which pdfrx 2.12 requires.
+  # moves to image 4, which pdfrx 2.12 requires. Vendored at that commit with
+  # a fix for file names with spaces: see third_party/epubx/YOMU_PATCHES.md.
   epubx:
-    git:
-      url: https://github.com/rbcprolabs/epubx.dart
-      ref: 1c0347b20c9123866bff760f8571ec50fefb037d
+    path: third_party/epubx
   # epubx still declares archive ^3, but the archive APIs it uses are unchanged
   # in archive 4, which pdfrx 2.12 requires.
   archive: ^4.0.9

@@ -220,11 +220,9 @@ packages:
   epubx:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "1c0347b20c9123866bff760f8571ec50fefb037d"
-      resolved-ref: "1c0347b20c9123866bff760f8571ec50fefb037d"
-      url: "https://github.com/rbcprolabs/epubx.dart"
-    source: git
+      path: "third_party/epubx"
+      relative: true
+    source: path
     version: "4.0.1"
   equatable:
     dependency: transitive
