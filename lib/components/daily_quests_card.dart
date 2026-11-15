@@ -40,19 +40,15 @@ class DailyQuestsCard extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.2),
+                        color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.5),
-                          width: 1,
-                        ),
                       ),
                       child: const Text(
-                        '2X XP',
+                        '2× XP',
                         style: TextStyle(
-                          color: Colors.amber,
+                          color: YomuConstants.textSecondary,
                           fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -63,7 +59,7 @@ class DailyQuestsCard extends StatelessWidget {
                 isWeekend
                     ? Icons.celebration
                     : Icons.assignment_turned_in_outlined,
-                color: isWeekend ? Colors.amber : Colors.white54,
+                color: Colors.white54,
                 size: 18,
               ),
             ],
@@ -154,21 +150,9 @@ class _QuestItem extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Text(
-                  'Reward: ${quest.xpReward} XP',
-                  style: TextStyle(
-                    color: isWeekend ? Colors.amber : Colors.white38,
-                    fontSize: 11,
-                    fontWeight: isWeekend ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                if (isWeekend) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.flash_on, color: Colors.amber, size: 10),
-                ],
-              ],
+            Text(
+              'Reward: ${quest.xpReward} XP',
+              style: const TextStyle(color: Colors.white38, fontSize: 11),
             ),
             if (isCompleted)
               const Icon(

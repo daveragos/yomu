@@ -1,18 +1,19 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
 
+/// The app's card surface: a solid panel with a hairline border, the same
+/// on phone and desktop.
+///
+/// It keeps its old name so callers don't change, but it no longer blurs or
+/// tints whatever sits behind it.
 class GlassContainer extends StatelessWidget {
   final Widget child;
   final double? width;
   final double? height;
   final EdgeInsetsGeometry? padding;
-  final double blur;
-  final double opacity;
   final Color? color;
   final double borderRadius;
   final VoidCallback? onTap;
-  final bool enabled;
 
   const GlassContainer({
     super.key,
@@ -20,44 +21,25 @@ class GlassContainer extends StatelessWidget {
     this.width,
     this.height,
     this.padding,
-    this.blur = 12.0,
-    this.opacity = 0.08,
     this.color,
     this.borderRadius = YomuConstants.borderRadius,
     this.onTap,
-    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final content = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: enabled
-            ? ImageFilter.blur(sigmaX: blur, sigmaY: blur)
-            : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-        child: Container(
-          width: width,
-          height: height,
-          padding: padding,
-          decoration: BoxDecoration(
-            color: (color ?? Colors.white).withValues(alpha: opacity),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              width: 1.5,
-              color: Colors.white.withValues(alpha: 0.05),
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.1),
-                Colors.white.withValues(alpha: 0.01),
-              ],
-            ),
-          ),
-          child: child,
+      child: Container(
+        width: width,
+        height: height,
+        padding: padding,
+        decoration: BoxDecoration(
+          color: color ?? YomuConstants.surface,
+          borderRadius: BorderRadius.circular(borderRadius),
+          border: Border.all(color: YomuConstants.hairline),
         ),
+        child: child,
       ),
     );
 

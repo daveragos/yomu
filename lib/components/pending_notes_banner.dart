@@ -34,7 +34,7 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Material(
-        color: YomuConstants.accent.withValues(alpha: 0.08),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),

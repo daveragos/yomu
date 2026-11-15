@@ -203,7 +203,7 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
                 onPressed: () => setState(() => _isExpanded = !_isExpanded),
               ),
               if (widget.onAddBooks != null)
-                DesktopPrimaryButton(
+                DesktopToolbarButton(
                   key: widget.addButtonKey,
                   icon: Icons.add_rounded,
                   label: 'Add books',
@@ -472,14 +472,6 @@ class _StatusTab extends StatelessWidget {
               decoration: BoxDecoration(
                 color: YomuConstants.accent,
                 borderRadius: BorderRadius.circular(2),
-                boxShadow: [
-                  if (isSelected)
-                    BoxShadow(
-                      color: YomuConstants.accent.withValues(alpha: 0.5),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                ],
               ),
             ),
           ],
@@ -575,16 +567,10 @@ class _DesktopIconButton extends StatelessWidget {
         foregroundColor: isActive
             ? YomuConstants.accent
             : YomuConstants.textSecondary,
-        backgroundColor: isActive
-            ? YomuConstants.accent.withValues(alpha: 0.12)
-            : Colors.white.withValues(alpha: 0.05),
+        backgroundColor: Colors.white.withValues(alpha: 0.05),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: isActive
-                ? YomuConstants.accent.withValues(alpha: 0.4)
-                : Colors.white.withValues(alpha: 0.08),
-          ),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
       ),
     );
@@ -627,14 +613,14 @@ class _StatusPillState extends State<_StatusPill> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: selected
-                  ? YomuConstants.accent.withValues(alpha: 0.14)
+                  ? Colors.white.withValues(alpha: 0.10)
                   : _hovered
                   ? Colors.white.withValues(alpha: 0.05)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: selected
-                    ? YomuConstants.accent.withValues(alpha: 0.45)
+                    ? Colors.white.withValues(alpha: 0.14)
                     : Colors.white.withValues(alpha: 0.06),
               ),
             ),
@@ -642,10 +628,10 @@ class _StatusPillState extends State<_StatusPill> {
               widget.label,
               style: TextStyle(
                 color: selected
-                    ? YomuConstants.accent
+                    ? YomuConstants.textPrimary
                     : YomuConstants.textSecondary,
                 fontSize: 13,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ),

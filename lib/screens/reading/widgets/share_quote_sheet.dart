@@ -544,7 +544,7 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFF2ECC71).withValues(alpha: 0.15)
+                ? Colors.white.withValues(alpha: 0.08)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(

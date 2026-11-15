@@ -195,14 +195,10 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? YomuConstants.accent.withValues(alpha: 0.2)
-                      : Colors.white10,
+                  color: Colors.white10,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: isActive
-                        ? YomuConstants.accent.withValues(alpha: 0.5)
-                        : Colors.transparent,
+                    color: isActive ? YomuConstants.accent : Colors.transparent,
                   ),
                 ),
                 child: Text(

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants.dart';
-
-/// Lifts [child] slightly and rims it with the accent color while the
+/// Lifts [child] slightly and rims it with a light outline while the
 /// pointer is over it, so cards read as clickable on desktop.
 ///
 /// Touch devices never hover, so on phones this only adds the click cursor.
@@ -13,7 +11,7 @@ class HoverLift extends StatefulWidget {
   /// How far the card rises on hover, in logical pixels.
   final double lift;
 
-  /// Draws an accent-tinted outline on hover. Turn off for children that
+  /// Draws a light outline on hover. Turn off for children that
   /// already draw their own border.
   final bool showOutline;
 
@@ -50,7 +48,7 @@ class _HoverLiftState extends State<HoverLift> {
                 borderRadius: widget.borderRadius,
                 border: Border.all(
                   color: _hovered
-                      ? YomuConstants.accent.withValues(alpha: 0.45)
+                      ? Colors.white.withValues(alpha: 0.14)
                       : Colors.transparent,
                 ),
               )
@@ -60,9 +58,9 @@ class _HoverLiftState extends State<HoverLift> {
           boxShadow: _hovered
               ? [
                   BoxShadow(
-                    color: YomuConstants.accent.withValues(alpha: 0.12),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
                   ),
                 ]
               : const [],

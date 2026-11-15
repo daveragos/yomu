@@ -188,7 +188,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               DesktopPageHeader(
-                eyebrow: 'Your reading',
                 title: 'Stats',
                 subtitle:
                     '${state.rankName} · Level ${state.level} · '
@@ -228,7 +227,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             label: 'Pages',
             value: '${state.totalPagesRead}',
             icon: Icons.auto_stories,
-            color: YomuConstants.accentGreen,
           ),
         ),
         const SizedBox(width: 16),
@@ -237,7 +235,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             label: 'Minutes',
             value: '${state.totalMinutesRead}',
             icon: Icons.timer,
-            color: Colors.orangeAccent,
           ),
         ),
       ],
@@ -254,11 +251,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   Widget _buildQuickStats(BuildContext context, LibraryState state) {
-    final Color streakColor = state.isStreakActiveToday
-        ? (state.currentStreak >= 30
-            ? Colors.amber
-            : (state.currentStreak >= 7 ? Colors.orange : Colors.redAccent))
-        : YomuConstants.textSecondary;
+    final Color flameColor = streakColor(
+      streak: state.currentStreak,
+      isActive: state.isStreakActiveToday,
+    );
 
     return Row(
       children: [
@@ -267,7 +263,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             label: 'Streak',
             value: '${state.currentStreak}',
             icon: Icons.local_fire_department,
-            color: streakColor,
+            color: flameColor,
           ),
         ),
         const SizedBox(width: 12),
@@ -276,7 +272,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             label: 'Pages',
             value: '${state.totalPagesRead}',
             icon: Icons.auto_stories,
-            color: YomuConstants.accentGreen,
           ),
         ),
         const SizedBox(width: 12),
@@ -285,7 +280,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             label: 'Minutes',
             value: '${state.totalMinutesRead}',
             icon: Icons.timer,
-            color: Colors.orangeAccent,
           ),
         ),
       ],

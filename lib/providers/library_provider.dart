@@ -15,6 +15,8 @@ import '../services/annotation_share_service.dart';
 import '../services/incoming_files.dart';
 import '../models/quest_model.dart';
 import '../services/notification_service.dart';
+import '../services/celebrations.dart';
+import '../core/platform_caps.dart';
 import '../models/vocabulary_model.dart';
 
 enum BookSortBy { title, author, recent }
@@ -27,11 +29,17 @@ class DeferredNotification {
   final String title;
   final String body;
   final int id;
+  final CelebrationKind kind;
+
+  /// See [Celebration.key].
+  final String key;
 
   DeferredNotification({
     required this.title,
     required this.body,
     required this.id,
+    required this.kind,
+    required this.key,
   });
 }
 
@@ -315,14 +323,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     state = state.copyWith(deferredNotifications: []);
 
     for (var i = 0; i < notifications.length; i++) {
-      final dn = notifications[i];
       // Show with a slight stagger if there are multiple
       await Future.delayed(Duration(milliseconds: i * 1500));
-      NotificationService().showNotification(
-        id: dn.id,
-        title: dn.title,
-        body: dn.body,
-      );
+      _deliver(notifications[i]);
     }
   }
 
@@ -1162,19 +1165,13 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     );
     for (var achievement in newAchievements) {
       final title = _getAchievementTitle(achievement);
-      if (!state.isReading) {
-        NotificationService().showNotification(
-          id: achievement.hashCode,
-          title: 'Achievement Unlocked!',
-          body: 'You earned the "$title" badge!',
-        );
-      } else {
-        _queueNotification(
-          id: achievement.hashCode,
-          title: 'Achievement Unlocked!',
-          body: 'You earned the "$title" badge!',
-        );
-      }
+      _celebrate(
+        kind: CelebrationKind.achievement,
+        key: 'achievement:$achievement',
+        id: achievement.hashCode,
+        title: 'Achievement unlocked',
+        body: 'You earned "$title".',
+      );
     }
 
     state = state.copyWith(
@@ -1310,19 +1307,13 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           (oq) => oq.id == q.id && oq.isCompleted,
         );
         if (q.isCompleted && !wasCompleted) {
-          if (!state.isReading) {
-            NotificationService().showNotification(
-              id: q.id.hashCode,
-              title: 'Quest Completed!',
-              body: 'You completed: ${q.title}. +${q.xpReward} XP earned!',
-            );
-          } else {
-            _queueNotification(
-              id: q.id.hashCode,
-              title: 'Quest Completed!',
-              body: 'You completed: ${q.title}. +${q.xpReward} XP earned!',
-            );
-          }
+          _celebrate(
+            kind: CelebrationKind.quest,
+            key: 'quest:${q.id}',
+            id: q.id.hashCode,
+            title: 'Quest complete',
+            body: '${q.title} · +${q.xpReward} XP',
+          );
         }
       }
 
@@ -1347,34 +1338,22 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           state.unlockedAchievements.length,
         );
 
-        if (!state.isReading) {
-          if (newRank.name != oldRank.name) {
-            NotificationService().showNotification(
-              id: 1001,
-              title: 'Rank Up!',
-              body: 'Congratulations! You are now a ${newRank.name}!',
-            );
-          } else {
-            NotificationService().showNotification(
-              id: 1002,
-              title: 'Level Up!',
-              body: 'You reached Level ${stats.level}!',
-            );
-          }
+        if (newRank.name != oldRank.name) {
+          _celebrate(
+            kind: CelebrationKind.rank,
+            key: 'rank:${newRank.name}',
+            id: 1001,
+            title: 'New rank',
+            body: 'You are now ${newRank.name}.',
+          );
         } else {
-          if (newRank.name != oldRank.name) {
-            _queueNotification(
-              id: 1001,
-              title: 'Rank Up!',
-              body: 'Congratulations! You are now a ${newRank.name}!',
-            );
-          } else {
-            _queueNotification(
-              id: 1002,
-              title: 'Level Up!',
-              body: 'You reached Level ${stats.level}!',
-            );
-          }
+          _celebrate(
+            kind: CelebrationKind.level,
+            key: 'level:${stats.level}',
+            id: 1002,
+            title: 'Level up',
+            body: 'You reached level ${stats.level}.',
+          );
         }
       }
 
@@ -1614,13 +1593,49 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     return await _dbService.getDictionaryLookupsForBook(bookId);
   }
 
-  void _queueNotification({required int id, required String title, required String body}) {
-    state = state.copyWith(
-      deferredNotifications: [
-        ...state.deferredNotifications,
-        DeferredNotification(id: id, title: title, body: body),
-      ],
+  /// Reports an achievement, finished quest, new level or new rank: as a
+  /// toast in the window on desktop, as a system notification elsewhere.
+  /// While the reader is open it waits and is shown once the reader closes.
+  void _celebrate({
+    required CelebrationKind kind,
+    required String key,
+    required int id,
+    required String title,
+    required String body,
+  }) {
+    final notification = DeferredNotification(
+      id: id,
+      title: title,
+      body: body,
+      kind: kind,
+      key: key,
     );
+    if (state.isReading) {
+      state = state.copyWith(
+        deferredNotifications: [...state.deferredNotifications, notification],
+      );
+    } else {
+      _deliver(notification);
+    }
+  }
+
+  void _deliver(DeferredNotification notification) {
+    if (PlatformCaps.isDesktop) {
+      Celebrations.show(
+        Celebration(
+          kind: notification.kind,
+          key: notification.key,
+          title: notification.title,
+          body: notification.body,
+        ),
+      );
+    } else {
+      NotificationService().showNotification(
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+      );
+    }
   }
 }
 

@@ -32,11 +32,9 @@ class LevelMetadataSheet extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: YomuConstants.accent.withValues(alpha: 0.1),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: YomuConstants.accent.withValues(alpha: 0.2),
-                ),
+                border: Border.all(color: Colors.white10),
               ),
               child: Row(
                 children: [
@@ -69,9 +67,7 @@ class LevelMetadataSheet extends StatelessWidget {
                       height: 36,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isReached
-                            ? YomuConstants.accent.withValues(alpha: 0.1)
-                            : Colors.white.withValues(alpha: 0.05),
+                        color: Colors.white.withValues(alpha: 0.05),
                         border: Border.all(
                           color: isReached
                               ? YomuConstants.accent

@@ -7,6 +7,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'core/breakpoints.dart';
 import 'core/platform_caps.dart';
 import 'core/theme.dart';
+import 'components/desktop/celebration_toasts.dart';
 import 'screens/main_navigation.dart';
 import 'services/notification_service.dart';
 
@@ -58,10 +59,9 @@ class YomuApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
         FlutterQuillLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en', 'US'),
-      ],
-      builder: (context, child) => _TitleBarInset(child: child!),
+      supportedLocales: const [Locale('en', 'US')],
+      builder: (context, child) =>
+          CelebrationToastHost(child: _TitleBarInset(child: child!)),
       home: const MainNavigation(),
     );
   }

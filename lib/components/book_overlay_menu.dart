@@ -106,7 +106,6 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     borderRadius: 16,
                     color: YomuConstants.surface,
-                    opacity: 0.8,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [

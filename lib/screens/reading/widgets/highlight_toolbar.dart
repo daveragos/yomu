@@ -189,10 +189,10 @@ void showVoiceNoteSheet(
                   ? 'VOICE NOTE FROM ${highlight.sharedBy!.toUpperCase()}'
                   : 'VOICE NOTE',
               style: const TextStyle(
-                color: YomuConstants.accent,
+                color: YomuConstants.textSecondary,
                 fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.8,
               ),
             ),
             const SizedBox(height: 8),

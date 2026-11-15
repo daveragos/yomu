@@ -27,14 +27,7 @@ class LevelInfoCard extends StatelessWidget {
               height: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: YomuConstants.accent.withValues(alpha: 0.1),
                 border: Border.all(color: YomuConstants.accent, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: YomuConstants.accent.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                  ),
-                ],
               ),
               child: Center(
                 child: Text(
@@ -104,7 +97,7 @@ class LevelInfoCard extends StatelessWidget {
                       Text(
                         '${1000 - (state.totalXP % 1000)} XP to level up',
                         style: TextStyle(
-                          color: YomuConstants.accent.withValues(alpha: 0.5),
+                          color: YomuConstants.textSecondary,
                           fontSize: 10,
                         ),
                       ),

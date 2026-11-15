@@ -373,7 +373,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     TutorialHelper.showTutorial(
       context: context,
       targets: targets,
-      colorShadow: YomuConstants.accent,
       onFinish: () {
         SharedPreferences.getInstance().then((prefs) {
           prefs.setBool('is_first_launch_reading', false);

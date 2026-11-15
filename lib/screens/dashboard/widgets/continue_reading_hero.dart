@@ -53,136 +53,110 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
         onTap: _open,
         onSecondaryTapDown: (details) => _tapPosition = details.globalPosition,
         onSecondaryTap: () => widget.onShowOptions(_tapPosition),
-        child: Stack(
-          children: [
-            GlassContainer(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 130,
-                    height: 195,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: YomuConstants.surface,
-                      boxShadow: YomuConstants.cardShadow,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: BookCoverImage(book: book),
-                    ),
-                  ),
-                  const SizedBox(width: 28),
-                  Expanded(
-                    // At least as tall as the cover, taller when a long title
-                    // wraps in a narrow column.
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 195),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+        child: GlassContainer(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 130,
+                height: 195,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: YomuConstants.surface,
+                  boxShadow: YomuConstants.cardShadow,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: BookCoverImage(book: book),
+                ),
+              ),
+              const SizedBox(width: 28),
+              Expanded(
+                // At least as tall as the cover, taller when a long title
+                // wraps in a narrow column.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 195),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              const Expanded(
-                                child: Text(
-                                  'CONTINUE READING',
-                                  style: TextStyle(
-                                    color: YomuConstants.accent,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.4,
-                                  ),
-                                ),
+                          const Expanded(
+                            child: Text(
+                              'Continue reading',
+                              style: TextStyle(
+                                color: YomuConstants.textSecondary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
                               ),
-                              _MenuButton(
-                                onPressed: (position) =>
-                                    widget.onShowOptions(position),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            book.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: YomuConstants.textPrimary,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w700,
-                              height: 1.15,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            book.author,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: YomuConstants.textSecondary,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(3),
-                                  child: LinearProgressIndicator(
-                                    value: book.progress.clamp(0.0, 1.0),
-                                    minHeight: 6,
-                                    backgroundColor: Colors.white10,
-                                    color: YomuConstants.accent,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                '$percent%',
-                                style: const TextStyle(
-                                  color: YomuConstants.accent,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          DesktopPrimaryButton(
-                            icon: Icons.play_arrow_rounded,
-                            label: book.progress > 0 ? 'Resume' : 'Start reading',
-                            onPressed: _open,
+                          _MenuButton(
+                            onPressed: (position) =>
+                                widget.onShowOptions(position),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // The green glow the phone header uses, tucked behind the card's
-            // top-right corner.
-            Positioned(
-              top: -40,
-              right: -40,
-              child: IgnorePointer(
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        YomuConstants.accent.withValues(alpha: 0.12),
-                        Colors.transparent,
-                      ],
-                    ),
+                      const SizedBox(height: 6),
+                      Text(
+                        book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: YomuConstants.textPrimary,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        book.author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: YomuConstants.textSecondary,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: LinearProgressIndicator(
+                                value: book.progress.clamp(0.0, 1.0),
+                                minHeight: 6,
+                                backgroundColor: Colors.white10,
+                                color: YomuConstants.accent,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '$percent%',
+                            style: const TextStyle(
+                              color: YomuConstants.accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      DesktopPrimaryButton(
+                        icon: Icons.play_arrow_rounded,
+                        label: book.progress > 0 ? 'Resume' : 'Start reading',
+                        onPressed: _open,
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -229,14 +203,11 @@ class ContinueReadingEmpty extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: YomuConstants.accent.withValues(alpha: 0.1),
-              border: Border.all(
-                color: YomuConstants.accent.withValues(alpha: 0.4),
-              ),
+              color: Colors.white.withValues(alpha: 0.05),
             ),
             child: const Icon(
               Icons.menu_book_rounded,
-              color: YomuConstants.accent,
+              color: YomuConstants.textSecondary,
               size: 28,
             ),
           ),

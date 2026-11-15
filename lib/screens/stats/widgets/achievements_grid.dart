@@ -25,9 +25,7 @@ class AchievementBadge extends StatelessWidget {
           height: 60,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isUnlocked
-                ? YomuConstants.accent.withValues(alpha: 0.1)
-                : Colors.white.withValues(alpha: 0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             border: Border.all(
               color: isUnlocked ? YomuConstants.accent : Colors.white10,
               width: 2,
@@ -256,9 +254,7 @@ class AchievementsGrid extends StatelessWidget {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isUnlocked
-                    ? YomuConstants.accent.withValues(alpha: 0.15)
-                    : Colors.white.withValues(alpha: 0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 border: Border.all(
                   color: isUnlocked ? YomuConstants.accent : Colors.white10,
                   width: 2.5,

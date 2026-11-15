@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../core/constants.dart';
-import '../components/glass_container.dart';
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
 import '../providers/shared_welcome_provider.dart';
@@ -28,6 +27,7 @@ import 'desktop/desktop_sidebar.dart';
 import 'desktop/app_menu_bar.dart';
 import '../components/desktop/route_shortcuts.dart';
 import '../services/desktop_open_files.dart';
+import '../services/celebrations.dart';
 
 class NavigationState {
   final int current;
@@ -235,7 +235,6 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     TutorialHelper.showTutorial(
       context: context,
       targets: targets,
-      colorShadow: YomuConstants.accent,
       onClickTarget: (target) {
         if (target.identify == "library_target") {
           ref.read(navigationStateProvider.notifier).state = NavigationState(
@@ -390,11 +389,13 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         bottom: true,
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: GlassContainer(
+          child: Container(
             height: 70,
-            blur: 20,
-            opacity: 0.1,
-            borderRadius: 35,
+            decoration: BoxDecoration(
+              color: YomuConstants.surface,
+              borderRadius: BorderRadius.circular(35),
+              border: Border.all(color: YomuConstants.hairline),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -495,11 +496,24 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     );
 
     if (currentRank.level > lastRank.level) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => RankUpDialog(level: nextLevel, rankName: state.rankName),
-      );
+      // Desktop shows a passing toast in the corner; phones keep the dialog.
+      if (PlatformCaps.isDesktop) {
+        Celebrations.show(
+          Celebration(
+            kind: CelebrationKind.rank,
+            key: 'rank:${currentRank.name}',
+            title: 'New rank',
+            body: 'You are now ${currentRank.name}.',
+          ),
+        );
+      } else {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) =>
+              RankUpDialog(level: nextLevel, rankName: state.rankName),
+        );
+      }
       ref.read(libraryProvider.notifier).markLevelCelebrated(nextLevel);
     }
   }

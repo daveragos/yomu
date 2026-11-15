@@ -21,77 +21,40 @@ class RankUpDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: YomuConstants.surface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: YomuConstants.accent.withValues(alpha: 0.2),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: YomuConstants.accent.withValues(alpha: 0.1),
-              blurRadius: 30,
-              spreadRadius: 10,
-            ),
-          ],
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            YomuConstants.accent.withValues(alpha: 0.2),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    )
-                    .animate(onPlay: (controller) => controller.repeat())
-                    .scale(
-                      begin: const Offset(1, 1),
-                      end: const Offset(1.5, 1.5),
-                      duration: 2.seconds,
-                      curve: Curves.easeInOut,
-                    )
-                    .fadeOut(),
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: YomuConstants.accent.withValues(alpha: 0.1),
-                    border: Border.all(color: YomuConstants.accent, width: 3),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: YomuConstants.accent, width: 3),
+              ),
+              child: Center(
+                child: Text(
+                  '$level',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: Center(
-                    child: Text(
-                      '$level',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ).animate().scale(
-                  delay: 200.ms,
-                  duration: 600.ms,
-                  curve: Curves.elasticOut,
                 ),
-              ],
+              ),
+            ).animate().scale(
+              delay: 200.ms,
+              duration: 600.ms,
+              curve: Curves.elasticOut,
             ),
             const SizedBox(height: 24),
             Text(
-              'RANK UP!',
+              'New rank',
               style: TextStyle(
-                color: YomuConstants.accent,
+                color: YomuConstants.textSecondary,
                 fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 4.0,
+                fontWeight: FontWeight.w600,
               ),
             ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2, end: 0),
             const SizedBox(height: 8),
