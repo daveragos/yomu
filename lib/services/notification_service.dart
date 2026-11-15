@@ -1,6 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
+// latest_all includes legacy zone IDs such as Asia/Calcutta, which Android
+// still reports for some regions; latest.dart doesn't.
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
@@ -13,6 +17,7 @@ class NotificationService {
 
   Future<void> init() async {
     tz.initializeTimeZones();
+    await _setLocalTimeZone();
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -36,29 +41,46 @@ class NotificationService {
       },
     );
 
-    // Request permissions for Android 13+ and exact alarms
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+    // Request the notification permission on Android 13+. The exact-alarm
+    // permission is deliberately not requested: it opens a system settings
+    // page, and reminders fall back to inexact alarms without it.
+    await _android?.requestNotificationsPermission();
+  }
 
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestExactAlarmsPermission();
+  /// The timezone package starts with tz.local set to UTC, which would put a
+  /// 20:00 reminder at 20:00 UTC. Schedule in the device's timezone instead.
+  Future<void> _setLocalTimeZone() async {
+    try {
+      final timezone = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timezone.identifier));
+    } catch (e) {
+      debugPrint('Could not set local timezone, reminders will use UTC: $e');
+    }
+  }
+
+  AndroidFlutterLocalNotificationsPlugin? get _android => _notifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+
+  /// Exact alarms need the "Alarms & reminders" permission, which Android 14+
+  /// denies by default. Without it, scheduling an exact alarm throws, so use
+  /// an inexact alarm instead; Android may then deliver it a little late.
+  Future<AndroidScheduleMode> _androidScheduleMode() async {
+    final android = _android;
+    if (android == null) return AndroidScheduleMode.exactAllowWhileIdle;
+    try {
+      if (await android.canScheduleExactNotifications() ?? false) {
+        return AndroidScheduleMode.exactAllowWhileIdle;
+      }
+    } catch (e) {
+      debugPrint('Could not check exact alarm permission: $e');
+    }
+    return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
   Future<bool> requestPermissions() async {
-    // Request notification permission
     final status = await Permission.notification.request();
-    
-    // Request exact alarm permission if needed (Android 12+)
-    if (await Permission.scheduleExactAlarm.isDenied) {
-      await Permission.scheduleExactAlarm.request();
-    }
-
     return status.isGranted;
   }
 
@@ -114,12 +136,14 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _androidScheduleMode(),
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 
   Future<void> scheduleWeekendBoostNotifications() async {
+    final scheduleMode = await _androidScheduleMode();
+
     // Saturday 10:00 AM
     await _notifications.zonedSchedule(
       id: 1000,
@@ -138,7 +162,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: scheduleMode,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
 
@@ -160,7 +184,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: scheduleMode,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
   }

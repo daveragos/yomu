@@ -43,6 +43,7 @@ dependencies:
   crypto: ^3.0.7
   flutter_local_notifications: ^20.1.0
   timezone: ^0.10.1
+  flutter_timezone: ^5.1.1
   url_launcher: ^6.3.2
   tutorial_coach_mark: ^1.3.3
   share_plus: ^12.0.1
