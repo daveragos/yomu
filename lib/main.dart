@@ -35,6 +35,12 @@ void main() async {
   }
 
   runApp(const ProviderScope(child: YomuApp()));
+
+  // Only once the first frame is up, so an open permission prompt never
+  // leaves the window blank.
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => NotificationService().requestPermissionsAfterLaunch(),
+  );
 }
 
 class YomuApp extends StatelessWidget {
