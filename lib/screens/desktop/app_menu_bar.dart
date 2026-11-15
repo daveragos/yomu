@@ -1,5 +1,4 @@
-import 'dart:io' show Platform;
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -26,7 +25,9 @@ class YomuMenuBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isMacOS) return child;
+    // The platform Flutter targets, as PlatformMenuBar itself checks: on a
+    // Mac it's macOS, while tests run as Android even on a Mac host.
+    if (defaultTargetPlatform != TargetPlatform.macOS) return child;
 
     return PlatformMenuBar(
       menus: [
