@@ -937,14 +937,21 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     return filtered;
   }
 
-  Future<List<Book>> importFiles(List<String> paths) async {
+  /// Adds the books at [paths] to the library. Paths of files that could not
+  /// be read as a book are added to [unreadable].
+  Future<List<Book>> importFiles(
+    List<String> paths, {
+    List<String>? unreadable,
+  }) async {
     state = state.copyWith(isLoading: true);
     final List<Book> result = [];
     final existing = await _dbService.getBooks();
 
     for (var path in paths) {
       try {
-        await _importFile(path, existing, result);
+        if (!await _importFile(path, existing, result)) {
+          unreadable?.add(path);
+        }
       } finally {
         // Once stored, file_picker's cache copy is no longer needed.
         if (!existing.any((b) => b.filePath == path)) {
@@ -959,7 +966,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   /// Adds the book at [path] to the library, or restores or relinks the
   /// entry it duplicates, and adds it to [result]. New entries are added to
   /// [existing] so a book picked twice in one go is only added once.
-  Future<void> _importFile(
+  ///
+  /// Returns false when the file could not be read as a book.
+  Future<bool> _importFile(
     String path,
     List<Book> existing,
     List<Book> result,
@@ -1011,6 +1020,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         result.add(duplicate);
       }
     }
+    return book != null;
   }
 
   /// Imports a `.yomu` package: the shared book (unless the exact same book
@@ -1041,15 +1051,16 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         );
       }
     }
+    final unreadable = <String>[];
     final books = sorted.books.isEmpty
         ? <Book>[]
-        : await importFiles(sorted.books);
+        : await importFiles(sorted.books, unreadable: unreadable);
     return IncomingImportSummary(
       books: books,
       packages: packages,
       failures: failures,
-      skipped:
-          sorted.unsupported.length + (sorted.books.length - books.length),
+      unreadable: [for (final path in unreadable) p.basename(path)],
+      skipped: sorted.unsupported.length,
     );
   }
 
