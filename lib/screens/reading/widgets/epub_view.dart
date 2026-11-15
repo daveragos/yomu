@@ -32,6 +32,7 @@ class ReadingEpubView extends StatelessWidget {
   final Function(String)? onLookup;
   final void Function(Highlight highlight)? onOpenNote;
   final Map<String, int> replyCounts;
+  final void Function(int chapter, double from, double to)? onContentSeen;
 
   const ReadingEpubView({
     super.key,
@@ -59,6 +60,7 @@ class ReadingEpubView extends StatelessWidget {
     this.onLookup,
     this.onOpenNote,
     this.replyCounts = const {},
+    this.onContentSeen,
     this.searchQuery,
     this.epubBook,
   });
@@ -109,6 +111,7 @@ class ReadingEpubView extends StatelessWidget {
           onLookup: onLookup,
           onOpenNote: onOpenNote,
           replyCounts: replyCounts,
+          onContentSeen: onContentSeen,
           bookTitle: book.title,
           bookAuthor: book.author,
         );

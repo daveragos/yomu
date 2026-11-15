@@ -57,6 +57,9 @@ class EpubChapterPage extends StatefulWidget {
   /// Replies per highlight uid, for the markers.
   final Map<String, int> replyCounts;
 
+  /// Called with the part of the chapter now on screen, as 0–1 fractions.
+  final void Function(int chapter, double from, double to)? onContentSeen;
+
   const EpubChapterPage({
     super.key,
     required this.index,
@@ -86,6 +89,7 @@ class EpubChapterPage extends StatefulWidget {
     this.onLookup,
     this.onOpenNote,
     this.replyCounts = const {},
+    this.onContentSeen,
     this.searchQuery,
     this.epubBook,
     this.bookTitle,
@@ -176,6 +180,13 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   @override
   void didUpdateWidget(EpubChapterPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.isCurrentPage && !oldWidget.isCurrentPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollController.hasClients) {
+          _reportSeen(_scrollController.position);
+        }
+      });
+    }
     // The chapter being left stays mounted until the page animation ends, so
     // position requests must only move the chapter that is now current.
     if (widget.isCurrentPage &&
@@ -314,6 +325,9 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   }
 
   bool _handleMetricsChange(ScrollMetricsNotification notification) {
+    // Metrics change without scrolling on first layout and when a short
+    // chapter fits on screen, so what's on screen is reported here too.
+    if (notification.depth == 0) _reportSeen(notification.metrics);
     if (notification.depth == 0 &&
         _pinnedToEnd &&
         _activePointers == 0 &&
@@ -347,6 +361,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         if (maxScroll > 0) {
           _scrollController.jumpTo(maxScroll * widget.initialScrollProgress);
           setState(() => _isInitialPositionRestored = true);
+          _reportSeen(_scrollController.position);
           widget.onJumpedToPosition();
         } else {
           Future.delayed(const Duration(milliseconds: 50), () {
@@ -359,12 +374,37 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                 );
               }
               setState(() => _isInitialPositionRestored = true);
+              _reportSeen(_scrollController.position);
               widget.onJumpedToPosition();
             }
           });
         }
       }
     });
+  }
+
+  /// Reports the part of the chapter on screen, so only what was actually
+  /// scrolled through counts as read. Skips positions the reader did not
+  /// choose: before a saved position is restored or a jump to the bottom.
+  void _reportSeen(ScrollMetrics metrics) {
+    final onContentSeen = widget.onContentSeen;
+    if (onContentSeen == null ||
+        metrics.axis != Axis.vertical ||
+        !metrics.hasContentDimensions ||
+        !metrics.hasPixels ||
+        !metrics.hasViewportDimension ||
+        !widget.isCurrentPage ||
+        !_isInitialPositionRestored ||
+        widget.shouldJumpToBottom) {
+      return;
+    }
+    final total = metrics.extentTotal;
+    if (total <= 0) return;
+    onContentSeen(
+      widget.index,
+      metrics.extentBefore / total,
+      (metrics.extentBefore + metrics.extentInside) / total,
+    );
   }
 
   @override
@@ -403,6 +443,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       return false;
     }
     final metrics = notification.metrics;
+    _reportSeen(metrics);
 
     if (notification is UserScrollNotification &&
         notification.direction != ScrollDirection.idle) {
