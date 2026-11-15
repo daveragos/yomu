@@ -2,8 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
+import '../core/platform_caps.dart';
+
 class TutorialHelper {
   /// Shows a TutorialCoachMark with standard styling.
+  ///
+  /// Not on a desktop: full-screen coach marks are a touch pattern, and the
+  /// desktop controls carry tooltips instead.
   static void showTutorial({
     required BuildContext context,
     required List<TargetFocus> targets,
@@ -12,6 +17,7 @@ class TutorialHelper {
     Color colorShadow = Colors.black87,
     FutureOr<void> Function(TargetFocus)? onClickTarget,
   }) {
+    if (PlatformCaps.isDesktop) return;
     TutorialCoachMark(
       targets: targets,
       colorShadow: colorShadow,
