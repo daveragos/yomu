@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../providers/library_provider.dart';
 
 class DashboardHeader extends ConsumerWidget {
@@ -12,14 +12,15 @@ class DashboardHeader extends ConsumerWidget {
     final now = DateTime.now();
     final libraryState = ref.watch(libraryProvider);
     final rankName = libraryState.rankName;
+    final colors = context.yomu;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           DateFormat('EEEE, MMM d').format(now),
-          style: const TextStyle(
-            color: YomuConstants.textSecondary,
+          style: TextStyle(
+            color: colors.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -36,7 +37,7 @@ class DashboardHeader extends ConsumerWidget {
                     : 'Good Evening, ',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontSize: 18,
-                  color: YomuConstants.textSecondary,
+                  color: colors.textSecondary,
                   height: 1.2,
                 ),
               ),
@@ -46,7 +47,7 @@ class DashboardHeader extends ConsumerWidget {
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.5,
-                  color: YomuConstants.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
             ],
@@ -55,12 +56,12 @@ class DashboardHeader extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 16),
-        _buildXPProgressBar(libraryState),
+        _buildXPProgressBar(libraryState, colors),
       ],
     );
   }
 
-  Widget _buildXPProgressBar(LibraryState state) {
+  Widget _buildXPProgressBar(LibraryState state, YomuColors colors) {
     final int currentXP = state.totalXP;
     final int nextLevelXP = (state.level) * 1000;
     final int currentLevelStartXP = (state.level - 1) * 1000;
@@ -77,8 +78,8 @@ class DashboardHeader extends ConsumerWidget {
           children: [
             Text(
               'LEVEL ${state.level}',
-              style: const TextStyle(
-                color: YomuConstants.textSecondary,
+              style: TextStyle(
+                color: colors.textSecondary,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.0,
@@ -86,8 +87,8 @@ class DashboardHeader extends ConsumerWidget {
             ),
             Text(
               '${currentXP % 1000} / 1000 XP',
-              style: const TextStyle(
-                color: YomuConstants.textSecondary,
+              style: TextStyle(
+                color: colors.textSecondary,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -99,7 +100,7 @@ class DashboardHeader extends ConsumerWidget {
           height: 6,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: YomuConstants.glassy,
+            color: colors.tint(0.1),
             borderRadius: BorderRadius.circular(3),
           ),
           child: FractionallySizedBox(
@@ -107,7 +108,7 @@ class DashboardHeader extends ConsumerWidget {
             widthFactor: progress,
             child: Container(
               decoration: BoxDecoration(
-                color: YomuConstants.accent,
+                color: colors.accent,
                 borderRadius: BorderRadius.circular(3),
               ),
             ),

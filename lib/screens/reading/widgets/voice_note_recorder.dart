@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../services/annotation_audio_service.dart';
 import '../../../services/voice_note_playback.dart';
 import '../../../utils/voice_waveform.dart';
@@ -265,6 +265,7 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     final Widget content;
 
     if (_isRecording) {
@@ -274,17 +275,17 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.touch_app_outlined,
-              color: YomuConstants.accent,
+              color: colors.accent,
               size: 20,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 _message!,
-                style: const TextStyle(
-                  color: YomuConstants.accent,
+                style: TextStyle(
+                  color: colors.accent,
                   fontSize: 13,
                 ),
               ),
@@ -311,14 +312,14 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
               key: _micKey,
               customBorder: const CircleBorder(),
               onTap: _hint,
-              child: const Padding(
-                padding: EdgeInsets.all(10),
-                child: Icon(Icons.mic_rounded, color: Colors.white54),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Icon(Icons.mic_rounded, color: colors.tint(0.54)),
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.white38),
+            icon: Icon(Icons.delete_outline, color: colors.tint(0.38)),
             tooltip: 'Remove voice note',
             onPressed: widget.onRemoved,
           ),
@@ -333,17 +334,17 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
-              const Icon(Icons.mic_none_rounded, color: YomuConstants.accent),
+              Icon(Icons.mic_none_rounded, color: colors.accent),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   widget.prompt,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: colors.tint(0.70), fontSize: 14),
                 ),
               ),
-              const Text(
+              Text(
                 'Hold to record',
-                style: TextStyle(color: Colors.white30, fontSize: 11),
+                style: TextStyle(color: colors.tint(0.30), fontSize: 11),
               ),
             ],
           ),
@@ -365,12 +366,12 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
+          color: colors.tint(0.04),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: _isRecording
                 ? Colors.redAccent.withValues(alpha: 0.5)
-                : Colors.white10,
+                : colors.tint(0.10),
           ),
         ),
         child: content,
@@ -379,6 +380,7 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
   }
 
   Widget _buildRecording() {
+    final colors = context.yomu;
     final holding = _mode == _Mode.holding;
     final cancelProgress = (-_drag.dx / _cancelDistance).clamp(0.0, 1.0);
     final lockProgress = (-_drag.dy / _lockDistance).clamp(0.0, 1.0);
@@ -389,10 +391,10 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
         const SizedBox(width: 10),
         Text(
           formatVoiceNoteDuration(_stopwatch.elapsed),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: colors.textPrimary,
             fontSize: 14,
-            fontFeatures: [FontFeature.tabularFigures()],
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
         const SizedBox(width: 12),
@@ -403,8 +405,8 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
               values: _levels,
               height: 28,
               live: true,
-              playedColor: YomuConstants.accent,
-              unplayedColor: YomuConstants.accent,
+              playedColor: colors.accent,
+              unplayedColor: colors.accent,
             ),
           ),
         ),
@@ -415,14 +417,14 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.chevron_left_rounded,
                   size: 18,
-                  color: Colors.white54,
+                  color: colors.tint(0.54),
                 ),
-                const Text(
+                Text(
                   'Cancel',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(color: colors.tint(0.54), fontSize: 12),
                 ),
                 const SizedBox(width: 10),
                 Transform.translate(
@@ -433,8 +435,8 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
                         : Icons.lock_open_rounded,
                     size: 18,
                     color: Color.lerp(
-                      Colors.white38,
-                      YomuConstants.accent,
+                      colors.tint(0.38),
+                      colors.accent,
                       lockProgress,
                     ),
                   ),
@@ -445,7 +447,7 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
         else ...[
           IconButton(
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.delete_outline, color: Colors.white38),
+            icon: Icon(Icons.delete_outline, color: colors.tint(0.38)),
             tooltip: 'Discard recording',
             onPressed: _cancel,
           ),

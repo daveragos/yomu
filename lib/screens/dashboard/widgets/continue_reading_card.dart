@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../components/glass_container.dart';
 import '../../../models/book_model.dart';
 import '../../../providers/library_provider.dart';
@@ -29,6 +29,7 @@ class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return GestureDetector(
       onTapDown: (details) {
         setState(() {
@@ -63,8 +64,8 @@ class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
               height: 120,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                color: YomuConstants.surface,
-                boxShadow: YomuConstants.cardShadow,
+                color: colors.surface,
+                boxShadow: colors.cardShadow,
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -126,7 +127,7 @@ class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
                             padding: const EdgeInsets.all(8.0),
                             child: Icon(
                               Icons.more_vert,
-                              color: YomuConstants.textSecondary.withValues(
+                              color: colors.textSecondary.withValues(
                                 alpha: 0.6,
                               ),
                             ),
@@ -137,7 +138,7 @@ class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
                   Text(
                     widget.book.author,
                     style: TextStyle(
-                      color: YomuConstants.textSecondary,
+                      color: colors.textSecondary,
                       fontSize: 16,
                     ),
                   ),
@@ -147,9 +148,9 @@ class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
                       Expanded(
                         child: LinearProgressIndicator(
                           value: widget.book.progress,
-                          backgroundColor: Colors.white10,
+                          backgroundColor: colors.tint(0.10),
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            YomuConstants.accent,
+                            colors.accent,
                           ),
                           minHeight: 4,
                         ),
@@ -158,7 +159,7 @@ class _ContinueReadingCardState extends ConsumerState<ContinueReadingCard> {
                       Text(
                         '${(widget.book.progress * 100).toInt()}%',
                         style: TextStyle(
-                          color: YomuConstants.accent,
+                          color: colors.accent,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants.dart';
+import '../../core/yomu_colors.dart';
 
 /// The title row at the top of a screen in a wide window: an optional
 /// eyebrow, a large title, an optional subtitle, and actions on the right.
@@ -26,6 +26,7 @@ class DesktopPageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -37,8 +38,8 @@ class DesktopPageHeader extends StatelessWidget {
               if (eyebrow != null) ...[
                 Text(
                   eyebrow!,
-                  style: const TextStyle(
-                    color: YomuConstants.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -47,8 +48,8 @@ class DesktopPageHeader extends StatelessWidget {
               ],
               Text(
                 title,
-                style: const TextStyle(
-                  color: YomuConstants.textPrimary,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 30,
                   fontWeight: FontWeight.w700,
                   height: 1.1,
@@ -58,8 +59,8 @@ class DesktopPageHeader extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   subtitle!,
-                  style: const TextStyle(
-                    color: YomuConstants.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -93,8 +94,8 @@ class DesktopPrimaryButton extends StatelessWidget {
       icon: Icon(icon, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: YomuConstants.accent,
-        foregroundColor: Colors.black,
+        backgroundColor: context.yomu.accent,
+        foregroundColor: context.yomu.onAccent,
         // The same 46pt height as the search field and toolbar buttons; the
         // desktop's compact density would otherwise shrink it to 32pt.
         minimumSize: const Size(0, desktopControlHeight),
@@ -129,13 +130,14 @@ class DesktopToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return TextButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 20, color: YomuConstants.accent),
+      icon: Icon(icon, size: 20, color: colors.accent),
       label: Text(label),
       style: TextButton.styleFrom(
-        foregroundColor: YomuConstants.textPrimary,
-        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        foregroundColor: colors.textPrimary,
+        backgroundColor: colors.tint(0.05),
         minimumSize: const Size(0, desktopControlHeight),
         visualDensity: VisualDensity.standard,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -143,7 +145,7 @@ class DesktopToolbarButton extends StatelessWidget {
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          side: BorderSide(color: colors.tint(0.08)),
         ),
       ),
     );

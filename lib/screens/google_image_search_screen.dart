@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 
 class GoogleImageSearchScreen extends StatefulWidget {
   final String query;
@@ -129,7 +129,8 @@ class _GoogleImageSearchScreenState extends State<GoogleImageSearchScreen> {
               Navigator.pop(context, url); // Return URL to previous screen
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: YomuConstants.accent,
+              backgroundColor: context.yomu.accent,
+              // White on the green button, in both appearances.
               foregroundColor: Colors.white,
             ),
             child: const Text('Select'),

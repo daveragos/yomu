@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 
 class RankUpDialog extends StatelessWidget {
   final int level;
@@ -10,6 +10,7 @@ class RankUpDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -19,9 +20,9 @@ class RankUpDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(30),
         decoration: BoxDecoration(
-          color: YomuConstants.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: colors.tint(0.08)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -31,13 +32,13 @@ class RankUpDialog extends StatelessWidget {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: YomuConstants.accent, width: 3),
+                border: Border.all(color: colors.accent, width: 3),
               ),
               child: Center(
                 child: Text(
                   '$level',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                   ),
@@ -52,7 +53,7 @@ class RankUpDialog extends StatelessWidget {
             Text(
               'New rank',
               style: TextStyle(
-                color: YomuConstants.textSecondary,
+                color: colors.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -61,8 +62,8 @@ class RankUpDialog extends StatelessWidget {
             Text(
               rankName,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: 28,
                 fontWeight: FontWeight.w900,
               ),
@@ -72,7 +73,7 @@ class RankUpDialog extends StatelessWidget {
               'You\'ve reached a new level of mastery.\nKeep reading to unlock more!',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: YomuConstants.textSecondary,
+                color: colors.textSecondary,
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -84,8 +85,8 @@ class RankUpDialog extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: YomuConstants.accent,
-                      foregroundColor: Colors.black,
+                      backgroundColor: colors.accent,
+                      foregroundColor: colors.onAccent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),

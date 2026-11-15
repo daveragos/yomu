@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 
 class RankPathWidget extends StatelessWidget {
   final int currentLevel;
@@ -19,23 +20,25 @@ class RankPathWidget extends StatelessWidget {
       achievementCount,
     );
 
+    final colors = context.yomu;
+
     return Container(
       margin: const EdgeInsets.symmetric(
         horizontal: YomuConstants.horizontalPadding,
       ),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: YomuConstants.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(YomuConstants.borderRadius),
-        border: Border.all(color: YomuConstants.outline),
+        border: Border.all(color: colors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Mastery Path',
             style: TextStyle(
-              color: YomuConstants.textPrimary,
+              color: colors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -43,8 +46,8 @@ class RankPathWidget extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Current Rank: ${currentRank.name}',
-            style: const TextStyle(
-              color: YomuConstants.accentGreen,
+            style: TextStyle(
+              color: colors.accent,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -57,6 +60,7 @@ class RankPathWidget extends StatelessWidget {
   }
 
   Widget _buildPath(BuildContext context, List<YomuRank> ranks) {
+    final colors = context.yomu;
     return Column(
       children: List.generate(ranks.length, (index) {
         final rank = ranks[index];
@@ -76,13 +80,13 @@ class RankPathWidget extends StatelessWidget {
                   height: 24,
                   decoration: BoxDecoration(
                     color: isReached
-                        ? YomuConstants.accentGreen
-                        : (isNext ? Colors.blueAccent : YomuConstants.glassy),
+                        ? colors.accent
+                        : (isNext ? Colors.blueAccent : colors.tint(0.1)),
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: isReached
                           ? Colors.transparent
-                          : YomuConstants.textSecondary,
+                          : colors.textSecondary,
                       width: 2,
                     ),
                   ),
@@ -94,9 +98,7 @@ class RankPathWidget extends StatelessWidget {
                   Container(
                     width: 2,
                     height: 40,
-                    color: isReached
-                        ? YomuConstants.accentGreen
-                        : YomuConstants.glassy,
+                    color: isReached ? colors.accent : colors.tint(0.1),
                   ),
               ],
             ),
@@ -109,18 +111,16 @@ class RankPathWidget extends StatelessWidget {
                     rank.name,
                     style: TextStyle(
                       color: isReached
-                          ? YomuConstants.textPrimary
-                          : (isNext
-                                ? Colors.blueAccent
-                                : YomuConstants.textSecondary),
+                          ? colors.textPrimary
+                          : (isNext ? Colors.blueAccent : colors.textSecondary),
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
                   Text(
                     'Level ${rank.level}+ • ${rank.achievementsRequired} Achievements • ${rank.description}',
-                    style: const TextStyle(
-                      color: YomuConstants.textSecondary,
+                    style: TextStyle(
+                      color: colors.textSecondary,
                       fontSize: 12,
                     ),
                   ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../components/activity_graph.dart';
 import '../components/stat_badge.dart';
 import '../components/daily_activity_sheet.dart';
@@ -60,8 +61,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       return _buildWide(context, libraryState, recentBooks, hasAnimated);
     }
 
+    final colors = context.yomu;
+
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: colors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(
@@ -120,7 +123,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Text(
                   'Current Month',
                   style: TextStyle(
-                    color: YomuConstants.textSecondary,
+                    color: colors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -165,7 +168,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         child: Text(
                           'See More',
                           style: TextStyle(
-                            color: YomuConstants.accent,
+                            color: colors.accent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -235,6 +238,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ? 'Good afternoon'
         : 'Good evening';
     final shelf = recentBooks.skip(1).take(10).toList();
+    final colors = context.yomu;
 
     Widget reveal(Widget child, int delayMs) => _animateIf(
       child,
@@ -266,10 +270,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               'My Shelf',
               action: TextButton(
                 onPressed: _openLibrary,
-                child: const Text(
+                child: Text(
                   'See all',
                   style: TextStyle(
-                    color: YomuConstants.accent,
+                    color: colors.accent,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -332,14 +336,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           200,
         ),
         const SizedBox(height: 20),
-        reveal(_buildWideStatGrid(state), 300),
+        reveal(_buildWideStatGrid(state, colors), 300),
         const SizedBox(height: 20),
         reveal(DailyQuestsCard(quests: state.dailyQuests), 400),
       ],
     );
 
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: colors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
@@ -400,8 +404,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: YomuConstants.textSecondary,
+                  style: TextStyle(
+                    color: context.yomu.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -414,13 +418,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildWideStatGrid(LibraryState state) {
+  Widget _buildWideStatGrid(LibraryState state, YomuColors colors) {
     final tiles = [
       DesktopStatTile(
         label: 'Day streak',
         value: '${state.currentStreak}',
         icon: Icons.local_fire_department,
         color: streakColor(
+          colors: colors,
           streak: state.currentStreak,
           isActive: state.isStreakActiveToday,
         ),
@@ -573,28 +578,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
+          final colors = context.yomu;
           return AlertDialog(
-            backgroundColor: YomuConstants.surface,
-            title: const Text(
+            backgroundColor: colors.surface,
+            title: Text(
               'Remove Book',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: colors.textPrimary),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Are you sure you want to remove "${book.title}"?',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: colors.tint(0.70)),
                 ),
                 const SizedBox(height: 16),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text(
+                  title: Text(
                     'Remove reading history',
-                    style: TextStyle(fontSize: 14, color: Colors.white70),
+                    style: TextStyle(fontSize: 14, color: colors.tint(0.70)),
                   ),
                   value: deleteHistory,
-                  activeColor: YomuConstants.accent,
+                  activeColor: colors.accent,
                   onChanged: (val) {
                     setDialogState(() {
                       deleteHistory = val ?? false;
@@ -606,9 +612,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text(
+                child: Text(
                   'Cancel',
-                  style: TextStyle(color: Colors.white60),
+                  style: TextStyle(color: colors.tint(0.60)),
                 ),
               ),
               TextButton(

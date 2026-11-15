@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../models/quest_model.dart';
 import 'glass_container.dart';
 
@@ -15,6 +15,7 @@ class DailyQuestsCard extends StatelessWidget {
     final now = DateTime.now();
     final isWeekend =
         now.weekday == DateTime.saturday || now.weekday == DateTime.sunday;
+    final colors = context.yomu;
 
     return GlassContainer(
       padding: const EdgeInsets.all(20),
@@ -40,13 +41,13 @@ class DailyQuestsCard extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
+                        color: colors.tint(0.06),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text(
+                      child: Text(
                         '2× XP',
                         style: TextStyle(
-                          color: YomuConstants.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -59,7 +60,7 @@ class DailyQuestsCard extends StatelessWidget {
                 isWeekend
                     ? Icons.celebration
                     : Icons.assignment_turned_in_outlined,
-                color: Colors.white54,
+                color: colors.tint(0.54),
                 size: 18,
               ),
             ],
@@ -91,6 +92,7 @@ class _QuestItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isCompleted = quest.isCompleted;
     final double progress = quest.progress.clamp(0.0, 1.0);
+    final colors = context.yomu;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +107,9 @@ class _QuestItem extends StatelessWidget {
                   Text(
                     quest.title,
                     style: TextStyle(
-                      color: isCompleted ? Colors.white38 : Colors.white70,
+                      color: isCompleted
+                          ? colors.tint(0.38)
+                          : colors.tint(0.70),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       decoration: isCompleted
@@ -116,8 +120,8 @@ class _QuestItem extends StatelessWidget {
                   if (!isCompleted)
                     Text(
                       quest.description,
-                      style: const TextStyle(
-                        color: Colors.white38,
+                      style: TextStyle(
+                        color: colors.tint(0.38),
                         fontSize: 11,
                       ),
                     ),
@@ -127,7 +131,7 @@ class _QuestItem extends StatelessWidget {
             Text(
               isCompleted ? 'Done' : '${(progress * 100).toInt()}%',
               style: TextStyle(
-                color: isCompleted ? YomuConstants.accent : Colors.white60,
+                color: isCompleted ? colors.accent : colors.tint(0.60),
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -139,10 +143,8 @@ class _QuestItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: progress,
-            backgroundColor: Colors.white10,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isCompleted ? YomuConstants.accentGreen : YomuConstants.accent,
-            ),
+            backgroundColor: colors.tint(0.10),
+            valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
             minHeight: 6,
           ),
         ),
@@ -152,12 +154,12 @@ class _QuestItem extends StatelessWidget {
           children: [
             Text(
               'Reward: ${quest.xpReward} XP',
-              style: const TextStyle(color: Colors.white38, fontSize: 11),
+              style: TextStyle(color: colors.tint(0.38), fontSize: 11),
             ),
             if (isCompleted)
-              const Icon(
+              Icon(
                 Icons.check_circle,
-                color: YomuConstants.accentGreen,
+                color: colors.accent,
                 size: 14,
               ),
           ],

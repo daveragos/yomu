@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 
 class FileSelectionScreen extends StatefulWidget {
   final String directoryPath;
@@ -42,7 +42,7 @@ class _FileSelectionScreenState extends State<FileSelectionScreen> {
     final selectedCount = _selected.where((s) => s).length;
 
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: context.yomu.background,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +76,7 @@ class _FileSelectionScreenState extends State<FileSelectionScreen> {
             title: const Text('Select All'),
             value: _selectAll,
             onChanged: _toggleSelectAll,
-            activeColor: YomuConstants.accent,
+            activeColor: context.yomu.accent,
           ),
           const Divider(),
           Expanded(
@@ -114,7 +114,7 @@ class _FileSelectionScreenState extends State<FileSelectionScreen> {
                       _selectAll = _selected.every((s) => s);
                     });
                   },
-                  activeColor: YomuConstants.accent,
+                  activeColor: context.yomu.accent,
                 );
               },
             ),

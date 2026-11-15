@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart'
+    show PointerScrollEvent, PointerSignalEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -34,6 +36,13 @@ class ReadingPdfView extends StatefulWidget {
 
   final ValueNotifier<double> scrollProgressNotifier;
 
+  /// Pages stacked in a scroll, or one page at a time sliding sideways.
+  final PageTurn pageTurn;
+
+  /// Turns to the next (1) or previous (-1) page, for edge taps and the
+  /// mouse wheel in slide mode.
+  final void Function(int direction)? onTurnPage;
+
   const ReadingPdfView({
     super.key,
     required this.book,
@@ -52,6 +61,8 @@ class ReadingPdfView extends StatefulWidget {
     this.onOpenNote,
     this.replyCounts = const {},
     this.searcher,
+    this.pageTurn = PageTurn.scroll,
+    this.onTurnPage,
   });
 
   @override
@@ -99,6 +110,26 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
   Highlight? _tappedHighlight;
   Offset? _tappedAt;
 
+  // Slide mode: every page sits centred in a slot the shape of the view,
+  // side by side, so at fit zoom exactly one page fills the view.
+  bool get _slides => widget.pageTurn == PageTurn.slide;
+  Size _viewSize = Size.zero;
+  double _slotWidth = 0;
+  double _slotHeight = 0;
+  /// When the wheel last turned a page, in pointer event time.
+  Duration? _lastWheelTurn;
+
+  /// Zoom at which one slot fills the view.
+  double get _fitZoom => _slotHeight > 0 && _viewSize.height > 0
+      ? _viewSize.height / _slotHeight
+      : 1;
+
+  /// Whether the page is shown whole (not zoomed in), when swipes and edge
+  /// taps turn pages.
+  bool get _atFitZoom =>
+      !widget.controller.isReady ||
+      widget.controller.currentZoom <= _fitZoom * 1.03;
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +139,7 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
   @override
   void didUpdateWidget(ReadingPdfView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.pageTurn != widget.pageTurn) _relayoutForPageTurn();
     if (!identical(widget.highlights, oldWidget.highlights) ||
         !identical(widget.replyCounts, oldWidget.replyCounts)) {
       _indexHighlights();
@@ -498,6 +530,14 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
       });
       return;
     }
+    // As slides, the edges turn the page while it is shown whole.
+    if (_slides && _atFitZoom && _viewSize.width > 0) {
+      final x = localPosition.dx / _viewSize.width;
+      if (x < 0.3 || x > 0.7) {
+        widget.onTurnPage?.call(x < 0.3 ? -1 : 1);
+        return;
+      }
+    }
     widget.onHideControls();
   }
 
@@ -572,6 +612,17 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
         pageImageColorFilter: _getPdfColorFilter(widget.settings.theme),
 
         onViewerReady: widget.onViewerReady,
+        layoutPages: _slides ? _slideLayout : null,
+        scrollPhysics: _slides
+            ? _PdfSlidePhysics(
+                slotExtent: () =>
+                    _slotWidth *
+                    (widget.controller.isReady
+                        ? widget.controller.currentZoom
+                        : _fitZoom),
+              )
+            : null,
+        onInteractionEnd: _slides ? _snapAfterRelease : null,
         textSelectionParams: const PdfTextSelectionParams(),
         buildContextMenu: _buildSelectionMenu,
         margin: 4.0,
@@ -599,7 +650,7 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
         panEnabled: true,
         scaleEnabled: widget.settings.lockState == ReaderLockState.none,
         panAxis: widget.settings.lockState == ReaderLockState.all
-            ? PanAxis.vertical
+            ? (_slides ? PanAxis.horizontal : PanAxis.vertical)
             : PanAxis.free,
         pagePaintCallbacks: [
           _paintHighlights,
@@ -656,11 +707,14 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
     );
 
     return LayoutBuilder(
-      builder: (context, constraints) => Stack(
+      builder: (context, constraints) {
+        _onViewSize(constraints.biggest);
+        return Stack(
         fit: StackFit.expand,
         children: [
           Listener(
             behavior: HitTestBehavior.translucent,
+            onPointerSignal: _onPointerSignal,
             onPointerDown: (event) {
               _pointerDownTime = DateTime.now();
               _pointerDownPosition = event.localPosition;
@@ -697,8 +751,119 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
           ),
           if (_tappedHighlight != null) _buildTappedMenu(constraints),
         ],
-      ),
+      );
+      },
     );
+  }
+
+  // Slide mode.
+
+  PdfPageLayout _slideLayout(List<PdfPage> pages, PdfViewerParams params) {
+    final aspect = _viewSize.width > 0 && _viewSize.height > 0
+        ? _viewSize.width / _viewSize.height
+        : 0.7;
+    final margin = params.margin;
+    var tallest = 0.0;
+    for (final page in pages) {
+      tallest = math.max(tallest, page.height);
+    }
+    final slotHeight = tallest + margin * 2;
+    final slotWidth = slotHeight * aspect;
+    _slotWidth = slotWidth;
+    _slotHeight = slotHeight;
+
+    final rects = <Rect>[];
+    for (var i = 0; i < pages.length; i++) {
+      final page = pages[i];
+      final scale = math.min(
+        (slotWidth - margin * 2) / page.width,
+        (slotHeight - margin * 2) / page.height,
+      );
+      final width = page.width * scale;
+      final height = page.height * scale;
+      rects.add(
+        Rect.fromLTWH(
+          i * slotWidth + (slotWidth - width) / 2,
+          (slotHeight - height) / 2,
+          width,
+          height,
+        ),
+      );
+    }
+    return PdfPageLayout(
+      pageLayouts: rects,
+      documentSize: Size(slotWidth * pages.length, slotHeight),
+    );
+  }
+
+  /// A slow release leaves the page part-way; it settles on the nearest
+  /// page (a fling is settled by [_PdfSlidePhysics]).
+  void _snapAfterRelease(ScaleEndDetails details) {
+    if (details.velocity.pixelsPerSecond.distance > _PdfSlidePhysics.flingVelocity) {
+      return;
+    }
+    _snapToNearestPage();
+  }
+
+  void _snapToNearestPage() {
+    final controller = widget.controller;
+    if (!controller.isReady || !_atFitZoom || _slotWidth <= 0) return;
+    final page = (controller.visibleRect.center.dx / _slotWidth).floor() + 1;
+    controller.goToPage(
+      pageNumber: page.clamp(1, controller.pageCount),
+      anchor: PdfPageAnchor.center,
+      duration: const Duration(milliseconds: 220),
+    );
+  }
+
+  /// Switching between scroll and slide lays the pages out again; pdfrx
+  /// keeps the place, and the page is then shown whole.
+  void _relayoutForPageTurn() {
+    final controller = widget.controller;
+    if (!controller.isReady) return;
+    final page = controller.pageNumber ?? 1;
+    controller.invalidate();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !controller.isReady) return;
+      if (_slides) {
+        await controller.setZoom(
+          controller.centerPosition,
+          _fitZoom,
+          duration: Duration.zero,
+        );
+      }
+      await controller.goToPage(
+        pageNumber: page,
+        anchor: _slides ? PdfPageAnchor.center : PdfPageAnchor.top,
+        duration: Duration.zero,
+      );
+    });
+  }
+
+  /// The view changed shape (rotation, window resize): slots follow it.
+  void _onViewSize(Size size) {
+    if (size == _viewSize) return;
+    final hadSize = _viewSize != Size.zero;
+    _viewSize = size;
+    if (!_slides || !hadSize) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.controller.isReady) _relayoutForPageTurn();
+    });
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (!_slides || event is! PointerScrollEvent || !_atFitZoom) return;
+    final delta = event.scrollDelta.dy.abs() >= event.scrollDelta.dx.abs()
+        ? event.scrollDelta.dy
+        : event.scrollDelta.dx;
+    if (delta == 0) return;
+    final last = _lastWheelTurn;
+    if (last != null &&
+        event.timeStamp - last < const Duration(milliseconds: 280)) {
+      return;
+    }
+    _lastWheelTurn = event.timeStamp;
+    widget.onTurnPage?.call(delta > 0 ? 1 : -1);
   }
 
   /// Recolours page images for the reading theme; null leaves them as is.
@@ -717,5 +882,68 @@ class _ReadingPdfViewState extends State<ReadingPdfView> {
       case ReaderTheme.white:
         return null;
     }
+  }
+}
+
+/// Settles a sideways swipe on a whole page while the page is shown whole;
+/// zoomed in, the page pans freely.
+class _PdfSlidePhysics extends ScrollPhysics {
+  const _PdfSlidePhysics({required this.slotExtent, super.parent});
+
+  /// Releases slower than this (logical px/s) are settled by
+  /// `_snapAfterRelease`, since pdfrx starts no simulation for them.
+  static const double flingVelocity = 50;
+
+  /// Width of one page's slot on screen, in logical pixels.
+  final double Function() slotExtent;
+
+  @override
+  _PdfSlidePhysics applyTo(ScrollPhysics? ancestor) =>
+      _PdfSlidePhysics(slotExtent: slotExtent, parent: buildParent(ancestor));
+
+  @override
+  ScrollPhysics? buildParent(ScrollPhysics? ancestor) =>
+      parent?.applyTo(ancestor) ?? const ClampingScrollPhysics();
+
+  ScrollPhysics get _base => parent ?? const ClampingScrollPhysics();
+
+  @override
+  double get minFlingVelocity => flingVelocity;
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) =>
+      _base.applyPhysicsToUserOffset(position, offset);
+
+  @override
+  double applyBoundaryConditions(ScrollMetrics position, double value) =>
+      _base.applyBoundaryConditions(position, value);
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    final slot = slotExtent();
+    final whole = slot > 0 && slot <= position.viewportDimension * 1.03;
+    if (position.axis != Axis.horizontal || !whole) {
+      return _base.createBallisticSimulation(position, velocity);
+    }
+    final tolerance = toleranceFor(position);
+    var page = (position.pixels - position.minScrollExtent) / slot;
+    if (velocity < -tolerance.velocity) {
+      page -= 0.5;
+    } else if (velocity > tolerance.velocity) {
+      page += 0.5;
+    }
+    final target = (page.roundToDouble() * slot + position.minScrollExtent)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    if ((target - position.pixels).abs() < 0.5) return null;
+    return ScrollSpringSimulation(
+      spring,
+      position.pixels,
+      target,
+      velocity,
+      tolerance: tolerance,
+    );
   }
 }

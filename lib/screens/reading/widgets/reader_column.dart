@@ -6,7 +6,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../../components/desktop/page_header.dart';
 import '../../../core/breakpoints.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/reader_settings_model.dart';
 
 /// Shows a book at a readable width in a wide window, with clickable
@@ -525,12 +525,12 @@ class MissingBookFile extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: context.yomu.tint(0.05),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.folder_open_rounded,
-                  color: YomuConstants.textSecondary,
+                  color: context.yomu.textSecondary,
                   size: 30,
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../../../components/desktop/adaptive_sheet.dart';
+import '../../../core/yomu_colors.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -129,10 +130,11 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF16171D),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         child: Column(
@@ -144,23 +146,23 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: colors.tint(0.24),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 16),
 
             // Title
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  Icon(Icons.format_quote, color: Color(0xFF2ECC71), size: 20),
-                  SizedBox(width: 8),
+                  Icon(Icons.format_quote, color: colors.accent, size: 20),
+                  const SizedBox(width: 8),
                   Text(
                     'Share Quote',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
@@ -190,9 +192,19 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  _buildLayoutOption(0, Icons.format_quote_rounded, 'Classic'),
+                  _buildLayoutOption(
+                    0,
+                    Icons.format_quote_rounded,
+                    'Classic',
+                    colors,
+                  ),
                   const SizedBox(width: 10),
-                  _buildLayoutOption(1, Icons.format_bold_rounded, 'Bold'),
+                  _buildLayoutOption(
+                    1,
+                    Icons.format_bold_rounded,
+                    'Bold',
+                    colors,
+                  ),
                 ],
               ),
             ),
@@ -220,7 +232,7 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
                         border: Border.all(
                           color: isSelected
                               ? style.accentColor
-                              : Colors.white10,
+                              : colors.tint(0.10),
                           width: isSelected ? 2 : 1,
                         ),
                       ),
@@ -259,19 +271,19 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
                 child: ElevatedButton.icon(
                   onPressed: _isSharing ? null : _shareCard,
                   icon: _isSharing
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.black,
+                            color: colors.onAccent,
                           ),
                         )
                       : const Icon(Icons.share, size: 20),
                   label: Text(_isSharing ? 'Preparing...' : 'Share'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2ECC71),
-                    foregroundColor: Colors.black,
+                    backgroundColor: colors.accent,
+                    foregroundColor: colors.onAccent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -534,7 +546,12 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
     );
   }
 
-  Widget _buildLayoutOption(int index, IconData icon, String label) {
+  Widget _buildLayoutOption(
+    int index,
+    IconData icon,
+    String label,
+    YomuColors colors,
+  ) {
     final isSelected = _selectedLayout == index;
     return Expanded(
       child: GestureDetector(
@@ -544,11 +561,11 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected
-                ? Colors.white.withValues(alpha: 0.08)
+                ? colors.tint(0.08)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected ? const Color(0xFF2ECC71) : Colors.white10,
+              color: isSelected ? colors.accent : colors.tint(0.10),
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -558,8 +575,8 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
               Icon(
                 icon,
                 color: isSelected
-                    ? const Color(0xFF2ECC71)
-                    : const Color(0xFF94A3B8),
+                    ? colors.accent
+                    : colors.textSecondary,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -567,8 +584,8 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
                 label,
                 style: TextStyle(
                   color: isSelected
-                      ? const Color(0xFF2ECC71)
-                      : const Color(0xFF94A3B8),
+                      ? colors.accent
+                      : colors.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),

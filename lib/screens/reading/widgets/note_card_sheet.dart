@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/annotation_reply_model.dart';
 import '../../../models/highlight_model.dart';
 import '../../../models/reader_settings_model.dart';
@@ -131,17 +131,18 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
     final hasContent =
         _highlight.hasNote || _highlight.hasAudio || _replies.isNotEmpty;
     if (hasContent) {
+      final colors = context.yomu;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: YomuConstants.surface,
-          title: const Text(
+          backgroundColor: colors.surface,
+          title: Text(
             'Delete this note?',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
           ),
-          content: const Text(
+          content: Text(
             'The highlight, its note, voice note and replies are removed.',
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(color: colors.tint(0.70)),
           ),
           actions: [
             TextButton(
@@ -211,6 +212,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     final h = _highlight;
     final author = h.sharedBy;
     return Padding(
@@ -220,7 +222,11 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
           maxHeight: MediaQuery.of(context).size.height * 0.85,
         ),
         decoration: BoxDecoration(
-          color: widget.settings.menuBackgroundColor,
+          // Dark mode keeps the reader's menu colour; light mode is an app
+          // sheet.
+          color: colors.isDark
+              ? widget.settings.menuBackgroundColor
+              : colors.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
@@ -235,7 +241,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: colors.tint(0.24),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -256,8 +262,8 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                       ),
                       child: Text(
                         h.text,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 15,
                           height: 1.5,
                           fontStyle: FontStyle.italic,
@@ -279,7 +285,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                         markdown: h.note!,
                         settings: widget.settings,
                         fontSize: 15,
-                        textColor: Colors.white70,
+                        textColor: colors.tint(0.70),
                       ),
                     ],
                     if (h.hasAudio) ...[
@@ -288,12 +294,12 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                         fileName: h.audioFile!,
                         durationMs: h.audioDurationMs,
                         waveform: h.audioWaveform,
-                        color: noteAuthorColor(author),
+                        color: noteAuthorColor(author, accent: colors.accent),
                       ),
                     ],
                     const SizedBox(height: 12),
                     _buildActions(),
-                    const Divider(color: Colors.white10, height: 24),
+                    Divider(color: colors.tint(0.10), height: 24),
                     _buildReplies(),
                   ],
                 ),
@@ -307,6 +313,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
   }
 
   Widget _buildHeader(String? author) {
+    final colors = context.yomu;
     final h = _highlight;
     return Row(
       children: [
@@ -318,8 +325,8 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
             children: [
               Text(
                 noteAuthorName(author),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -329,15 +336,15 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                   if (widget.location != null) widget.location!,
                   _date(h.createdAt),
                 ].join(' · '),
-                style: const TextStyle(color: Colors.white38, fontSize: 12),
+                style: TextStyle(color: colors.tint(0.38), fontSize: 12),
               ),
             ],
           ),
         ),
         if (h.isPrivate)
-          const Tooltip(
+          Tooltip(
             message: 'Private: left out when you share',
-            child: Icon(Icons.lock_outline, color: Colors.white38, size: 18),
+            child: Icon(Icons.lock_outline, color: colors.tint(0.38), size: 18),
           ),
         const SizedBox(width: 8),
         Icon(Icons.circle, color: _color, size: 14),
@@ -346,14 +353,15 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
   }
 
   Widget _buildActions() {
+    final colors = context.yomu;
     final h = _highlight;
     Widget action(IconData icon, String label, VoidCallback onTap, {Color? color}) {
       return TextButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 18, color: color ?? Colors.white70),
+        icon: Icon(icon, size: 18, color: color ?? colors.tint(0.70)),
         label: Text(
           label,
-          style: TextStyle(color: color ?? Colors.white70, fontSize: 13),
+          style: TextStyle(color: color ?? colors.tint(0.70), fontSize: 13),
         ),
       );
     }
@@ -366,7 +374,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
           action(Icons.my_location_rounded, 'Go to', () {
             Navigator.pop(context);
             widget.onGoTo!();
-          }, color: YomuConstants.accent),
+          }, color: colors.accent),
         action(
           h.hasNote || h.hasAudio ? Icons.edit_outlined : Icons.edit_note_rounded,
           h.hasNote || h.hasAudio ? 'Edit' : 'Add note',
@@ -376,7 +384,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
           h.isPrivate ? Icons.lock_rounded : Icons.lock_open_rounded,
           h.isPrivate ? 'Private' : 'Shared',
           () => _save(h.copyWith(isPrivate: !h.isPrivate)),
-          color: h.isPrivate ? YomuConstants.accent : null,
+          color: h.isPrivate ? colors.accent : null,
         ),
         action(Icons.delete_outline, 'Delete', _delete, color: Colors.redAccent),
       ],
@@ -384,12 +392,13 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
   }
 
   Widget _buildReplies() {
+    final colors = context.yomu;
     if (_replies.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(bottom: 4),
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
         child: Text(
           'No replies yet. Your reply goes along when you share the book.',
-          style: TextStyle(color: Colors.white38, fontSize: 12),
+          style: TextStyle(color: colors.tint(0.38), fontSize: 12),
         ),
       );
     }
@@ -398,8 +407,8 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
       children: [
         Text(
           '${_replies.length} ${_replies.length == 1 ? 'REPLY' : 'REPLIES'}',
-          style: const TextStyle(
-            color: Colors.white54,
+          style: TextStyle(
+            color: colors.tint(0.54),
             fontSize: 11,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -412,6 +421,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
   }
 
   Widget _buildReply(AnnotationReply reply) {
+    final colors = context.yomu;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -425,14 +435,14 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
               children: [
                 Text(
                   '${noteAuthorName(reply.author)} · ${_date(reply.createdAt)}',
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: TextStyle(color: colors.tint(0.38), fontSize: 11),
                 ),
                 if (reply.text.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     reply.text,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontSize: 14,
                       height: 1.4,
                     ),
@@ -444,7 +454,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                     fileName: reply.audioFile!,
                     durationMs: reply.audioDurationMs,
                     waveform: reply.audioWaveform,
-                    color: noteAuthorColor(reply.author),
+                    color: noteAuthorColor(reply.author, accent: colors.accent),
                     dense: true,
                   ),
                 ],
@@ -455,9 +465,9 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
             IconButton(
               visualDensity: VisualDensity.compact,
               tooltip: 'Delete reply',
-              icon: const Icon(
+              icon: Icon(
                 Icons.delete_outline,
-                color: Colors.white30,
+                color: colors.tint(0.30),
                 size: 18,
               ),
               onPressed: () => _deleteReply(reply),
@@ -468,13 +478,14 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
   }
 
   Widget _buildComposer() {
+    final colors = context.yomu;
     final canSend =
         !_sending &&
         (_replyController.text.trim().isNotEmpty || _draftAudio != null);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white10)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.tint(0.10))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -487,10 +498,10 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                   minLines: 1,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
                     hintText: 'Reply…',
-                    hintStyle: TextStyle(color: Colors.white38),
+                    hintStyle: TextStyle(color: colors.tint(0.38)),
                     border: InputBorder.none,
                     isDense: true,
                   ),
@@ -501,7 +512,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
                 onPressed: canSend ? _sendReply : null,
                 icon: Icon(
                   Icons.send_rounded,
-                  color: canSend ? YomuConstants.accent : Colors.white24,
+                  color: canSend ? colors.accent : colors.tint(0.24),
                 ),
               ),
             ],
@@ -547,15 +558,19 @@ class _Hint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Amber accent only reads on a dark sheet; a deep amber on a light one.
+    final color = context.yomu.isDark
+        ? Colors.amberAccent
+        : const Color(0xFF9A6700);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: Colors.amberAccent),
+        Icon(icon, size: 16, color: color),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(color: Colors.amberAccent, fontSize: 12),
+            style: TextStyle(color: color, fontSize: 12),
           ),
         ),
       ],

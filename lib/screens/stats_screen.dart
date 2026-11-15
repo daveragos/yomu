@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../components/glass_container.dart';
 import '../components/activity_graph.dart';
 import '../components/stat_badge.dart';
@@ -43,8 +43,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       return _buildWide(context, libraryState);
     }
 
+    final colors = context.yomu;
+
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: colors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -55,7 +57,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 'Reading Stats',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 24),
@@ -64,7 +66,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 onTap: () => _showLevelMetadata(context, libraryState),
               ),
               const SizedBox(height: 32),
-              _buildQuickStats(context, libraryState),
+              _buildQuickStats(libraryState, colors),
               const SizedBox(height: 32),
               WeeklyGoalCard(
                 state: libraryState,
@@ -87,7 +89,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     icon: const Icon(Icons.calendar_month, size: 18),
                     label: Text(_selectedMonth),
                     style: TextButton.styleFrom(
-                      foregroundColor: YomuConstants.accent,
+                      foregroundColor: colors.accent,
                     ),
                   ),
                 ],
@@ -118,6 +120,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   /// Wide windows: progress and goals on the left, the calendar and
   /// achievements on the right.
   Widget _buildWide(BuildContext context, LibraryState state) {
+    final colors = context.yomu;
     final left = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -129,7 +132,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _buildWideQuickStats(state),
+        _buildWideQuickStats(state, colors),
         const SizedBox(height: 20),
         WeeklyGoalCard(state: state, onEdit: () => _showGoalSettings(context)),
         const SizedBox(height: 20),
@@ -154,9 +157,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               onPressed: () => _showMonthPicker(context),
               icon: const Icon(Icons.calendar_month, size: 18),
               label: Text(_selectedMonth),
-              style: TextButton.styleFrom(
-                foregroundColor: YomuConstants.accent,
-              ),
+              style: TextButton.styleFrom(foregroundColor: colors.accent),
             ),
           ],
         ),
@@ -175,7 +176,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
 
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: colors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
@@ -207,7 +208,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
   }
 
-  Widget _buildWideQuickStats(LibraryState state) {
+  Widget _buildWideQuickStats(LibraryState state, YomuColors colors) {
     return Row(
       children: [
         Expanded(
@@ -216,6 +217,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             value: '${state.currentStreak}',
             icon: Icons.local_fire_department,
             color: streakColor(
+              colors: colors,
               streak: state.currentStreak,
               isActive: state.isStreakActiveToday,
             ),
@@ -250,8 +252,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
   }
 
-  Widget _buildQuickStats(BuildContext context, LibraryState state) {
+  Widget _buildQuickStats(LibraryState state, YomuColors colors) {
     final Color flameColor = streakColor(
+      colors: colors,
       streak: state.currentStreak,
       isActive: state.isStreakActiveToday,
     );
@@ -341,6 +344,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        final colors = context.yomu;
         return GlassContainer(
           borderRadius: 20,
           child: Column(
@@ -351,7 +355,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: colors.tint(0.24),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -372,15 +376,15 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                         m,
                         style: TextStyle(
                           color: _selectedMonth == m
-                              ? YomuConstants.accent
-                              : Colors.white,
+                              ? colors.accent
+                              : colors.textPrimary,
                           fontWeight: _selectedMonth == m
                               ? FontWeight.bold
                               : FontWeight.normal,
                         ),
                       ),
                       trailing: _selectedMonth == m
-                          ? Icon(Icons.check, color: YomuConstants.accent)
+                          ? Icon(Icons.check, color: colors.accent)
                           : null,
                       onTap: () {
                         setState(() => _selectedMonth = m);

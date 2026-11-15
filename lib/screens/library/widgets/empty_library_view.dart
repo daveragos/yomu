@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../components/desktop/page_header.dart';
 import '../../../core/breakpoints.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 class EmptyLibraryView extends ConsumerWidget {
   final VoidCallback onImportFiles;
@@ -11,7 +11,8 @@ class EmptyLibraryView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (Breakpoints.isWide(context)) return _buildWide();
+    final colors = context.yomu;
+    if (Breakpoints.isWide(context)) return _buildWide(colors);
 
     return Center(
       child: Column(
@@ -20,7 +21,7 @@ class EmptyLibraryView extends ConsumerWidget {
           Icon(
             Icons.library_books,
             size: 64,
-            color: Colors.white.withValues(alpha: 0.3),
+            color: colors.tint(0.3),
           ),
           const SizedBox(height: 16),
           const Text('Your library is empty'),
@@ -28,8 +29,8 @@ class EmptyLibraryView extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: onImportFiles,
             style: ElevatedButton.styleFrom(
-              backgroundColor: YomuConstants.accent,
-              foregroundColor: Colors.black,
+              backgroundColor: colors.accent,
+              foregroundColor: colors.onAccent,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -48,7 +49,7 @@ class EmptyLibraryView extends ConsumerWidget {
 
   /// A centered welcome card instead of a lone icon floating in a large
   /// window: what Yomu reads, what it tracks, and the one action to take.
-  Widget _buildWide() {
+  Widget _buildWide(YomuColors colors) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.only(bottom: 80),
@@ -57,9 +58,9 @@ class EmptyLibraryView extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.fromLTRB(36, 40, 36, 32),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
+              color: colors.tint(0.03),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: colors.tint(0.06)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -68,31 +69,31 @@ class EmptyLibraryView extends ConsumerWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: colors.tint(0.05),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.auto_stories_rounded,
-                    color: YomuConstants.textSecondary,
+                    color: colors.textSecondary,
                     size: 34,
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   'Your library is empty',
                   style: TextStyle(
-                    color: YomuConstants.textPrimary,
+                    color: colors.textPrimary,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
+                Text(
                   'Add EPUB or PDF books to start reading. Yomu keeps your '
                   'place, streak and XP as you go.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: YomuConstants.textSecondary,
+                    color: colors.textSecondary,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -107,7 +108,7 @@ class EmptyLibraryView extends ConsumerWidget {
                 Text(
                   'Supports EPUB and PDF',
                   style: TextStyle(
-                    color: YomuConstants.textSecondary.withValues(alpha: 0.6),
+                    color: colors.textSecondary.withValues(alpha: 0.6),
                     fontSize: 11.5,
                     letterSpacing: 0.3,
                   ),

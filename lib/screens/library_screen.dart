@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/breakpoints.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../components/book_card.dart';
 import '../components/glass_container.dart';
 import '../providers/library_provider.dart';
@@ -76,15 +76,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: YomuConstants.surface,
-        title: const Text(
+        backgroundColor: context.yomu.surface,
+        title: Text(
           'Discard these notes?',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: context.yomu.textPrimary),
         ),
         content: Text(
           '${notes.manifest.sharedBy ?? 'Someone'}\'s notes on '
           '"${notes.manifest.title}" will be deleted. You can\'t undo this.',
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: context.yomu.tint(0.70)),
         ),
         actions: [
           TextButton(
@@ -286,7 +286,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             action: SnackBarAction(
               label: 'OK',
               onPressed: () {},
-              textColor: YomuConstants.accent,
+              textColor: context.yomu.accent,
             ),
           ),
         );
@@ -317,7 +317,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final isWide = Breakpoints.isWide(context);
 
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: context.yomu.background,
       appBar: AppBar(
         toolbarHeight: 0,
         backgroundColor: Colors.transparent,
@@ -418,6 +418,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Widget _buildSelectionHeader() {
+    final colors = context.yomu;
     return Padding(
       padding: Breakpoints.isWide(context)
           ? const EdgeInsets.fromLTRB(
@@ -433,14 +434,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.close, color: Colors.white70),
+              icon: Icon(Icons.close, color: colors.tint(0.70)),
               onPressed: _clearSelection,
             ),
             const SizedBox(width: 8),
             Text(
               '${_selectedBookIds.length} selected',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -448,7 +449,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             const Spacer(),
             IconButton(
               tooltip: 'Select All',
-              icon: const Icon(Icons.select_all, color: Colors.white70),
+              icon: Icon(Icons.select_all, color: colors.tint(0.70)),
               onPressed: () {
                 setState(() {
                   final filteredBooks = ref.read(libraryProvider).filteredBooks;
@@ -461,7 +462,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             IconButton(
               tooltip: 'Add to Category',
-              icon: const Icon(Icons.label_outline, color: Colors.white70),
+              icon: Icon(Icons.label_outline, color: colors.tint(0.70)),
               onPressed: _showBatchTagDialog,
             ),
             IconButton(
@@ -481,19 +482,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: YomuConstants.surface,
-        title: const Text(
+        backgroundColor: context.yomu.surface,
+        title: Text(
           'Add to Category',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: context.yomu.textPrimary),
         ),
         content: TextField(
           controller: textController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: context.yomu.textPrimary),
           decoration: InputDecoration(
             hintText: 'Enter category name',
-            hintStyle: const TextStyle(color: Colors.white54),
+            hintStyle: TextStyle(color: context.yomu.tint(0.54)),
             filled: true,
-            fillColor: YomuConstants.surface.withValues(alpha: 0.8),
+            fillColor: context.yomu.surface.withValues(alpha: 0.8),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -504,16 +505,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: Colors.white60),
+              style: TextStyle(color: context.yomu.tint(0.60)),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
+            child: Text(
               'Add',
-              style: TextStyle(color: YomuConstants.accent),
+              style: TextStyle(color: context.yomu.accent),
             ),
           ),
         ],
@@ -543,21 +544,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: YomuConstants.surface,
-        title: const Text(
+        backgroundColor: context.yomu.surface,
+        title: Text(
           'Remove Books',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: context.yomu.textPrimary),
         ),
         content: Text(
           'Are you sure you want to remove ${_selectedBookIds.length} books? Your reading progress and history will be kept if you re-import them.',
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: context.yomu.tint(0.70)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: Colors.white60),
+              style: TextStyle(color: context.yomu.tint(0.60)),
             ),
           ),
           TextButton(
@@ -624,28 +625,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
+          final colors = context.yomu;
           return AlertDialog(
-            backgroundColor: YomuConstants.surface,
-            title: const Text(
+            backgroundColor: colors.surface,
+            title: Text(
               'Remove Book',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: colors.textPrimary),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Are you sure you want to remove "${book.title}"?',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: colors.tint(0.70)),
                 ),
                 const SizedBox(height: 16),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text(
+                  title: Text(
                     'Remove reading history',
-                    style: TextStyle(fontSize: 14, color: Colors.white70),
+                    style: TextStyle(fontSize: 14, color: colors.tint(0.70)),
                   ),
                   value: deleteHistory,
-                  activeColor: YomuConstants.accent,
+                  activeColor: colors.accent,
                   onChanged: (val) {
                     setDialogState(() {
                       deleteHistory = val ?? false;
@@ -657,9 +659,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text(
+                child: Text(
                   'Cancel',
-                  style: TextStyle(color: Colors.white60),
+                  style: TextStyle(color: colors.tint(0.60)),
                 ),
               ),
               TextButton(

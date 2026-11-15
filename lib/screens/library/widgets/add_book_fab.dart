@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 class AddBookFab extends StatelessWidget {
   final VoidCallback onPressed;
@@ -14,8 +14,8 @@ class AddBookFab extends StatelessWidget {
     return FloatingActionButton(
       heroTag: 'fab-add',
       onPressed: onPressed,
-      backgroundColor: YomuConstants.accent,
-      child: const Icon(Icons.add, color: Colors.black, size: 28),
+      backgroundColor: context.yomu.accent,
+      child: Icon(Icons.add, color: context.yomu.onAccent, size: 28),
     );
   }
 }

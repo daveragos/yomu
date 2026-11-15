@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/search_result_model.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 class ReadingSearchOverlay extends StatelessWidget {
   final Book book;
@@ -57,7 +57,7 @@ class ReadingSearchOverlay extends StatelessWidget {
               title: Text(
                 result.title,
                 style: TextStyle(
-                  color: YomuConstants.accent,
+                  color: context.yomu.accent,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),

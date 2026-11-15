@@ -25,6 +25,11 @@ class ReadingHeader extends StatelessWidget {
   final GlobalKey? searchKey;
   final GlobalKey? lockKey;
 
+  /// Switches the app between light and dark (Moon+ Reader's day/night
+  /// button); [isNight] is whether it is dark now.
+  final VoidCallback? onToggleDayNight;
+  final bool isNight;
+
   const ReadingHeader({
     super.key,
     required this.book,
@@ -46,6 +51,8 @@ class ReadingHeader extends StatelessWidget {
     this.searchResultsOverlay,
     this.searchKey,
     this.lockKey,
+    this.onToggleDayNight,
+    this.isNight = true,
   });
 
   @override
@@ -156,6 +163,18 @@ class ReadingHeader extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (onToggleDayNight != null)
+                      IconButton(
+                        tooltip: isNight ? 'Day mode' : 'Night mode',
+                        icon: Icon(
+                          isNight
+                              ? Icons.light_mode_outlined
+                              : Icons.dark_mode_outlined,
+                          color: settings.textColor,
+                          size: 21,
+                        ),
+                        onPressed: onToggleDayNight,
+                      ),
                     IconButton(
                       key: searchKey,
                       icon: Icon(

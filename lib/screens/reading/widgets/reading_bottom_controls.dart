@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../core/breakpoints.dart';
 import './control_button.dart';
 
@@ -65,11 +65,13 @@ class ReadingBottomControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     final hasMultipleTracks = book.audioTracks.length > 1;
     if (Breakpoints.isWide(context)) {
       return _buildFloatingBar(
         book.audioPath != null || book.audioTracks.isNotEmpty,
         hasMultipleTracks,
+        colors,
       );
     }
 
@@ -144,7 +146,7 @@ class ReadingBottomControls extends StatelessWidget {
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: _buildMainButtons(desktop: false),
+                children: _buildMainButtons(desktop: false, colors: colors),
               ),
             ),
           ],
@@ -155,7 +157,11 @@ class ReadingBottomControls extends StatelessWidget {
 
   /// In a wide window the controls float as a compact bar centered under
   /// the text, instead of a full-width panel along the bottom edge.
-  Widget _buildFloatingBar(bool hasAudio, bool hasMultipleTracks) {
+  Widget _buildFloatingBar(
+    bool hasAudio,
+    bool hasMultipleTracks,
+    YomuColors colors,
+  ) {
     return Align(
       alignment: Alignment.bottomCenter,
       heightFactor: 1,
@@ -202,7 +208,10 @@ class ReadingBottomControls extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     for (final (i, button)
-                        in _buildMainButtons(desktop: true).indexed) ...[
+                        in _buildMainButtons(
+                          desktop: true,
+                          colors: colors,
+                        ).indexed) ...[
                       if (i > 0) const SizedBox(width: 6),
                       button,
                     ],
@@ -218,7 +227,10 @@ class ReadingBottomControls extends StatelessWidget {
 
   /// The always-visible controls. On desktop they get tooltips, and the
   /// screen-rotation toggle is left out.
-  List<Widget> _buildMainButtons({required bool desktop}) {
+  List<Widget> _buildMainButtons({
+    required bool desktop,
+    required YomuColors colors,
+  }) {
     final hasAudio = book.audioPath != null || book.audioTracks.isNotEmpty;
     String? tip(String text) => desktop ? text : null;
 
@@ -231,7 +243,7 @@ class ReadingBottomControls extends StatelessWidget {
         child: Icon(
           Icons.format_list_bulleted_rounded,
           color: isNavigationSheetOpen
-              ? YomuConstants.accent
+              ? colors.accent
               : settings.textColor,
           size: 22,
         ),
@@ -244,7 +256,7 @@ class ReadingBottomControls extends StatelessWidget {
           isBookmarked
               ? Icons.bookmark_rounded
               : Icons.bookmark_outline_rounded,
-          color: isBookmarked ? YomuConstants.accent : settings.textColor,
+          color: isBookmarked ? colors.accent : settings.textColor,
           size: 22,
         ),
       ),
@@ -275,9 +287,9 @@ class ReadingBottomControls extends StatelessWidget {
           settings: settings,
           onTap: onPickAudio,
           tooltip: tip('Add an audiobook'),
-          child: const Icon(
+          child: Icon(
             Icons.add_rounded,
-            color: YomuConstants.accent,
+            color: colors.accent,
             size: 24,
           ),
         ),
@@ -290,7 +302,7 @@ class ReadingBottomControls extends StatelessWidget {
           isAutoScrolling
               ? Icons.pause_circle_outline_rounded
               : Icons.play_circle_outline_rounded,
-          color: isAutoScrolling ? YomuConstants.accent : settings.textColor,
+          color: isAutoScrolling ? colors.accent : settings.textColor,
           size: 22,
         ),
       ),

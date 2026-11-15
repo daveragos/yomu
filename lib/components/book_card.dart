@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/breakpoints.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../components/glass_container.dart';
 import 'desktop/hover_lift.dart';
 
@@ -42,6 +43,7 @@ class _BookCardState extends State<BookCard> {
   @override
   Widget build(BuildContext context) {
     final isWide = Breakpoints.isWide(context);
+    final colors = context.yomu;
     // Phones never hover, so the lift only shows up with a pointer.
     return HoverLift(
       borderRadius: BorderRadius.circular(YomuConstants.borderRadius),
@@ -80,7 +82,7 @@ class _BookCardState extends State<BookCard> {
                             fit: BoxFit.cover,
                             alignment: Alignment.topCenter,
                             placeholder: (context, url) =>
-                                Container(color: YomuConstants.surface),
+                                Container(color: colors.surface),
                             errorWidget: (context, url, error) => Padding(
                               padding: const EdgeInsets.all(30.0),
                               child: Image.asset(
@@ -123,13 +125,13 @@ class _BookCardState extends State<BookCard> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: YomuConstants.accent,
+                            color: colors.accent,
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text(
+                          child: Text(
                             'NEW',
                             style: TextStyle(
-                              color: Colors.black,
+                              color: colors.onAccent,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
@@ -146,7 +148,8 @@ class _BookCardState extends State<BookCard> {
                           size: 16,
                         ),
                       ),
-                    // Bottom metadata strip
+                    // Bottom metadata strip. It sits on a dark scrim over
+                    // the cover, so its text stays white in both appearances.
                     if (widget.book.progress > 0 && widget.book.progress < 1.0)
                       Positioned(
                         bottom: 0,
@@ -183,7 +186,7 @@ class _BookCardState extends State<BookCard> {
                                             .withValues(alpha: 0.1),
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                              YomuConstants.accent,
+                                              colors.accent,
                                             ),
                                         minHeight: 2,
                                       ),
@@ -250,7 +253,7 @@ class _BookCardState extends State<BookCard> {
                             child: Container(
                               decoration: BoxDecoration(
                                 color: widget.isSelected
-                                    ? YomuConstants.accent
+                                    ? colors.accent
                                     : Colors.white24,
                                 shape: BoxShape.circle,
                                 border: Border.all(
@@ -262,7 +265,7 @@ class _BookCardState extends State<BookCard> {
                               child: Icon(
                                 widget.isSelected ? Icons.check : Icons.add,
                                 color: widget.isSelected
-                                    ? Colors.black
+                                    ? colors.onAccent
                                     : Colors.white,
                                 size: 20,
                               ),
@@ -299,7 +302,7 @@ class _BookCardState extends State<BookCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: YomuConstants.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -321,7 +324,7 @@ class _BookCardState extends State<BookCard> {
                       child: Icon(
                         Icons.more_vert,
                         size: 18,
-                        color: YomuConstants.textSecondary.withValues(
+                        color: colors.textSecondary.withValues(
                           alpha: 0.6,
                         ),
                       ),

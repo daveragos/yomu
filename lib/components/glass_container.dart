@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 
 /// The app's card surface: a solid panel with a hairline border, the same
 /// on phone and desktop.
@@ -28,6 +29,7 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     final content = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
@@ -35,9 +37,9 @@ class GlassContainer extends StatelessWidget {
         height: height,
         padding: padding,
         decoration: BoxDecoration(
-          color: color ?? YomuConstants.surface,
+          color: color ?? colors.surface,
           borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(color: YomuConstants.hairline),
+          border: Border.all(color: colors.hairline),
         ),
         child: child,
       ),

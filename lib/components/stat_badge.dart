@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import './glass_container.dart';
 
 class StatBadge extends StatelessWidget {
@@ -24,7 +24,7 @@ class StatBadge extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          Icon(icon, color: color ?? YomuConstants.textSecondary, size: 24),
+          Icon(icon, color: color ?? context.yomu.textSecondary, size: 24),
           const SizedBox(height: 8),
           Text(
             value,

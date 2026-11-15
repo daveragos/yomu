@@ -4,6 +4,7 @@ import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
 import './epub_chapter_page.dart';
+import '../paging/epub_page_turner.dart';
 
 class ReadingEpubView extends StatelessWidget {
   final Book book;
@@ -33,6 +34,8 @@ class ReadingEpubView extends StatelessWidget {
   final void Function(Highlight highlight)? onOpenNote;
   final Map<String, int> replyCounts;
   final void Function(int chapter, double from, double to)? onContentSeen;
+  final PageTurn pageTurn;
+  final EpubPageTurner? pageTurner;
 
   const ReadingEpubView({
     super.key,
@@ -63,6 +66,8 @@ class ReadingEpubView extends StatelessWidget {
     this.onContentSeen,
     this.searchQuery,
     this.epubBook,
+    this.pageTurn = PageTurn.scroll,
+    this.pageTurner,
   });
 
   @override
@@ -71,8 +76,14 @@ class ReadingEpubView extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final slides = pageTurn == PageTurn.slide;
     return PageView.builder(
-      scrollDirection: Axis.vertical,
+      scrollDirection: slides ? Axis.horizontal : Axis.vertical,
+      // As pages, each chapter takes the drags and hands them over at its
+      // first or last page, so the pager itself never starts one. Its
+      // neighbours stay built, so the next chapter is ready to slide in.
+      physics: slides ? const NeverScrollableScrollPhysics() : null,
+      allowImplicitScrolling: slides,
       controller: pageController,
       itemCount: chapters.length,
       onPageChanged: onPageChanged,
@@ -114,6 +125,8 @@ class ReadingEpubView extends StatelessWidget {
           onContentSeen: onContentSeen,
           bookTitle: book.title,
           bookAuthor: book.author,
+          pageTurn: pageTurn,
+          pageTurner: pageTurner,
         );
       },
     );

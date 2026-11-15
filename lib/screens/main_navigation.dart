@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
 import '../providers/shared_welcome_provider.dart';
@@ -392,9 +393,9 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
           child: Container(
             height: 70,
             decoration: BoxDecoration(
-              color: YomuConstants.surface,
+              color: context.yomu.surface,
               borderRadius: BorderRadius.circular(35),
-              border: Border.all(color: YomuConstants.hairline),
+              border: Border.all(color: context.yomu.hairline),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -452,6 +453,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     final navState = ref.watch(navigationStateProvider);
     final selectedIndex = navState.current;
     final isSelected = selectedIndex == index;
+    final colors = context.yomu;
 
     return Expanded(
       child: GestureDetector(
@@ -465,8 +467,8 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
             Icon(
               icon,
               color: isSelected
-                  ? YomuConstants.accent
-                  : YomuConstants.textSecondary,
+                  ? colors.accent
+                  : colors.textSecondary,
               size: 28,
             ),
             if (isSelected)
@@ -474,8 +476,8 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
                 margin: const EdgeInsets.only(top: 4),
                 width: 4,
                 height: 4,
-                decoration: const BoxDecoration(
-                  color: YomuConstants.accent,
+                decoration: BoxDecoration(
+                  color: colors.accent,
                   shape: BoxShape.circle,
                 ),
               ),

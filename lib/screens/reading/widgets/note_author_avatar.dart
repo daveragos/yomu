@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 /// Colour that stands for a reader across the app: their avatar, markers
 /// next to their highlights, and their filter chip. The reader's own notes
-/// (no [name]) use the accent colour.
-Color noteAuthorColor(String? name) {
-  if (name == null) return YomuConstants.accent;
+/// (no [name]) use the accent colour: pass the theme's as [accent] where
+/// there is a context.
+Color noteAuthorColor(String? name, {Color accent = YomuConstants.accent}) {
+  if (name == null) return accent;
   const palette = [
     Color(0xFF5DADE2),
     Color(0xFFF5B041),
@@ -35,7 +37,7 @@ class NoteAuthorAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = noteAuthorColor(name);
+    final color = noteAuthorColor(name, accent: context.yomu.accent);
     final label = noteAuthorName(name).trim();
     return Container(
       width: size,

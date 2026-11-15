@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../components/glass_container.dart';
 import '../../../providers/library_provider.dart';
 
@@ -15,6 +16,7 @@ class LevelInfoCard extends StatelessWidget {
       state.level,
       state.unlockedAchievements.length,
     ).name;
+    final colors = context.yomu;
 
     return GestureDetector(
       onTap: onTap,
@@ -27,13 +29,13 @@ class LevelInfoCard extends StatelessWidget {
               height: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: YomuConstants.accent, width: 2),
+                border: Border.all(color: colors.accent, width: 2),
               ),
               child: Center(
                 child: Text(
                   '${state.level}',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
@@ -49,24 +51,24 @@ class LevelInfoCard extends StatelessWidget {
                     children: [
                       Text(
                         currentTitle,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
                         size: 14,
-                        color: Colors.white38,
+                        color: colors.tint(0.38),
                       ),
                     ],
                   ),
                   Text(
                     'Current Level',
                     style: TextStyle(
-                      color: YomuConstants.textSecondary,
+                      color: colors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -75,10 +77,8 @@ class LevelInfoCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: (state.totalXP % 1000) / 1000,
-                      backgroundColor: Colors.white10,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        YomuConstants.accent,
-                      ),
+                      backgroundColor: colors.tint(0.10),
+                      valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
                       minHeight: 6,
                     ),
                   ),
@@ -88,8 +88,8 @@ class LevelInfoCard extends StatelessWidget {
                     children: [
                       Text(
                         '${state.totalXP % 1000} / 1000 XP',
-                        style: const TextStyle(
-                          color: Colors.white38,
+                        style: TextStyle(
+                          color: colors.tint(0.38),
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -97,7 +97,7 @@ class LevelInfoCard extends StatelessWidget {
                       Text(
                         '${1000 - (state.totalXP % 1000)} XP to level up',
                         style: TextStyle(
-                          color: YomuConstants.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 10,
                         ),
                       ),

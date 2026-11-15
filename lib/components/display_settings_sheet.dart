@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/reader_settings_model.dart';
 import '../providers/reader_settings_provider.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
+import '../providers/library_provider.dart';
+import 'segmented_choice.dart';
 
 class DisplaySettingsSheet extends ConsumerStatefulWidget {
   const DisplaySettingsSheet({super.key});
@@ -47,7 +49,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
 
     return Container(
       decoration: BoxDecoration(
-        color: YomuConstants.surface,
+        color: context.yomu.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SingleChildScrollView(
@@ -62,7 +64,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: context.yomu.tint(0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -73,16 +75,16 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Display Settings',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: context.yomu.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54),
+                  icon: Icon(Icons.close, color: context.yomu.tint(0.54)),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -93,6 +95,12 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
             _buildSectionLabel('THEME'),
             const SizedBox(height: 12),
             _buildThemeSelector(settings, notifier),
+            const SizedBox(height: 28),
+
+            // Page Turning Section
+            _buildSectionLabel('PAGE TURNING'),
+            const SizedBox(height: 12),
+            _buildPageTurnSelector(settings, notifier),
             const SizedBox(height: 28),
 
             // Typeface Section
@@ -120,7 +128,9 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
             ),
             // Auto Scroll Speed Slider
             _buildSliderRow(
-              label: 'Auto Scroll Speed',
+              label: settings.pageTurnFor(isPdf: _isPdf) == PageTurn.slide
+                  ? 'Auto Page Turn Speed'
+                  : 'Auto Scroll Speed',
               value: _localAutoScrollSpeed,
               min: 0.5,
               max: 10.0,
@@ -164,7 +174,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
     return Text(
       label,
       style: TextStyle(
-        color: Colors.white.withValues(alpha: 0.5),
+        color: context.yomu.tint(0.5),
         fontSize: 12,
         fontWeight: FontWeight.w600,
         letterSpacing: 1.2,
@@ -183,14 +193,17 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
         final color = ReaderSettings.themePreviewColors[theme]!;
 
         return GestureDetector(
-          onTap: () => notifier.setTheme(theme),
+          onTap: () => notifier.setTheme(
+            theme,
+            appBrightness: Theme.of(context).brightness,
+          ),
           child: Container(
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: isSelected ? YomuConstants.accent : Colors.transparent,
+                color: isSelected ? context.yomu.accent : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -201,7 +214,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
                 color: color,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: context.yomu.tint(0.2),
                   width: 1,
                 ),
               ),
@@ -212,6 +225,54 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
     );
   }
 
+  bool get _isPdf =>
+      ref
+          .read(currentlyReadingProvider)
+          ?.filePath
+          .toLowerCase()
+          .endsWith('.pdf') ??
+      false;
+
+  /// Scroll or Slide, for the kind of book that is open (EPUBs and PDFs
+  /// each keep their own).
+  Widget _buildPageTurnSelector(
+    ReaderSettings settings,
+    ReaderSettingsNotifier notifier,
+  ) {
+    final isPdf = _isPdf;
+    final pageTurn = settings.pageTurnFor(isPdf: isPdf);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedChoice<PageTurn>(
+          selected: pageTurn,
+          onSelected: (value) => notifier.setPageTurn(value, isPdf: isPdf),
+          options: const [
+            SegmentedChoiceOption(
+              value: PageTurn.scroll,
+              label: 'Scroll',
+              icon: Icons.swap_vert_rounded,
+            ),
+            SegmentedChoiceOption(
+              value: PageTurn.slide,
+              label: 'Slide',
+              icon: Icons.swap_horiz_rounded,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          pageTurn == PageTurn.slide
+              ? (isPdf
+                    ? 'One page at a time. Swipe or tap the edges to turn; zoom in to read closer.'
+                    : 'Swipe or tap the edges to turn the page. Tap the middle for the controls.')
+              : 'One long page that scrolls up and down.',
+          style: TextStyle(color: context.yomu.textSecondary, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTypefaceDropdown(
     ReaderSettings settings,
     ReaderSettingsNotifier notifier,
@@ -219,17 +280,17 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: context.yomu.tint(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: context.yomu.tint(0.1)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: settings.typeface,
           isExpanded: true,
-          dropdownColor: YomuConstants.surface,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+          dropdownColor: context.yomu.surface,
+          style: TextStyle(color: context.yomu.textPrimary, fontSize: 16),
+          icon: Icon(Icons.keyboard_arrow_down, color: context.yomu.tint(0.54)),
           items: ReaderSettings.availableTypefaces.map((typeface) {
             return DropdownMenuItem(
               value: typeface,
@@ -268,12 +329,12 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
           children: [
             Text(
               label,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: context.yomu.tint(0.70), fontSize: 14),
             ),
             Text(
               displayValue,
               style: TextStyle(
-                color: YomuConstants.accent,
+                color: context.yomu.accent,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -283,10 +344,10 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
         const SizedBox(height: 8),
         SliderTheme(
           data: SliderThemeData(
-            activeTrackColor: YomuConstants.accent,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-            thumbColor: YomuConstants.accent,
-            overlayColor: YomuConstants.accent.withValues(alpha: 0.2),
+            activeTrackColor: context.yomu.accent,
+            inactiveTrackColor: context.yomu.tint(0.1),
+            thumbColor: context.yomu.accent,
+            overlayColor: context.yomu.accent.withValues(alpha: 0.2),
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
           ),
@@ -341,18 +402,18 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isSelected
-                ? Colors.white.withValues(alpha: 0.1)
-                : Colors.white.withValues(alpha: 0.05),
+                ? context.yomu.tint(0.1)
+                : context.yomu.tint(0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
-                  ? YomuConstants.accent
-                  : Colors.white.withValues(alpha: 0.1),
+                  ? context.yomu.accent
+                  : context.yomu.tint(0.1),
             ),
           ),
           child: Icon(
             icon,
-            color: isSelected ? YomuConstants.accent : Colors.white54,
+            color: isSelected ? context.yomu.accent : context.yomu.tint(0.54),
           ),
         ),
       ),
@@ -366,23 +427,23 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: context.yomu.tint(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: context.yomu.tint(0.1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
+          Text(
             'Defaults',
-            style: TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(color: context.yomu.textPrimary, fontSize: 16),
           ),
           Switch(
             value: settings.usePublisherDefaults,
             onChanged: (value) => notifier.togglePublisherDefaults(value),
-            activeTrackColor: YomuConstants.accent.withValues(alpha: 0.5),
-            activeThumbColor: YomuConstants.accent,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+            activeTrackColor: context.yomu.accent.withValues(alpha: 0.5),
+            activeThumbColor: context.yomu.accent,
+            inactiveTrackColor: context.yomu.tint(0.1),
           ),
         ],
       ),

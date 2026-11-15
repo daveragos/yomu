@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/highlight_model.dart';
 import 'note_author_avatar.dart';
 import 'voice_note_player.dart';
@@ -42,10 +42,13 @@ class NoteWalkthroughBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     final author = note.sharedBy;
     final preview = notePreview(note.note);
     return Material(
-      color: const Color(0xF21E1E2E),
+      color: colors.isDark
+          ? const Color(0xF21E1E2E)
+          : colors.surfaceRaised.withValues(alpha: 0.95),
       elevation: 12,
       borderRadius: BorderRadius.circular(18),
       child: Padding(
@@ -61,8 +64,8 @@ class NoteWalkthroughBar extends StatelessWidget {
                 Expanded(
                   child: Text(
                     '${noteAuthorName(author)} · note ${index + 1} of $count',
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: colors.tint(0.70),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -71,9 +74,9 @@ class NoteWalkthroughBar extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: 'Stop walking through notes',
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.close_rounded,
-                    color: Colors.white54,
+                    color: colors.tint(0.54),
                     size: 20,
                   ),
                   onPressed: onClose,
@@ -92,8 +95,8 @@ class NoteWalkthroughBar extends StatelessWidget {
                       '“${note.text}”',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: colors.tint(0.54),
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
                       ),
@@ -104,8 +107,8 @@ class NoteWalkthroughBar extends StatelessWidget {
                         preview,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 14,
                           height: 1.35,
                         ),
@@ -123,7 +126,7 @@ class NoteWalkthroughBar extends StatelessWidget {
                   fileName: note.audioFile!,
                   durationMs: note.audioDurationMs,
                   waveform: note.audioWaveform,
-                  color: noteAuthorColor(author),
+                  color: noteAuthorColor(author, accent: colors.accent),
                   dense: true,
                 ),
               ),
@@ -134,7 +137,9 @@ class NoteWalkthroughBar extends StatelessWidget {
                   onPressed: onPrevious,
                   icon: Icon(
                     Icons.chevron_left_rounded,
-                    color: onPrevious == null ? Colors.white24 : Colors.white,
+                    color: onPrevious == null
+                        ? colors.tint(0.24)
+                        : colors.textPrimary,
                   ),
                 ),
                 Expanded(
@@ -145,7 +150,7 @@ class NoteWalkthroughBar extends StatelessWidget {
                           ? 'Open · $replyCount '
                                 '${replyCount == 1 ? 'reply' : 'replies'}'
                           : 'Open · reply',
-                      style: const TextStyle(color: YomuConstants.accent),
+                      style: TextStyle(color: colors.accent),
                     ),
                   ),
                 ),
@@ -154,7 +159,9 @@ class NoteWalkthroughBar extends StatelessWidget {
                   onPressed: onNext,
                   icon: Icon(
                     Icons.chevron_right_rounded,
-                    color: onNext == null ? Colors.white24 : Colors.white,
+                    color: onNext == null
+                        ? colors.tint(0.24)
+                        : colors.textPrimary,
                   ),
                 ),
               ],
@@ -183,82 +190,85 @@ Future<bool?> showSharedWelcomeSheet(
   return showModalBottomSheet<bool>(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (context) => Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      decoration: const BoxDecoration(
-        color: YomuConstants.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
+    builder: (context) {
+      final colors = context.yomu;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.tint(0.24),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            NoteAuthorAvatar(name: sharedBy ?? '?', size: 56),
-            const SizedBox(height: 16),
-            Text(
-              '${sharedBy ?? 'Someone'} shared notes on',
-              style: const TextStyle(color: Colors.white70, fontSize: 15),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '“$bookTitle”',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 24),
+              NoteAuthorAvatar(name: sharedBy ?? '?', size: 56),
+              const SizedBox(height: 16),
+              Text(
+                '${sharedBy ?? 'Someone'} shared notes on',
+                style: TextStyle(color: colors.tint(0.70), fontSize: 15),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              counts,
-              style: const TextStyle(
-                color: YomuConstants.accent,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 4),
+              Text(
+                '“$bookTitle”',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.pop(context, true),
-                icon: const Icon(Icons.play_circle_outline_rounded),
-                label: const Text('Walk through the notes'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: YomuConstants.accent,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+              const SizedBox(height: 8),
+              Text(
+                counts,
+                style: TextStyle(
+                  color: colors.accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.play_circle_outline_rounded),
+                  label: const Text('Walk through the notes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.accent,
+                    foregroundColor: colors.onAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text(
-                  'Just read',
-                  style: TextStyle(color: Colors.white70),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    'Just read',
+                    style: TextStyle(color: colors.tint(0.70)),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }

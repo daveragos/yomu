@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 class PlayPauseButton extends StatelessWidget {
   final ValueNotifier<bool> isPlayingNotifier;
@@ -20,8 +20,8 @@ class PlayPauseButton extends StatelessWidget {
         child: Container(
           width: 56,
           height: 56,
-          decoration: const BoxDecoration(
-            color: YomuConstants.accent,
+          decoration: BoxDecoration(
+            color: context.yomu.accent,
             shape: BoxShape.circle,
           ),
           child: Icon(

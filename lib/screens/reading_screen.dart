@@ -11,6 +11,8 @@ import 'package:epub_view/epub_view.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:pdfrx/pdfrx.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
+import '../core/theme.dart';
 import '../components/display_settings_sheet.dart';
 import '../providers/library_provider.dart';
 import '../providers/reader_settings_provider.dart';
@@ -54,6 +56,9 @@ import '../core/platform_caps.dart';
 import '../services/library_files.dart';
 import '../core/breakpoints.dart';
 import './reading/widgets/reader_column.dart';
+import './reading/paging/epub_page_turner.dart';
+import '../providers/appearance_provider.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 
 part 'reading/reader_desktop.dart';
 
@@ -116,6 +121,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   PageController? _pageController;
   int _currentChapterIndex = 0;
 
+  /// The EPUB's chapter on screen when it is read as pages.
+  final EpubPageTurner _epubPageTurner = EpubPageTurner();
+
+  /// How the open EPUB was laid out last build, to keep the place when the
+  /// reader switches between scrolling and pages.
+  PageTurn? _lastEpubPageTurn;
+
+  /// The app's light/dark the page theme last followed.
+  Brightness? _lastAppBrightness;
+
+  /// Auto page turn for a PDF read as slides: scroll distance so far.
+  double _pdfAutoTurnDistance = 0;
+
+  bool get _pdfSlides =>
+      ref.read(readerSettingsProvider).pdfPageTurn == PageTurn.slide;
+
   // UI state
   final ValueNotifier<bool> _showControlsNotifier = ValueNotifier(true);
   final ValueNotifier<String> _currentTimeNotifier = ValueNotifier('');
@@ -169,13 +190,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       final isPdf = book.filePath.toLowerCase().endsWith('.pdf');
       Future.microtask(() {
         if (mounted) {
-          final settings = ref.read(readerSettingsProvider);
           if (isPdf) {
             // For PDFs, always force white on open
             ref.read(readerSettingsProvider.notifier).setTheme(ReaderTheme.white);
-          } else if (settings.epubTheme != null) {
-            // For EPUBs, restore the last used epubTheme preference
-            ref.read(readerSettingsProvider.notifier).setTheme(settings.epubTheme!);
+          } else {
+            // For EPUBs, the page theme chosen for the app's appearance
+            ref
+                .read(readerSettingsProvider.notifier)
+                .followAppearance(Theme.of(context).brightness);
           }
         }
       });
@@ -240,9 +262,20 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         _lastPdfElapsed = elapsed;
         if (deltaTime <= 0) return;
 
+        final dy = speed * 30.0 * deltaTime;
+        if (_pdfSlides) {
+          // As slides, a page turns once the scroll would have covered a
+          // screen's height.
+          _pdfAutoTurnDistance += dy;
+          if (_pdfAutoTurnDistance >= MediaQuery.sizeOf(context).height) {
+            _pdfAutoTurnDistance = 0;
+            _jumpToPdfPage(_pdfCurrentPage + 2);
+          }
+          return;
+        }
+
         // In pdfrx, we scroll by manipulating the matrix
         final currentMatrix = _pdfController!.value;
-        final dy = speed * 30.0 * deltaTime;
 
         // Content moves UP, so we translate by -dy in Y
         final nextMatrix = currentMatrix.clone()
@@ -799,6 +832,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _audioPlayer.dispose();
     _epubController?.dispose();
     _pageController?.dispose();
+    _epubPageTurner.dispose();
     _heartbeatTimer?.cancel();
     _debounceTimer?.cancel();
     _currentTimeTimer?.cancel();
@@ -863,7 +897,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _pdfController?.goToPage(
       pageNumber: targetPage,
       // duration: const Duration(milliseconds: 300),
-      anchor: PdfPageAnchor.top,
+      anchor: _pdfSlides ? PdfPageAnchor.center : PdfPageAnchor.top,
     );
     _recordInteraction();
   }
@@ -1863,6 +1897,49 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     }
   }
 
+  /// Switching between scrolling and pages builds a new chapter pager, so
+  /// it is told to open where the reader was.
+  void _keepPlaceAcrossPageTurnModes(PageTurn pageTurn) {
+    final previous = _lastEpubPageTurn;
+    _lastEpubPageTurn = pageTurn;
+    if (previous == null || previous == pageTurn || _pageController == null) {
+      return;
+    }
+    final old = _pageController!;
+    _pageController = PageController(initialPage: _currentChapterIndex);
+    // The old pager lets go of it at the end of this frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+    _shouldJumpToBottom = false;
+    _initialScrollProgress = _scrollProgressNotifier.value;
+  }
+
+  /// When the app turns light or dark (the system at dusk, or the setting),
+  /// an EPUB's page takes the theme chosen for that appearance.
+  void _followAppAppearance() {
+    final brightness = Theme.of(context).brightness;
+    final previous = _lastAppBrightness;
+    _lastAppBrightness = brightness;
+    if (previous == null || previous == brightness) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(readerSettingsProvider.notifier).followAppearance(brightness);
+    });
+  }
+
+  /// The day/night button: the app flips between light and dark, and the
+  /// page (PDFs too) takes the theme chosen for the new appearance.
+  void _toggleDayNight() {
+    final current = Theme.of(context).brightness;
+    final next = current == Brightness.dark
+        ? Brightness.light
+        : Brightness.dark;
+    _lastAppBrightness = next;
+    ref.read(appearanceProvider.notifier).toggle(current);
+    ref
+        .read(readerSettingsProvider.notifier)
+        .followAppearance(next, includePdf: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final book = ref.watch(currentlyReadingProvider);
@@ -1909,7 +1986,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     if (isEpub) {
       _initEpub(book);
+      _keepPlaceAcrossPageTurnModes(settings.epubPageTurn);
     }
+    _followAppAppearance();
 
     final currentTracks = book.audioTracks.isEmpty && book.audioPath != null
         ? [
@@ -1953,7 +2032,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       _loadAudio([], bookId: null);
     }
 
-    return _withReaderToastInset(Scaffold(
+    // The status bar sits on the page, so its icons follow the page's
+    // colour rather than the app's light or dark.
+    final pageIsLight = settings.backgroundColor.computeLuminance() > 0.5;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: YomuTheme.systemBars(
+        pageIsLight ? Brightness.light : Brightness.dark,
+      ),
+      child: _withReaderToastInset(Scaffold(
       backgroundColor: settings.backgroundColor,
       resizeToAvoidBottomInset: false,
       body: _withReaderShortcuts(book: book, child: PopScope(
@@ -1991,8 +2077,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 (event.position - _epubPointerDownPosition!)
                                     .distance;
 
+                            // As pages, a touch tap turns the page or shows
+                            // the controls by where it lands (the page does
+                            // that itself); a click still shows them.
+                            final pageHandlesTap =
+                                settings.epubPageTurn == PageTurn.slide &&
+                                event.kind != PointerDeviceKind.mouse;
                             // Short tap: under 300ms and minimal movement
-                            if (elapsed < const Duration(milliseconds: 300) &&
+                            if (!pageHandlesTap &&
+                                elapsed < const Duration(milliseconds: 300) &&
                                 distance < 20) {
                               _toggleControls();
                             }
@@ -2003,6 +2096,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                             valueListenable: _showControlsNotifier,
                             builder: (context, showControls, _) {
                               return ReadingEpubView(
+                                // A fresh pager when switching between
+                                // scrolling and pages (see
+                                // _keepPlaceAcrossPageTurnModes).
+                                key: ValueKey(settings.epubPageTurn),
+                                pageTurn: settings.epubPageTurn,
+                                pageTurner: _epubPageTurner,
                                 book: book,
                                 settings: settings,
                                 chapters: _chapters,
@@ -2082,7 +2181,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               }
                               controller.goToPage(
                                 pageNumber: initialPage + 1,
-                                anchor: PdfPageAnchor.top,
+                                anchor: _pdfSlides
+                                    ? PdfPageAnchor.center
+                                    : PdfPageAnchor.top,
                               );
                               _startHeartbeat(book);
                               _initialized = true;
@@ -2104,6 +2205,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onHideControls: _toggleControls,
                           showControls: _showControlsNotifier.value,
                           scrollProgressNotifier: _scrollProgressNotifier,
+                          pageTurn: settings.pdfPageTurn,
+                          onTurnPage: (direction) {
+                            _setControlsVisibility(false);
+                            _turnPage(direction);
+                          },
                         )),
                       _buildAnimatedControlsOverlay(context, book, settings),
                       if (_walkNotes != null) _buildWalkthroughBar(),
@@ -2124,6 +2230,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 valueListenable: _currentTimeNotifier,
                 builder: (context, currentTime, _) {
                   return ReadingFooter(
+                    pagePosition: isEpub ? _epubPageTurner.position : null,
                     book: book,
                     settings: settings,
                     currentTime: currentTime,
@@ -2140,7 +2247,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           ),
         ),
       )),
-    ));
+    )),
+    );
   }
 
   Widget _buildAnimatedControlsOverlay(
@@ -2167,6 +2275,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
               return ReadingHeader(
                 searchKey: _searchKey,
                 lockKey: _lockKey,
+                isNight: Theme.of(context).brightness == Brightness.dark,
+                onToggleDayNight: _toggleDayNight,
                 book: book,
                 settings: settings,
                 currentChapter: _currentChapter,
@@ -2550,22 +2660,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                backgroundColor: YomuConstants.surface,
-                title: const Text('Export Annotations', style: TextStyle(color: Colors.white)),
+                backgroundColor: context.yomu.surface,
+                title: Text('Export Annotations', style: TextStyle(color: context.yomu.textPrimary)),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'Ready to export all annotations as Markdown.',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: context.yomu.tint(0.70), fontSize: 14),
                     ),
                     const SizedBox(height: 16),
                     CheckboxListTile(
-                      title: const Text('Include Vocabulary List', style: TextStyle(color: Colors.white, fontSize: 14)),
-                      subtitle: const Text('Add words you looked up in this book', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                      title: Text('Include Vocabulary List', style: TextStyle(color: context.yomu.textPrimary, fontSize: 14)),
+                      subtitle: Text('Add words you looked up in this book', style: TextStyle(color: context.yomu.tint(0.38), fontSize: 11)),
                       value: includeVocab,
-                      activeColor: YomuConstants.accent,
-                      checkColor: Colors.black,
+                      activeColor: context.yomu.accent,
+                      checkColor: context.yomu.onAccent,
                       contentPadding: EdgeInsets.zero,
                       onChanged: (val) => setDialogState(() => includeVocab = val ?? true),
                     ),
@@ -2574,11 +2684,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, null),
-                    child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+                    child: Text('CANCEL', style: TextStyle(color: context.yomu.tint(0.54))),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(context, includeVocab),
-                    child: const Text('SHARE', style: TextStyle(color: YomuConstants.accent)),
+                    child: Text('SHARE', style: TextStyle(color: context.yomu.accent)),
                   ),
                 ],
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

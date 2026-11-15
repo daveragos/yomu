@@ -5,7 +5,7 @@ import '../../../components/book_cover_image.dart';
 import '../../../components/desktop/hover_lift.dart';
 import '../../../components/desktop/page_header.dart';
 import '../../../components/glass_container.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/book_model.dart';
 import '../../../providers/library_provider.dart';
 import '../../reading_screen.dart';
@@ -46,6 +46,7 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
   Widget build(BuildContext context) {
     final book = widget.book;
     final percent = (book.progress * 100).toInt();
+    final colors = context.yomu;
 
     return HoverLift(
       lift: 3,
@@ -63,8 +64,8 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
                 height: 195,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  color: YomuConstants.surface,
-                  boxShadow: YomuConstants.cardShadow,
+                  color: colors.surface,
+                  boxShadow: colors.cardShadow,
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
@@ -83,11 +84,11 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
                     children: [
                       Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'Continue reading',
                               style: TextStyle(
-                                color: YomuConstants.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -104,8 +105,8 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
                         book.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: YomuConstants.textPrimary,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
                           height: 1.15,
@@ -116,8 +117,8 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
                         book.author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: YomuConstants.textSecondary,
+                        style: TextStyle(
+                          color: colors.textSecondary,
                           fontSize: 15,
                         ),
                       ),
@@ -130,16 +131,16 @@ class _ContinueReadingHeroState extends ConsumerState<ContinueReadingHero> {
                               child: LinearProgressIndicator(
                                 value: book.progress.clamp(0.0, 1.0),
                                 minHeight: 6,
-                                backgroundColor: Colors.white10,
-                                color: YomuConstants.accent,
+                                backgroundColor: colors.tint(0.10),
+                                color: colors.accent,
                               ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Text(
                             '$percent%',
-                            style: const TextStyle(
-                              color: YomuConstants.accent,
+                            style: TextStyle(
+                              color: colors.accent,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -179,7 +180,7 @@ class _MenuButton extends StatelessWidget {
         padding: const EdgeInsets.all(6),
         child: Icon(
           Icons.more_horiz_rounded,
-          color: YomuConstants.textSecondary.withValues(alpha: 0.8),
+          color: context.yomu.textSecondary.withValues(alpha: 0.8),
         ),
       ),
     );
@@ -194,6 +195,7 @@ class ContinueReadingEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return GlassContainer(
       padding: const EdgeInsets.all(28),
       child: Row(
@@ -203,32 +205,32 @@ class ContinueReadingEmpty extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.05),
+              color: colors.tint(0.05),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.menu_book_rounded,
-              color: YomuConstants.textSecondary,
+              color: colors.textSecondary,
               size: 28,
             ),
           ),
           const SizedBox(width: 20),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Pick your first book',
                   style: TextStyle(
-                    color: YomuConstants.textPrimary,
+                    color: colors.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Open a book from your library and it will wait for you here.',
                   style: TextStyle(
-                    color: YomuConstants.textSecondary,
+                    color: colors.textSecondary,
                     fontSize: 13,
                   ),
                 ),

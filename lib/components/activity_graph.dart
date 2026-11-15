@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 
 class ActivityGraph extends StatelessWidget {
   final Map<String, int> dailyValues;
@@ -43,7 +43,10 @@ class ActivityGraph extends StatelessWidget {
               child: Center(
                 child: Text(
                   d,
-                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                  style: TextStyle(
+                    color: context.yomu.tint(0.38),
+                    fontSize: 10,
+                  ),
                 ),
               ),
             );
@@ -98,7 +101,8 @@ class ActivityGraph extends StatelessWidget {
       }
     }
 
-    final Color bgColor = YomuConstants.graphColors[level];
+    final colors = context.yomu;
+    final Color bgColor = colors.graphColors[level];
     final bool hasActivity = value > 0;
     final String label = value >= 1000
         ? '${(value / 1000).toStringAsFixed(1)}k'
@@ -106,12 +110,10 @@ class ActivityGraph extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: hasActivity
-            ? bgColor.withValues(alpha: 0.8)
-            : Colors.white.withValues(alpha: 0.05),
+        color: hasActivity ? bgColor.withValues(alpha: 0.8) : colors.tint(0.05),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: hasActivity ? bgColor : Colors.white.withValues(alpha: 0.05),
+          color: hasActivity ? bgColor : colors.tint(0.05),
           width: 0.5,
         ),
       ),
@@ -121,7 +123,7 @@ class ActivityGraph extends StatelessWidget {
           Text(
             '$day',
             style: TextStyle(
-              color: hasActivity ? Colors.black : Colors.white38,
+              color: hasActivity ? Colors.black : colors.tint(0.38),
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),

@@ -33,15 +33,20 @@ final class CelebrationPanels {
         result(FlutterMethodNotImplemented)
         return
       }
-      self?.show(title: title, body: body, kind: args["kind"] as? String ?? "")
+      self?.show(
+        title: title,
+        body: body,
+        kind: args["kind"] as? String ?? "",
+        dark: args["dark"] as? Bool ?? true
+      )
       result(nil)
     }
     self.channel = channel
   }
 
-  func show(title: String, body: String, kind: String) {
+  func show(title: String, body: String, kind: String, dark: Bool) {
     let panel = CelebrationPanel(
-      model: CelebrationModel(title: title, body: body, kind: kind)
+      model: CelebrationModel(title: title, body: body, kind: kind, dark: dark)
     ) { [weak self] finished in
       self?.panels.removeAll { $0 === finished }
       self?.layout(animated: true)
@@ -86,6 +91,9 @@ final class CelebrationModel: ObservableObject {
   let body: String
   let kind: String
 
+  /// Whether Yomu is in dark mode; the card matches the app, not macOS.
+  let dark: Bool
+
   /// Runs from 1 (full bar) down to 0 over [lifetime], paused while hovered.
   @Published var remaining: Double = 1
   var isHovered = false
@@ -95,10 +103,11 @@ final class CelebrationModel: ObservableObject {
   private var timer: Timer?
   private var lastTick = Date()
 
-  init(title: String, body: String, kind: String) {
+  init(title: String, body: String, kind: String, dark: Bool) {
     self.title = title
     self.body = body
     self.kind = kind
+    self.dark = dark
   }
 
   var symbol: String {
@@ -165,7 +174,7 @@ final class CelebrationPanel: NSPanel {
     isOpaque = false
     backgroundColor = .clear
     hasShadow = true
-    appearance = NSAppearance(named: .darkAqua)
+    appearance = NSAppearance(named: model.dark ? .darkAqua : .aqua)
 
     let host = CardHostingView(rootView: CelebrationCard(model: model))
     host.onHoverChange = { [weak model] hovered in model?.isHovered = hovered }
@@ -264,33 +273,44 @@ private final class CardHostingView<Content: View>: NSHostingView<Content> {
   }
 }
 
-/// The card itself, drawn to match Yomu's surfaces: a solid dark panel with
-/// a hairline border, an accent icon, and the timer bar along the bottom.
+/// The card itself, drawn to match Yomu's surfaces (`YomuColors` in
+/// Flutter): a solid panel with a hairline border, an accent icon, and the
+/// timer bar along the bottom, light or dark like the app.
 private struct CelebrationCard: View {
   @ObservedObject var model: CelebrationModel
 
-  private static let surface = Color(red: 0x16 / 255, green: 0x17 / 255, blue: 0x1D / 255)
-  private static let accent = Color(red: 0x2E / 255, green: 0xCC / 255, blue: 0x71 / 255)
-  private static let secondary = Color(red: 0x94 / 255, green: 0xA3 / 255, blue: 0xB8 / 255)
+  private static func rgb(_ hex: UInt32) -> Color {
+    Color(
+      red: Double((hex >> 16) & 0xFF) / 255,
+      green: Double((hex >> 8) & 0xFF) / 255,
+      blue: Double(hex & 0xFF) / 255
+    )
+  }
+
+  private var surface: Color { model.dark ? Self.rgb(0x16171D) : Self.rgb(0xFFFFFF) }
+  private var accent: Color { model.dark ? Self.rgb(0x2ECC71) : Self.rgb(0x1E9A57) }
+  private var secondary: Color { model.dark ? Self.rgb(0x94A3B8) : Self.rgb(0x586273) }
+  private var primary: Color { model.dark ? .white : Self.rgb(0x15171C) }
+  private var ink: Color { model.dark ? .white : .black }
 
   var body: some View {
     VStack(spacing: 0) {
       HStack(alignment: .top, spacing: 12) {
         ZStack {
-          Circle().fill(Color.white.opacity(0.05))
+          Circle().fill(ink.opacity(0.05))
           Image(systemName: model.symbol)
             .font(.system(size: 15, weight: .medium))
-            .foregroundColor(Self.accent)
+            .foregroundColor(accent)
         }
         .frame(width: 36, height: 36)
 
         VStack(alignment: .leading, spacing: 2) {
           Text(model.title)
             .font(.system(size: 13.5, weight: .semibold))
-            .foregroundColor(.white)
+            .foregroundColor(primary)
           Text(model.body)
             .font(.system(size: 12.5))
-            .foregroundColor(Self.secondary)
+            .foregroundColor(secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 1)
@@ -301,17 +321,17 @@ private struct CelebrationCard: View {
 
       GeometryReader { geometry in
         Rectangle()
-          .fill(Self.accent)
+          .fill(accent)
           .frame(width: geometry.size.width * model.remaining, height: 2)
       }
       .frame(height: 2)
     }
     .frame(width: 340)
-    .background(Self.surface)
+    .background(surface)
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     .overlay(
       RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        .stroke(ink.opacity(model.dark ? 0.08 : 0.10), lineWidth: 1)
     )
     .contentShape(Rectangle())
     .onTapGesture { model.onTapped?() }

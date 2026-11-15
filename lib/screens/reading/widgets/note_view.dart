@@ -4,7 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:markdown_quill/markdown_quill.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../../models/reader_settings_model.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 class NoteView extends StatelessWidget {
   final String markdown;
@@ -22,10 +22,11 @@ class NoteView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     if (markdown.trim().isEmpty) {
-      return const Text(
+      return Text(
         'No content',
-        style: TextStyle(color: Colors.white38, fontStyle: FontStyle.italic),
+        style: TextStyle(color: colors.tint(0.38), fontStyle: FontStyle.italic),
       );
     }
 
@@ -67,8 +68,8 @@ class NoteView extends StatelessWidget {
             null,
           ),
           h1: DefaultTextBlockStyle(
-            const TextStyle(
-              color: Colors.white,
+            TextStyle(
+              color: colors.textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
@@ -77,9 +78,9 @@ class NoteView extends StatelessWidget {
             const VerticalSpacing(0, 0),
             null,
           ),
-          bold: const TextStyle(
+          bold: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: colors.textPrimary,
           ),
           italic: const TextStyle(
             fontStyle: FontStyle.italic,
@@ -87,13 +88,13 @@ class NoteView extends StatelessWidget {
           strikeThrough: const TextStyle(
             decoration: TextDecoration.lineThrough,
           ),
-          link: const TextStyle(
-            color: YomuConstants.accent,
+          link: TextStyle(
+            color: colors.accent,
             decoration: TextDecoration.underline,
           ),
           quote: DefaultTextBlockStyle(
             TextStyle(
-              color: Colors.white70,
+              color: colors.tint(0.70),
               fontSize: fontSize ?? 16,
               fontStyle: FontStyle.italic,
             ),
@@ -102,14 +103,14 @@ class NoteView extends StatelessWidget {
             const VerticalSpacing(0, 0),
             BoxDecoration(
               border: Border(
-                left: BorderSide(color: YomuConstants.accent, width: 4),
+                left: BorderSide(color: colors.accent, width: 4),
               ),
             ),
           ),
           code: DefaultTextBlockStyle(
             TextStyle(
-              color: YomuConstants.accent,
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
+              color: colors.accent,
+              backgroundColor: colors.tint(0.1),
               fontFamily: 'monospace',
               fontSize: (fontSize ?? 16) - 2,
             ),

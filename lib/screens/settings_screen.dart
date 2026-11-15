@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../providers/library_provider.dart';
+import '../providers/appearance_provider.dart';
 import '../components/glass_container.dart';
+import '../components/segmented_choice.dart';
 import '../services/notification_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -17,9 +19,11 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(libraryProvider);
     final notifier = ref.read(libraryProvider.notifier);
+    final appearance = ref.watch(appearanceProvider);
+    final colors = context.yomu;
 
     return Scaffold(
-      backgroundColor: YomuConstants.background,
+      backgroundColor: colors.background,
       body: CustomScrollView(
         slivers: [
           if (Breakpoints.isWide(context))
@@ -30,20 +34,21 @@ class SettingsScreen extends ConsumerWidget {
                 sliver: SliverToBoxAdapter(
                   child: DesktopPageHeader(
                     title: 'Settings',
-                    subtitle: 'Reminders, your rank, and how to support Yomu',
+                    subtitle:
+                        'Appearance, reminders, your rank, and how to support Yomu',
                   ),
                 ),
               ),
             )
           else
           SliverAppBar(
-            backgroundColor: YomuConstants.background.withValues(alpha: 0.8),
+            backgroundColor: colors.background.withValues(alpha: 0.8),
             floating: true,
-            title: const Text(
+            title: Text(
               'Settings',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
             centerTitle: true,
@@ -52,16 +57,19 @@ class SettingsScreen extends ConsumerWidget {
           SliverList(
             delegate: SliverChildListDelegate([
               const SizedBox(height: 20),
-              _buildSectionHeader('Engagement'),
-              _buildEngagementCard(state),
+              _buildSectionHeader(colors, 'Appearance'),
+              _buildAppearanceCard(colors, appearance, ref),
               const SizedBox(height: 24),
-              _buildSectionHeader('Notifications'),
-              _buildNotificationToggles(context, state, notifier),
+              _buildSectionHeader(colors, 'Engagement'),
+              _buildEngagementCard(colors, state),
+              const SizedBox(height: 24),
+              _buildSectionHeader(colors, 'Notifications'),
+              _buildNotificationToggles(context, colors, state, notifier),
               const SizedBox(height: 48),
-              _buildSectionHeader('More'),
-              _buildMoreCard(context),
+              _buildSectionHeader(colors, 'More'),
+              _buildMoreCard(context, colors),
               const SizedBox(height: 48),
-              _buildAboutSection(),
+              _buildAboutSection(colors),
               const SizedBox(height: 120),
             ]),
           ),
@@ -70,13 +78,13 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(YomuColors colors, String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
-          color: YomuConstants.textSecondary,
+        style: TextStyle(
+          color: colors.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.8,
@@ -85,7 +93,57 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEngagementCard(LibraryState state) {
+  Widget _buildAppearanceCard(
+    YomuColors colors,
+    AppAppearance appearance,
+    WidgetRef ref,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: GlassContainer(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Theme',
+              style: TextStyle(color: colors.textPrimary, fontSize: 16),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              "System follows your device's light or dark setting.",
+              style: TextStyle(color: colors.tint(0.5), fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            SegmentedChoice<AppAppearance>(
+              selected: appearance,
+              onSelected: (value) =>
+                  ref.read(appearanceProvider.notifier).set(value),
+              options: [
+                SegmentedChoiceOption(
+                  value: AppAppearance.system,
+                  label: AppAppearance.system.label,
+                  icon: Icons.brightness_auto_rounded,
+                ),
+                SegmentedChoiceOption(
+                  value: AppAppearance.light,
+                  label: AppAppearance.light.label,
+                  icon: Icons.light_mode_rounded,
+                ),
+                SegmentedChoiceOption(
+                  value: AppAppearance.dark,
+                  label: AppAppearance.dark.label,
+                  icon: Icons.dark_mode_rounded,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEngagementCard(YomuColors colors, LibraryState state) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: GlassContainer(
@@ -97,12 +155,12 @@ class SettingsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: colors.tint(0.05),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.stars_rounded,
-                    color: YomuConstants.accent,
+                    color: colors.accent,
                     size: 28,
                   ),
                 ),
@@ -113,8 +171,8 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                       Text(
                         'Level ${state.level}',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -122,7 +180,7 @@ class SettingsScreen extends ConsumerWidget {
                       Text(
                         state.rankName,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: colors.tint(0.6),
                           fontSize: 14,
                         ),
                       ),
@@ -134,16 +192,16 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Text(
                       '${state.totalXP}',
-                      style: const TextStyle(
-                        color: YomuConstants.accent,
+                      style: TextStyle(
+                        color: colors.accent,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const Text(
+                    Text(
                       'TOTAL XP',
                       style: TextStyle(
-                        color: Colors.white38,
+                        color: colors.tint(0.38),
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -160,6 +218,7 @@ class SettingsScreen extends ConsumerWidget {
 
   Widget _buildNotificationToggles(
     BuildContext context,
+    YomuColors colors,
     LibraryState state,
     LibraryNotifier notifier,
   ) {
@@ -172,15 +231,14 @@ class SettingsScreen extends ConsumerWidget {
               value: state.notificationsEnabled,
               onChanged: (val) =>
                   notifier.updateNotificationSettings(enabled: val),
-              title: const Text(
+              title: Text(
                 'Daily Reminders',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: colors.textPrimary),
               ),
               subtitle: Text(
                 'Keep your reading streak alive',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                style: TextStyle(color: colors.tint(0.5)),
               ),
-              activeThumbColor: YomuConstants.accent,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 8,
@@ -188,25 +246,25 @@ class SettingsScreen extends ConsumerWidget {
             ),
             if (state.notificationsEnabled)
               ListTile(
-                title: const Text(
+                title: Text(
                   'Reminder Time',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: colors.textPrimary),
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       '${state.reminderHour.toString().padLeft(2, '0')}:${state.reminderMinute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        color: YomuConstants.accent,
+                      style: TextStyle(
+                        color: colors.accent,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Icon(
+                    Icon(
                       Icons.chevron_right_rounded,
-                      color: Colors.white24,
+                      color: colors.tint(0.24),
                     ),
                   ],
                 ),
@@ -220,12 +278,19 @@ class SettingsScreen extends ConsumerWidget {
                     builder: (context, child) {
                       return Theme(
                         data: Theme.of(context).copyWith(
-                          colorScheme: const ColorScheme.dark(
-                            primary: YomuConstants.accent,
-                            onPrimary: Colors.black,
-                            surface: YomuConstants.surface,
-                            onSurface: Colors.white,
-                          ),
+                          colorScheme: colors.isDark
+                              ? ColorScheme.dark(
+                                  primary: colors.accent,
+                                  onPrimary: colors.onAccent,
+                                  surface: colors.surface,
+                                  onSurface: colors.textPrimary,
+                                )
+                              : ColorScheme.light(
+                                  primary: colors.accent,
+                                  onPrimary: colors.onAccent,
+                                  surface: colors.surface,
+                                  onSurface: colors.textPrimary,
+                                ),
                         ),
                         child: child!,
                       );
@@ -239,18 +304,18 @@ class SettingsScreen extends ConsumerWidget {
                   }
                 },
               ),
-            Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+            Divider(color: colors.tint(0.1), height: 1),
             ListTile(
-              leading: const Icon(Icons.notification_important_rounded, color: YomuConstants.accent),
-              title: const Text(
+              leading: Icon(Icons.notification_important_rounded, color: colors.accent),
+              title: Text(
                 'Test Notification',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: colors.textPrimary),
               ),
               subtitle: Text(
                 'Receive a test alert to verify reminders work.',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                style: TextStyle(color: colors.tint(0.5), fontSize: 12),
               ),
-              trailing: const Icon(Icons.send_rounded, color: YomuConstants.accent, size: 20),
+              trailing: Icon(Icons.send_rounded, color: colors.accent, size: 20),
               onTap: () async {
                 if (await NotificationService().isBlockedBySystem()) {
                   if (context.mounted) {
@@ -266,29 +331,29 @@ class SettingsScreen extends ConsumerWidget {
                           child: Opacity(
                             opacity: anim1.value,
                             child: AlertDialog(
-                              backgroundColor: YomuConstants.surface,
+                              backgroundColor: colors.surface,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              title: const Text(
+                              title: Text(
                                 'Notifications Blocked',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold),
                               ),
-                              content: const Text(
+                              content: Text(
                                 'Reading reminders are currently blocked by your system settings. Please enable them to stay on track!',
-                                style: TextStyle(color: Colors.white70),
+                                style: TextStyle(color: colors.tint(0.70)),
                               ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: const Text('Maybe Later', style: TextStyle(color: Colors.white38)),
+                                  child: Text('Maybe Later', style: TextStyle(color: colors.tint(0.38))),
                                 ),
                                 TextButton(
                                   onPressed: () {
                                     openAppSettings();
                                     Navigator.pop(context);
                                   },
-                                  child: const Text(
+                                  child: Text(
                                     'Open Settings',
-                                    style: TextStyle(color: YomuConstants.accent, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: colors.accent, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -325,34 +390,34 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMoreCard(BuildContext context) {
+  Widget _buildMoreCard(BuildContext context, YomuColors colors) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: GlassContainer(
         child: Column(
           children: [
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.volunteer_activism_rounded,
-                color: YomuConstants.accent,
+                color: colors.accent,
               ),
-              title: const Text(
+              title: Text(
                 'Support the Developer AKA RaGoose',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: colors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               subtitle: Text(
                 'Support the developer and the project',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: colors.tint(0.5),
                   fontSize: 12,
                 ),
               ),
-              trailing: const Icon(
+              trailing: Icon(
                 Icons.open_in_new_rounded,
-                color: Colors.white24,
+                color: colors.tint(0.24),
                 size: 20,
               ),
               onTap: () async {
@@ -364,29 +429,29 @@ class SettingsScreen extends ConsumerWidget {
                 }
               },
             ),
-            Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+            Divider(color: colors.tint(0.1), height: 1),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.code_rounded,
-                color: YomuConstants.accent,
+                color: colors.accent,
               ),
-              title: const Text(
+              title: Text(
                 'Contribute on GitHub',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: colors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               subtitle: Text(
                 'Help build the future of Yomu',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: colors.tint(0.5),
                   fontSize: 12,
                 ),
               ),
-              trailing: const Icon(
+              trailing: Icon(
                 Icons.open_in_new_rounded,
-                color: Colors.white24,
+                color: colors.tint(0.24),
                 size: 20,
               ),
               onTap: () async {
@@ -404,7 +469,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAboutSection() {
+  Widget _buildAboutSection(YomuColors colors) {
     return Center(
       child: Column(
         children: [
@@ -416,7 +481,7 @@ class SettingsScreen extends ConsumerWidget {
                   : '...';
               return Text(
                 'Yomu $version',
-                style: const TextStyle(color: Colors.white24, fontSize: 12),
+                style: TextStyle(color: colors.tint(0.24), fontSize: 12),
               );
             },
           ),

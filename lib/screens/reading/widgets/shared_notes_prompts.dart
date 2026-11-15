@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/book_model.dart';
 import '../../../services/annotation_share_service.dart';
 
@@ -12,14 +12,15 @@ Future<SharedImportResult?> offerToPlaceNotes(
   required Book book,
 }) async {
   final from = manifest.sharedBy ?? 'Someone';
+  final colors = context.yomu;
   final place = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: YomuConstants.surface,
+      backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(
         'Put $from\'s notes on your copy?',
-        style: const TextStyle(color: Colors.white),
+        style: TextStyle(color: colors.textPrimary),
       ),
       content: Text(
         'You have "${book.title}", but not the exact copy $from made '
@@ -27,18 +28,18 @@ Future<SharedImportResult?> offerToPlaceNotes(
         '${manifest.annotations.length == 1 ? 'note' : 'notes'} by finding '
         'their passages in your copy. Any it can\'t find stay listed in '
         'Annotations.',
-        style: const TextStyle(color: Colors.white70),
+        style: TextStyle(color: colors.tint(0.70)),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('NOT NOW', style: TextStyle(color: Colors.white54)),
+          child: Text('NOT NOW', style: TextStyle(color: colors.tint(0.54))),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
-          child: const Text(
+          child: Text(
             'PLACE NOTES',
-            style: TextStyle(color: YomuConstants.accent),
+            style: TextStyle(color: colors.accent),
           ),
         ),
       ],

@@ -7,8 +7,10 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'core/breakpoints.dart';
 import 'core/platform_caps.dart';
 import 'core/theme.dart';
+import 'providers/appearance_provider.dart';
 import 'components/desktop/celebration_toasts.dart';
 import 'screens/main_navigation.dart';
+import 'services/celebrations.dart';
 import 'services/notification_service.dart';
 
 void main() async {
@@ -22,20 +24,18 @@ void main() async {
   }
 
   if (io.Platform.isAndroid) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.light,
-        statusBarIconBrightness: Brightness.light,
-      ),
-    );
-
+    // Bar icon colours follow the app's appearance (see YomuApp).
     // This ensures that the system navigation bar doesn't have an opaque background
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
-  runApp(const ProviderScope(child: YomuApp()));
+  final appearance = await AppearanceNotifier.load();
+  runApp(
+    ProviderScope(
+      overrides: [initialAppearanceProvider.overrideWithValue(appearance)],
+      child: const YomuApp(),
+    ),
+  );
 
   // Only once the first frame is up, so an open permission prompt never
   // leaves the window blank.
@@ -44,15 +44,18 @@ void main() async {
   );
 }
 
-class YomuApp extends StatelessWidget {
+class YomuApp extends ConsumerWidget {
   const YomuApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appearance = ref.watch(appearanceProvider);
     return MaterialApp(
       title: 'Yomu',
       debugShowCheckedModeBanner: false,
-      theme: YomuTheme.darkTheme,
+      theme: YomuTheme.lightTheme,
+      darkTheme: YomuTheme.darkTheme,
+      themeMode: appearance.themeMode,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -60,8 +63,14 @@ class YomuApp extends StatelessWidget {
         FlutterQuillLocalizations.delegate,
       ],
       supportedLocales: const [Locale('en', 'US')],
-      builder: (context, child) =>
-          CelebrationToastHost(child: _TitleBarInset(child: child!)),
+      builder: (context, child) {
+        final brightness = Theme.of(context).brightness;
+        Celebrations.isDark = brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: YomuTheme.systemBars(brightness),
+        child: CelebrationToastHost(child: _TitleBarInset(child: child!)),
+      );
+      },
       home: const MainNavigation(),
     );
   }

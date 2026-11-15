@@ -104,6 +104,8 @@ extension _DesktopReader on _ReadingScreenState {
     required Widget child,
   }) {
     if (!isEpub) {
+      // As slides, a page is fitted whole to the window instead.
+      if (settings.pdfPageTurn == PageTurn.slide) return child;
       return PdfDesktopFit(
         controller: _pdfController,
         isReady: _isPdfReady,
@@ -154,6 +156,20 @@ extension _DesktopReader on _ReadingScreenState {
     }
     final controller = _pdfController;
     if (controller == null) return;
+    if (_pdfSlides) {
+      // The page shown whole is pdfrx's smallest zoom in slide mode.
+      if (controller.isReady) {
+        controller
+            .setZoom(controller.centerPosition, controller.minScale)
+            .then(
+              (_) => controller.goToPage(
+                pageNumber: _pdfCurrentPage + 1,
+                anchor: PdfPageAnchor.center,
+              ),
+            );
+      }
+      return;
+    }
     PdfDesktopFit.fit(controller, _pdfMaxPageWidth);
   }
 
@@ -188,6 +204,11 @@ extension _DesktopReader on _ReadingScreenState {
   /// chapter and moves to the next one at its end; a PDF moves a page.
   void _turnPage(int direction) {
     if (_isEpubOpen) {
+      if (_epubPageTurner.isActive) {
+        _epubPageTurner.turn(direction);
+        _recordInteraction();
+        return;
+      }
       _scrollEpub(direction, byScreen: true);
     } else {
       _jumpToPdfPage(_pdfCurrentPage + 1 + direction);
@@ -293,14 +314,24 @@ extension _DesktopReader on _ReadingScreenState {
 
     final reader = RouteShortcuts(
       bindings: {
+        // As pages, every arrow turns a page; scrolled, ←/→ change chapter
+        // and ↑/↓ scroll a few lines.
         const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-            _isEpubOpen ? _turnChapter(1) : _turnPage(1),
+            _isEpubOpen && !_epubPageTurner.isActive
+            ? _turnChapter(1)
+            : _turnPage(1),
         const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-            _isEpubOpen ? _turnChapter(-1) : _turnPage(-1),
+            _isEpubOpen && !_epubPageTurner.isActive
+            ? _turnChapter(-1)
+            : _turnPage(-1),
         const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-            _isEpubOpen ? _scrollEpub(1, byScreen: false) : _turnPage(1),
+            _isEpubOpen && !_epubPageTurner.isActive
+            ? _scrollEpub(1, byScreen: false)
+            : _turnPage(1),
         const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-            _isEpubOpen ? _scrollEpub(-1, byScreen: false) : _turnPage(-1),
+            _isEpubOpen && !_epubPageTurner.isActive
+            ? _scrollEpub(-1, byScreen: false)
+            : _turnPage(-1),
         const SingleActivator(LogicalKeyboardKey.space): () => _turnPage(1),
         const SingleActivator(LogicalKeyboardKey.space, shift: true): () =>
             _turnPage(-1),

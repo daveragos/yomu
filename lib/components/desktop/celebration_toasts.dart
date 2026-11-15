@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/constants.dart';
+import '../../core/yomu_colors.dart';
 import '../../core/platform_caps.dart';
 import '../../services/celebrations.dart';
 
@@ -154,6 +154,7 @@ class _CelebrationCardState extends State<_CelebrationCard>
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
+    final colors = context.yomu;
 
     final card = DecoratedBox(
       decoration: BoxDecoration(
@@ -167,11 +168,11 @@ class _CelebrationCardState extends State<_CelebrationCard>
         ],
       ),
       child: Material(
-        color: YomuConstants.surface,
+        color: colors.surface,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          side: BorderSide(color: colors.tint(0.08)),
         ),
         child: SizedBox(
           width: 340,
@@ -187,10 +188,10 @@ class _CelebrationCardState extends State<_CelebrationCard>
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: colors.tint(0.05),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(_icon, size: 18, color: YomuConstants.accent),
+                      child: Icon(_icon, size: 18, color: colors.accent),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -199,8 +200,8 @@ class _CelebrationCardState extends State<_CelebrationCard>
                         children: [
                           Text(
                             widget.celebration.title,
-                            style: const TextStyle(
-                              color: YomuConstants.textPrimary,
+                            style: TextStyle(
+                              color: colors.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -208,8 +209,8 @@ class _CelebrationCardState extends State<_CelebrationCard>
                           const SizedBox(height: 2),
                           Text(
                             widget.celebration.body,
-                            style: const TextStyle(
-                              color: YomuConstants.textSecondary,
+                            style: TextStyle(
+                              color: colors.textSecondary,
                               fontSize: 13,
                               height: 1.35,
                             ),
@@ -226,7 +227,7 @@ class _CelebrationCardState extends State<_CelebrationCard>
                   alignment: Alignment.centerLeft,
                   child: FractionallySizedBox(
                     widthFactor: 1 - _timer.value,
-                    child: Container(height: 2, color: YomuConstants.accent),
+                    child: Container(height: 2, color: colors.accent),
                   ),
                 ),
               ),

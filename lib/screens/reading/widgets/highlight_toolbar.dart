@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/highlight_model.dart';
 import '../../../models/reader_settings_model.dart';
 import 'note_editor.dart';
@@ -43,6 +44,7 @@ class HighlightToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = settings.menuIconColor;
+    final accent = context.yomu.accent;
     const btnSize = 36.0;
     const iconSize = 20.0;
 
@@ -102,13 +104,13 @@ class HighlightToolbar extends StatelessWidget {
               children: [
                 button(
                   Icons.sticky_note_2_rounded,
-                  YomuConstants.accent,
+                  accent,
                   onNote,
                 ),
                 if (onPlayVoiceNote != null)
                   button(
                     Icons.graphic_eq_rounded,
-                    YomuConstants.accent,
+                    accent,
                     onPlayVoiceNote!,
                     tooltip: 'Play voice note',
                   ),
@@ -161,59 +163,64 @@ void showVoiceNoteSheet(
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (context) => Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      decoration: BoxDecoration(
-        color: settings.menuBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+    builder: (context) {
+      final colors = context.yomu;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        decoration: BoxDecoration(
+          // Dark mode keeps the reader's menu colour; light mode is an app
+          // sheet.
+          color: colors.isDark ? settings.menuBackgroundColor : colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.tint(0.24),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              highlight.sharedBy != null
-                  ? 'VOICE NOTE FROM ${highlight.sharedBy!.toUpperCase()}'
-                  : 'VOICE NOTE',
-              style: const TextStyle(
-                color: YomuConstants.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.8,
+              const SizedBox(height: 16),
+              Text(
+                highlight.sharedBy != null
+                    ? 'VOICE NOTE FROM ${highlight.sharedBy!.toUpperCase()}'
+                    : 'VOICE NOTE',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.8,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              highlight.text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontStyle: FontStyle.italic,
+              const SizedBox(height: 8),
+              Text(
+                highlight.text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.tint(0.70),
+                  fontStyle: FontStyle.italic,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            VoiceNotePlayer(
-              fileName: highlight.audioFile!,
-              durationMs: highlight.audioDurationMs,
-              waveform: highlight.audioWaveform,
-            ),
-          ],
+              const SizedBox(height: 16),
+              VoiceNotePlayer(
+                fileName: highlight.audioFile!,
+                durationMs: highlight.audioDurationMs,
+                waveform: highlight.audioWaveform,
+              ),
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }

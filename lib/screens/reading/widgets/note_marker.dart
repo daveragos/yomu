@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/highlight_model.dart';
 import 'note_author_avatar.dart';
 
@@ -32,7 +33,7 @@ class NoteMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final author = highlight.sharedBy;
-    final color = noteAuthorColor(author);
+    final color = noteAuthorColor(author, accent: context.yomu.accent);
     final initial = author?.trim().characters.firstOrNull?.toUpperCase();
     final what = [
       if (highlight.hasAudio) 'voice note',

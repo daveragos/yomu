@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart' show Brightness;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/reader_settings_model.dart';
@@ -53,7 +54,10 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
     });
   }
 
-  void setTheme(ReaderTheme theme) {
+  /// Shows [theme] on the page. For an EPUB it is also remembered as the
+  /// page for the app's current appearance ([appBrightness]); a PDF's theme
+  /// only lasts while it is open.
+  void setTheme(ReaderTheme theme, {Brightness? appBrightness}) {
     final book = _ref.read(currentlyReadingProvider);
     final isPdf = book?.filePath.toLowerCase().endsWith('.pdf') ?? false;
 
@@ -68,9 +72,31 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
       state = state.copyWith(
         theme: theme,
         epubTheme: theme,
+        lightPageTheme: appBrightness == Brightness.light ? theme : null,
+        darkPageTheme: appBrightness == Brightness.dark ? theme : null,
         usePublisherDefaults: false,
       );
     }
+    _saveSettings();
+  }
+
+  /// Puts the page theme of [appBrightness] on the page, after the app
+  /// switched between light and dark. A PDF follows only when [includePdf]
+  /// (the reader's day/night button), since PDFs open in their own colours.
+  void followAppearance(Brightness appBrightness, {bool includePdf = false}) {
+    final book = _ref.read(currentlyReadingProvider);
+    final isPdf = book?.filePath.toLowerCase().endsWith('.pdf') ?? false;
+    if (isPdf && !includePdf) return;
+    final theme = state.pageThemeFor(appBrightness);
+    if (state.theme == theme) return;
+    state = state.copyWith(theme: theme);
+    _saveSettings();
+  }
+
+  void setPageTurn(PageTurn pageTurn, {required bool isPdf}) {
+    state = isPdf
+        ? state.copyWith(pdfPageTurn: pageTurn)
+        : state.copyWith(epubPageTurn: pageTurn);
     _saveSettings();
   }
 
@@ -102,8 +128,15 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
 
   void togglePublisherDefaults(bool value) {
     if (value) {
-      // Reset to defaults when enabled
-      state = ReaderSettings.defaults.copyWith(usePublisherDefaults: true);
+      // Reset the text to defaults when enabled; how pages turn and which
+      // page goes with which appearance are not the publisher's to set.
+      state = ReaderSettings.defaults.copyWith(
+        usePublisherDefaults: true,
+        epubPageTurn: state.epubPageTurn,
+        pdfPageTurn: state.pdfPageTurn,
+        lightPageTheme: state.lightPageTheme,
+        darkPageTheme: state.darkPageTheme,
+      );
     } else {
       state = state.copyWith(usePublisherDefaults: false);
     }

@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import '../../../core/platform_caps.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
+import '../paging/epub_page_turner.dart';
 
 class ReadingFooter extends StatelessWidget {
   final Book book;
@@ -14,6 +16,9 @@ class ReadingFooter extends StatelessWidget {
   final int currentChapterIndex;
   final List<int>? chapterLengths;
 
+  /// The page within the chapter, when an EPUB is read as pages.
+  final ValueListenable<ChapterPagePosition?>? pagePosition;
+
   const ReadingFooter({
     super.key,
     required this.book,
@@ -25,6 +30,7 @@ class ReadingFooter extends StatelessWidget {
     required this.totalChapters,
     required this.currentChapterIndex,
     this.chapterLengths,
+    this.pagePosition,
   });
 
   @override
@@ -87,6 +93,24 @@ class ReadingFooter extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            if (pagePosition != null)
+              ValueListenableBuilder<ChapterPagePosition?>(
+                valueListenable: pagePosition!,
+                builder: (context, position, _) => position == null
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: Text(
+                          '${position.page}/${position.count}',
+                          style: TextStyle(
+                            color: settings.secondaryTextColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+              ),
             ValueListenableBuilder<double>(
               valueListenable: scrollProgressNotifier,
               builder: (context, scrollProgress, _) {

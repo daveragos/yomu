@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import './glass_container.dart';
 
 class StreakWidget extends StatelessWidget {
@@ -10,9 +10,8 @@ class StreakWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color fireColor = isActive
-        ? YomuConstants.accent
-        : YomuConstants.textSecondary;
+    final colors = context.yomu;
+    final Color fireColor = isActive ? colors.accent : colors.textSecondary;
 
     return GlassContainer(
       padding: const EdgeInsets.all(12),

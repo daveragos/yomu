@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +16,8 @@ import '../../../models/highlight_model.dart';
 import 'share_quote_sheet.dart';
 import 'highlight_toolbar.dart';
 import 'note_marker.dart';
+import '../paging/epub_page_turner.dart';
+import '../paging/paged_chapter.dart';
 import '../../../utils/epub_text_match.dart';
 
 class EpubChapterPage extends StatefulWidget {
@@ -60,6 +63,12 @@ class EpubChapterPage extends StatefulWidget {
   /// Called with the part of the chapter now on screen, as 0–1 fractions.
   final void Function(int chapter, double from, double to)? onContentSeen;
 
+  /// Scroll through the chapter, or show it as pages that slide sideways.
+  final PageTurn pageTurn;
+
+  /// Lets the reader turn this chapter's pages while it is the current one.
+  final EpubPageTurner? pageTurner;
+
   const EpubChapterPage({
     super.key,
     required this.index,
@@ -94,6 +103,8 @@ class EpubChapterPage extends StatefulWidget {
     this.epubBook,
     this.bookTitle,
     this.bookAuthor,
+    this.pageTurn = PageTurn.scroll,
+    this.pageTurner,
   });
 
   @override
@@ -123,6 +134,30 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   final Map<String, Uint8List> _imageCache = {};
   final GlobalKey _contentKey = GlobalKey();
 
+  // Slide mode (pages instead of a scroll).
+  final PagedChapterController _paged = PagedChapterController();
+  bool get _isPaged => widget.pageTurn == PageTurn.slide;
+
+  /// Position requests that are answered once the pages are known.
+  bool _ackBottomWhenPaged = false;
+  bool _ackPositionWhenPaged = false;
+
+  /// Height of a page's text area, for auto page turn and pictures.
+  double _pageTextHeight = 600;
+
+  /// Tallest top inset seen, so the page doesn't reflow when the status
+  /// bar hides with the controls.
+  double _topInset = 0;
+
+  /// On a phone, the tallest the page area has been at this width: the
+  /// system bars come and go with the controls, and the pages shouldn't be
+  /// cut again each time.
+  double _stableHeight = 0;
+  double _stableWidth = 0;
+
+  /// Auto page turn: scroll distance covered since the last turn.
+  double _autoTurnDistance = 0;
+
   @override
   void initState() {
     super.initState();
@@ -133,16 +168,31 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     final bool jumpRequested =
         widget.isCurrentPage && widget.shouldJumpToBottom;
     if (widget.opensAtEnd || jumpRequested) {
-      _jumpToEnd(acknowledge: jumpRequested);
+      if (_isPaged) {
+        _paged.jumpToEnd();
+        _ackBottomWhenPaged = jumpRequested;
+      } else {
+        _jumpToEnd(acknowledge: jumpRequested);
+      }
       _isInitialPositionRestored = true;
     } else if (widget.isCurrentPage && widget.initialScrollProgress > 0) {
-      _checkAndJumpToPosition();
+      if (_isPaged) {
+        _paged.jumpToProgress(widget.initialScrollProgress);
+        _ackPositionWhenPaged = true;
+      } else {
+        _checkAndJumpToPosition();
+      }
     } else {
       _isInitialPositionRestored = true;
     }
+    if (widget.isCurrentPage && _isPaged) widget.pageTurner?.attach(_paged);
 
     _ticker = createTicker((elapsed) {
       final speed = widget.autoScrollSpeedNotifier.value;
+      if (_isPaged) {
+        _autoTurnPage(speed, elapsed);
+        return;
+      }
       if (speed > 0 && _scrollController.hasClients) {
         final deltaTime = (elapsed - _lastElapsed).inMilliseconds / 1000.0;
         _lastElapsed = elapsed;
@@ -181,22 +231,37 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   void didUpdateWidget(EpubChapterPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isCurrentPage && !oldWidget.isCurrentPage) {
+      if (_isPaged) widget.pageTurner?.attach(_paged);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _scrollController.hasClients) {
           _reportSeen(_scrollController.position);
         }
       });
+    } else if (!widget.isCurrentPage && oldWidget.isCurrentPage) {
+      widget.pageTurner?.detach(_paged);
     }
     // The chapter being left stays mounted until the page animation ends, so
     // position requests must only move the chapter that is now current.
     if (widget.isCurrentPage &&
         widget.shouldJumpToBottom &&
         !oldWidget.shouldJumpToBottom) {
-      _jumpToEnd(acknowledge: true);
+      if (_isPaged) {
+        _paged.jumpToEnd();
+        _ackBottomWhenPaged = true;
+        _answerPagedRequests();
+      } else {
+        _jumpToEnd(acknowledge: true);
+      }
     } else if (widget.isCurrentPage &&
         widget.initialScrollProgress != oldWidget.initialScrollProgress &&
         widget.initialScrollProgress > 0) {
-      _checkAndJumpToPosition();
+      if (_isPaged) {
+        _paged.jumpToProgress(widget.initialScrollProgress);
+        _ackPositionWhenPaged = true;
+        _answerPagedRequests();
+      } else {
+        _checkAndJumpToPosition();
+      }
     } else if (widget.isCurrentPage && !oldWidget.isCurrentPage) {
       // The screen resets progress to 0 on a chapter change; report where
       // this chapter actually is (its end, when it was entered from below).
@@ -341,6 +406,10 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   }
 
   void _publishProgress() {
+    if (_isPaged) {
+      _publishPaged();
+      return;
+    }
     if (!mounted ||
         !widget.isCurrentPage ||
         !_isInitialPositionRestored ||
@@ -410,14 +479,168 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   @override
   void dispose() {
     widget.autoScrollSpeedNotifier.removeListener(_handleSpeedChange);
+    widget.pageTurner?.detach(_paged);
     _ticker?.dispose();
     _scrollController.dispose();
     _pullOffset.dispose();
+    _paged.dispose();
     super.dispose();
+  }
+
+  // Slide mode.
+
+  /// After the pages were (re)computed: answers position requests that
+  /// waited for them and reports where the chapter now is.
+  void _onPaginated() {
+    if (!mounted) return;
+    if (!_isInitialPositionRestored) {
+      setState(() => _isInitialPositionRestored = true);
+    }
+    _answerPagedRequests();
+  }
+
+  void _answerPagedRequests() {
+    if (!_paged.hasPages) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_ackBottomWhenPaged) {
+        _ackBottomWhenPaged = false;
+        widget.onJumpedToBottom();
+      }
+      if (_ackPositionWhenPaged) {
+        _ackPositionWhenPaged = false;
+        _isInitialPositionRestored = true;
+        widget.onJumpedToPosition();
+      }
+      _publishPaged();
+    });
+  }
+
+  /// Progress, reading credit and the footer's page number for the page
+  /// on screen.
+  void _publishPaged() {
+    final pages = _paged.pages;
+    if (!mounted || !widget.isCurrentPage || pages == null) return;
+    final page = _paged.page;
+    widget.pageTurner?.position.value = ChapterPagePosition(
+      page + 1,
+      pages.count,
+    );
+    if (!_isInitialPositionRestored || _ackBottomWhenPaged) return;
+    final progress = _paged.progress;
+    if (progress != widget.scrollProgressNotifier.value) {
+      widget.scrollProgressNotifier.value = progress;
+    }
+    final (from, to) = pages.seenFraction(page);
+    widget.onContentSeen?.call(widget.index, from, to);
+  }
+
+  /// Auto scroll as pages: a page turns once the distance the scroll would
+  /// have covered at this speed reaches a page's height.
+  void _autoTurnPage(double speed, Duration elapsed) {
+    final deltaTime = (elapsed - _lastElapsed).inMilliseconds / 1000.0;
+    _lastElapsed = elapsed;
+    if (speed <= 0 || deltaTime <= 0 || !widget.isCurrentPage) return;
+    _autoTurnDistance += speed * 30.0 * deltaTime;
+    if (_autoTurnDistance >= _pageTextHeight) {
+      _autoTurnDistance = 0;
+      _paged.turn(1);
+    }
+  }
+
+  void _clearSelection() {
+    if (_selectedContent == null) return;
+    final state = _contentKey.currentState;
+    if (state is SelectionAreaState) state.selectableRegion.clearSelection();
+    _selectedContent = null;
+  }
+
+  /// A tap while text is selected only clears the selection.
+  bool _dismissSelection() {
+    final text = _selectedContent?.plainText;
+    if (text == null || text.isEmpty) return false;
+    _clearSelection();
+    return true;
+  }
+
+  Widget _buildPagedView() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _topInset = math.max(_topInset, MediaQuery.viewPaddingOf(context).top);
+        final padding = EdgeInsets.fromLTRB(20, _topInset + 20, 20, 12);
+        // A window can really shrink on a computer, so only phones keep the
+        // taller height.
+        var height = constraints.maxHeight;
+        if (Platform.isAndroid || Platform.isIOS) {
+          if (constraints.maxWidth != _stableWidth) {
+            _stableWidth = constraints.maxWidth;
+            _stableHeight = height;
+          }
+          _stableHeight = math.max(_stableHeight, height);
+          height = _stableHeight;
+        }
+        _pageTextHeight = math.max(height - padding.vertical, 120);
+        return ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.topCenter,
+            minHeight: height,
+            maxHeight: height,
+            child: _buildPagedChapter(padding),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPagedChapter(EdgeInsets padding) {
+    return Builder(
+      builder: (context) {
+        return SelectionArea(
+          key: _contentKey,
+          onSelectionChanged: (content) => _selectedContent = content,
+          contextMenuBuilder: (context, selectableRegionState) =>
+              _buildHighlightMenu(context, selectableRegionState),
+          child: PagedChapterView(
+            controller: _paged,
+            padding: padding,
+            chapterIndex: widget.index,
+            chapterCount: widget.chapters.length,
+            chapterController: widget.pageController,
+            enabled: widget.isCurrentPage,
+            onPaginated: _onPaginated,
+            onSettled: () {
+              _autoTurnDistance = 0;
+              _publishPaged();
+            },
+            onUserTurn: () {
+              if (widget.showControls) widget.onHideControls();
+              widget.onInteraction();
+            },
+            onCenterTap: widget.onToggleControls,
+            onTapWithSelection: _dismissSelection,
+            beforeSlide: _clearSelection,
+            child: _buildChapterContent(context),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Where the reader is in the chapter, as the 0–1 fraction stored with
+  /// highlights and positions.
+  double get _currentRatio {
+    if (_isPaged) return _paged.progress;
+    return _scrollController.hasClients &&
+            _scrollController.position.maxScrollExtent > 0
+        ? (_scrollController.offset /
+                  _scrollController.position.maxScrollExtent)
+              .clamp(0.0, 1.0)
+        : 0.0;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isPaged) return _buildPagedView();
     return Listener(
       onPointerDown: (_) => _activePointers++,
       onPointerUp: (_) => _handlePointerRelease(canNavigate: true),
@@ -620,265 +843,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     const SizedBox(height: 100),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Builder(
-                          builder: (context) {
-                            final title = widget.chapter.Title;
-                            if (title != null) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 24),
-                                child: Text(
-                                  title.toUpperCase(),
-                                  style: TextStyle(
-                                    color: widget.settings.secondaryTextColor,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
-                        Html(
-                          key: ValueKey(
-                            'epub_html_${widget.index}_${widget.chapter.Title ?? "none"}',
-                          ),
-                          data: _processedHtml,
-                          onLinkTap: (url, attributes, element) {
-                            if (url == null ||
-                                url.isEmpty ||
-                                widget.pageController == null) {
-                              return;
-                            }
-
-                            String targetUrl = url;
-                            while (targetUrl.startsWith('../')) {
-                              targetUrl = targetUrl.substring(3);
-                            }
-
-                            final parts = targetUrl.split('#');
-                            final targetFile = parts[0];
-                            final anchor = parts.length > 1 ? parts[1] : null;
-
-                            if (targetFile.isEmpty && anchor != null) {
-                              for (int i = 0; i < widget.chapters.length; i++) {
-                                final ch = widget.chapters[i];
-                                if (ch.Anchor == anchor &&
-                                    ch.ContentFileName ==
-                                        widget.chapter.ContentFileName) {
-                                  widget.pageController?.jumpToPage(i);
-                                  return;
-                                }
-                              }
-                              return;
-                            }
-
-                            int? targetIndex;
-                            int? fileOnlyIndex;
-                            for (int i = 0; i < widget.chapters.length; i++) {
-                               final ch = widget.chapters[i];
-                               final chapterFile = ch.ContentFileName ?? '';
-                               if (chapterFile.isEmpty) continue;
-                               final fileMatches =
-                                   chapterFile == targetFile ||
-                                   chapterFile.endsWith('/$targetFile') ||
-                                   chapterFile.endsWith(targetFile);
-                               if (!fileMatches) continue;
-
-                               if (anchor != null &&
-                                   anchor.isNotEmpty &&
-                                   ch.Anchor == anchor) {
-                                 targetIndex = i;
-                                 break;
-                               }
-                               fileOnlyIndex ??= i;
-                            }
-
-                            targetIndex ??= fileOnlyIndex;
-                            if (targetIndex != null) {
-                              widget.pageController?.jumpToPage(targetIndex);
-                            }
-                          },
-                          extensions: [
-                            TagExtension(
-                              tagsToExtend: {'yomu-note'},
-                              builder: (extensionContext) {
-                                final id = int.tryParse(
-                                  extensionContext.attributes['data-id'] ?? '',
-                                );
-                                final highlight = widget.highlights
-                                    .where((h) => h.id == id)
-                                    .firstOrNull;
-                                if (highlight == null ||
-                                    widget.onOpenNote == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                return NoteMarker(
-                                  highlight: highlight,
-                                  replyCount:
-                                      widget.replyCounts[highlight.uid] ?? 0,
-                                  size: (widget.settings.textSize * 0.85)
-                                      .clamp(14.0, 22.0),
-                                  onTap: () => widget.onOpenNote!(highlight),
-                                );
-                              },
-                            ),
-                            TagExtension(
-                              tagsToExtend: {"img", "image"},
-                              builder: (extensionContext) {
-                                final src = extensionContext.attributes['src'] ??
-                                    extensionContext.attributes['href'] ??
-                                    extensionContext.attributes['xlink:href'];
-
-                                if (src == null || widget.epubBook == null) {
-                                  return const SizedBox.shrink();
-                                }
-
-                                if (src.startsWith('data:image/')) {
-                                  try {
-                                    if (!_imageCache.containsKey(src)) {
-                                      final parts = src.split(',');
-                                      if (parts.length == 2) {
-                                        _imageCache[src] = base64Decode(parts[1].trim());
-                                      }
-                                    }
-                                    final bytes = _imageCache[src];
-                                    if (bytes != null) {
-                                      return ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxWidth: MediaQuery.of(context).size.width - 40,
-                                        ),
-                                        child: Image.memory(
-                                          bytes,
-                                          fit: BoxFit.scaleDown,
-                                          gaplessPlayback: true,
-                                          filterQuality: FilterQuality.medium,
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    return const SizedBox.shrink();
-                                  }
-                                }
-
-                                String path = Uri.decodeComponent(src);
-                                path = path.split('?').first.split('#').first;
-                                
-                                while (path.startsWith('../')) {
-                                  path = path.substring(3);
-                                }
-                                if (path.startsWith('/')) {
-                                  path = path.substring(1);
-                                }
-
-                                final images = widget.epubBook?.Content?.Images;
-                                if (images == null) return const SizedBox.shrink();
-
-                                EpubByteContentFile? imageFile = images[path];
-
-                                if (imageFile == null) {
-                                  final fileName = path.split('/').last;
-                                  for (final file in images.values) {
-                                    if (file.FileName == fileName ||
-                                        file.FileName == Uri.decodeComponent(fileName)) {
-                                      imageFile = file;
-                                      break;
-                                    }
-                                  }
-                                }
-
-                                if (imageFile != null) {
-                                  if (!_imageCache.containsKey(path)) {
-                                    final content = imageFile.Content;
-                                    if (content != null) {
-                                      _imageCache[path] = content is Uint8List
-                                          ? content
-                                          : Uint8List.fromList(content);
-                                    }
-                                  }
-                                  
-                                  final bytes = _imageCache[path];
-                                  if (bytes != null) {
-                                    return ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth: MediaQuery.of(context).size.width - 40,
-                                      ),
-                                      child: Image.memory(
-                                        bytes,
-                                        key: ValueKey('img_${path.hashCode}_${bytes.length}'),
-                                        fit: BoxFit.scaleDown,
-                                        gaplessPlayback: true,
-                                        filterQuality: FilterQuality.medium,
-                                      ),
-                                    );
-                                  }
-                                }
-                                return const SizedBox.shrink();
-                              },
-                            ),
-                          ],
-                          style: {
-                            "body": Style(
-                              margin: Margins.zero,
-                              padding: HtmlPaddings.zero,
-                              fontSize: FontSize(widget.settings.textSize, Unit.px),
-                              lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
-                              color: widget.settings.textColor,
-                              textAlign: _convertTextAlign(widget.settings.textAlign),
-                              fontFamily: widget.settings.typeface == 'System' ? null : widget.settings.typeface,
-                            ),
-                            "p": Style(
-                              margin: Margins.only(bottom: 16),
-                              lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
-                            ),
-                            "h1": Style(
-                              fontSize: FontSize(widget.settings.textSize * 1.5, Unit.px),
-                              fontWeight: FontWeight.bold,
-                              margin: Margins.only(top: 24, bottom: 12),
-                            ),
-                            "h2": Style(
-                              fontSize: FontSize(widget.settings.textSize * 1.3, Unit.px),
-                              fontWeight: FontWeight.bold,
-                              margin: Margins.only(top: 20, bottom: 10),
-                            ),
-                            "h3": Style(
-                              fontSize: FontSize(widget.settings.textSize * 1.1, Unit.px),
-                              fontWeight: FontWeight.bold,
-                              margin: Margins.only(top: 16, bottom: 8),
-                            ),
-                            "blockquote": Style(
-                              margin: Margins.only(left: 20, right: 20, bottom: 16),
-                              padding: HtmlPaddings.only(left: 12),
-                              border: Border(left: BorderSide(color: widget.settings.secondaryTextColor, width: 3)),
-                            ),
-                            "code": Style(
-                              fontFamily: "monospace",
-                              backgroundColor: widget.settings.textColor.withValues(alpha: 0.1),
-                              padding: HtmlPaddings.symmetric(horizontal: 4),
-                            ),
-                            "pre": Style(
-                              margin: Margins.only(bottom: 16),
-                              padding: HtmlPaddings.all(12),
-                              backgroundColor: widget.settings.textColor.withValues(alpha: 0.1),
-                              fontFamily: "monospace",
-                              display: Display.block,
-                            ),
-                            "img": Style(
-                              width: Width(MediaQuery.of(context).size.width - 40, Unit.px),
-                              alignment: Alignment.center,
-                            ),
-                            "image": Style(
-                              width: Width(MediaQuery.of(context).size.width - 40, Unit.px),
-                              alignment: Alignment.center,
-                            ),
-                          },
-                        ),
-                      ],
-                    ),
+                    _buildChapterContent(context),
                     const SizedBox(height: 100),
                   ],
                 ),
@@ -889,7 +854,281 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       );
   }
 
-  int? _findOccurrenceIndex(String selectedText, Offset primaryAnchor) {
+  /// Picture height limit: a page's height in slide mode, so a picture is
+  /// never cut across two pages.
+  double get _imageMaxHeight =>
+      _isPaged ? _pageTextHeight * 0.92 : double.infinity;
+
+  /// The chapter title and text, laid out as one column.
+  Widget _buildChapterContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Builder(
+          builder: (context) {
+            final title = widget.chapter.Title;
+            if (title != null) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    color: widget.settings.secondaryTextColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+        Html(
+          key: ValueKey(
+            'epub_html_${widget.index}_${widget.chapter.Title ?? "none"}',
+          ),
+          data: _processedHtml,
+          onLinkTap: (url, attributes, element) {
+            if (url == null ||
+                url.isEmpty ||
+                widget.pageController == null) {
+              return;
+            }
+
+            String targetUrl = url;
+            while (targetUrl.startsWith('../')) {
+              targetUrl = targetUrl.substring(3);
+            }
+
+            final parts = targetUrl.split('#');
+            final targetFile = parts[0];
+            final anchor = parts.length > 1 ? parts[1] : null;
+
+            if (targetFile.isEmpty && anchor != null) {
+              for (int i = 0; i < widget.chapters.length; i++) {
+                final ch = widget.chapters[i];
+                if (ch.Anchor == anchor &&
+                    ch.ContentFileName ==
+                        widget.chapter.ContentFileName) {
+                  widget.pageController?.jumpToPage(i);
+                  return;
+                }
+              }
+              return;
+            }
+
+            int? targetIndex;
+            int? fileOnlyIndex;
+            for (int i = 0; i < widget.chapters.length; i++) {
+               final ch = widget.chapters[i];
+               final chapterFile = ch.ContentFileName ?? '';
+               if (chapterFile.isEmpty) continue;
+               final fileMatches =
+                   chapterFile == targetFile ||
+                   chapterFile.endsWith('/$targetFile') ||
+                   chapterFile.endsWith(targetFile);
+               if (!fileMatches) continue;
+
+               if (anchor != null &&
+                   anchor.isNotEmpty &&
+                   ch.Anchor == anchor) {
+                 targetIndex = i;
+                 break;
+               }
+               fileOnlyIndex ??= i;
+            }
+
+            targetIndex ??= fileOnlyIndex;
+            if (targetIndex != null) {
+              widget.pageController?.jumpToPage(targetIndex);
+            }
+          },
+          extensions: [
+            TagExtension(
+              tagsToExtend: {'yomu-note'},
+              builder: (extensionContext) {
+                final id = int.tryParse(
+                  extensionContext.attributes['data-id'] ?? '',
+                );
+                final highlight = widget.highlights
+                    .where((h) => h.id == id)
+                    .firstOrNull;
+                if (highlight == null ||
+                    widget.onOpenNote == null) {
+                  return const SizedBox.shrink();
+                }
+                return NoteMarker(
+                  highlight: highlight,
+                  replyCount:
+                      widget.replyCounts[highlight.uid] ?? 0,
+                  size: (widget.settings.textSize * 0.85)
+                      .clamp(14.0, 22.0),
+                  onTap: () => widget.onOpenNote!(highlight),
+                );
+              },
+            ),
+            TagExtension(
+              tagsToExtend: {"img", "image"},
+              builder: (extensionContext) {
+                final src = extensionContext.attributes['src'] ??
+                    extensionContext.attributes['href'] ??
+                    extensionContext.attributes['xlink:href'];
+
+                if (src == null || widget.epubBook == null) {
+                  return const SizedBox.shrink();
+                }
+
+                if (src.startsWith('data:image/')) {
+                  try {
+                    if (!_imageCache.containsKey(src)) {
+                      final parts = src.split(',');
+                      if (parts.length == 2) {
+                        _imageCache[src] = base64Decode(parts[1].trim());
+                      }
+                    }
+                    final bytes = _imageCache[src];
+                    if (bytes != null) {
+                      return ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width - 40,
+                          maxHeight: _imageMaxHeight,
+                        ),
+                        child: Image.memory(
+                          bytes,
+                          fit: BoxFit.scaleDown,
+                          gaplessPlayback: true,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    return const SizedBox.shrink();
+                  }
+                }
+
+                String path = Uri.decodeComponent(src);
+                path = path.split('?').first.split('#').first;
+                
+                while (path.startsWith('../')) {
+                  path = path.substring(3);
+                }
+                if (path.startsWith('/')) {
+                  path = path.substring(1);
+                }
+
+                final images = widget.epubBook?.Content?.Images;
+                if (images == null) return const SizedBox.shrink();
+
+                EpubByteContentFile? imageFile = images[path];
+
+                if (imageFile == null) {
+                  final fileName = path.split('/').last;
+                  for (final file in images.values) {
+                    if (file.FileName == fileName ||
+                        file.FileName == Uri.decodeComponent(fileName)) {
+                      imageFile = file;
+                      break;
+                    }
+                  }
+                }
+
+                if (imageFile != null) {
+                  if (!_imageCache.containsKey(path)) {
+                    final content = imageFile.Content;
+                    if (content != null) {
+                      _imageCache[path] = content is Uint8List
+                          ? content
+                          : Uint8List.fromList(content);
+                    }
+                  }
+                  
+                  final bytes = _imageCache[path];
+                  if (bytes != null) {
+                    return ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width - 40,
+                        maxHeight: _imageMaxHeight,
+                      ),
+                      child: Image.memory(
+                        bytes,
+                        key: ValueKey('img_${path.hashCode}_${bytes.length}'),
+                        fit: BoxFit.scaleDown,
+                        gaplessPlayback: true,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    );
+                  }
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
+          style: {
+            "body": Style(
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
+              fontSize: FontSize(widget.settings.textSize, Unit.px),
+              lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
+              color: widget.settings.textColor,
+              textAlign: _convertTextAlign(widget.settings.textAlign),
+              fontFamily: widget.settings.typeface == 'System' ? null : widget.settings.typeface,
+            ),
+            "p": Style(
+              margin: Margins.only(bottom: 16),
+              lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
+            ),
+            "h1": Style(
+              fontSize: FontSize(widget.settings.textSize * 1.5, Unit.px),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(top: 24, bottom: 12),
+            ),
+            "h2": Style(
+              fontSize: FontSize(widget.settings.textSize * 1.3, Unit.px),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(top: 20, bottom: 10),
+            ),
+            "h3": Style(
+              fontSize: FontSize(widget.settings.textSize * 1.1, Unit.px),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(top: 16, bottom: 8),
+            ),
+            "blockquote": Style(
+              margin: Margins.only(left: 20, right: 20, bottom: 16),
+              padding: HtmlPaddings.only(left: 12),
+              border: Border(left: BorderSide(color: widget.settings.secondaryTextColor, width: 3)),
+            ),
+            "code": Style(
+              fontFamily: "monospace",
+              backgroundColor: widget.settings.textColor.withValues(alpha: 0.1),
+              padding: HtmlPaddings.symmetric(horizontal: 4),
+            ),
+            "pre": Style(
+              margin: Margins.only(bottom: 16),
+              padding: HtmlPaddings.all(12),
+              backgroundColor: widget.settings.textColor.withValues(alpha: 0.1),
+              fontFamily: "monospace",
+              display: Display.block,
+            ),
+            "img": Style(
+              width: Width(MediaQuery.of(context).size.width - 40, Unit.px),
+              alignment: Alignment.center,
+            ),
+            "image": Style(
+              width: Width(MediaQuery.of(context).size.width - 40, Unit.px),
+              alignment: Alignment.center,
+            ),
+          },
+        ),
+      ],
+    );
+  }
+
+  int? _findOccurrenceIndex(String selection, Offset primaryAnchor) {
+    // Counted without case, like `highlightPattern` finds the occurrence
+    // again in the HTML; a case-sensitive count put the highlight on an
+    // earlier match whenever a capitalised one came before it.
+    final selectedText = selection.toLowerCase();
     final RenderBox? contentBox = _contentKey.currentContext?.findRenderObject() as RenderBox?;
     if (contentBox == null) return null;
 
@@ -906,7 +1145,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     double minDistance = double.infinity;
 
     for (final p in paragraphs) {
-      final text = p.text.toPlainText();
+      final text = p.text.toPlainText().toLowerCase();
       if (text.contains(selectedText)) {
         final bounds = p.paintBounds;
         final globalOffset = p.localToGlobal(Offset.zero);
@@ -931,7 +1170,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
     int occurrenceIndex = 0;
     for (final p in paragraphs) {
-      final text = p.text.toPlainText();
+      final text = p.text.toPlainText().toLowerCase();
       if (p == targetParagraph) {
         final localOffset = p.globalToLocal(primaryAnchor);
         final textPos = p.getPositionForOffset(localOffset).offset;
@@ -996,9 +1235,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     }
 
     if (existingHighlight == null) {
-      double exactRatio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0
-          ? (_scrollController.offset / _scrollController.position.maxScrollExtent).clamp(0.0, 1.0)
-          : 0.0;
+      double exactRatio = _currentRatio;
       double minDistance = double.infinity;
       for (final h in widget.highlights) {
         if (h.chapterIndex == widget.index && h.text == selectedText) {
@@ -1035,7 +1272,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
           child: HighlightToolbar(
             settings: widget.settings,
             onColor: (hexColor) {
-              final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
+              final ratio = _currentRatio;
               widget.onHighlight(Highlight(
                 bookId: 0,
                 chapterIndex: widget.index,
@@ -1081,11 +1318,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   }
 
   void _showNoteSheet(BuildContext context, String text, Highlight? existing) {
-    final ratio = _scrollController.hasClients &&
-            _scrollController.position.maxScrollExtent > 0
-        ? (_scrollController.offset /
-              _scrollController.position.maxScrollExtent)
-        : 0.0;
+    final ratio = _currentRatio;
     showHighlightNoteSheet(
       context,
       settings: widget.settings,

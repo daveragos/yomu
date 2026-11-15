@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../components/glass_container.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 
 /// A stat for wide layouts: an icon chip beside a large value, so a
 /// row of tiles fills its width without looking empty.
@@ -23,6 +23,7 @@ class DesktopStatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return GlassContainer(
       padding: const EdgeInsets.all(18),
       child: Row(
@@ -31,12 +32,12 @@ class DesktopStatTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: colors.tint(0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              color: color ?? YomuConstants.textSecondary,
+              color: color ?? colors.textSecondary,
               size: 22,
             ),
           ),
@@ -49,8 +50,8 @@ class DesktopStatTile extends StatelessWidget {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: YomuConstants.textPrimary,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     height: 1.1,
@@ -61,8 +62,8 @@ class DesktopStatTile extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: YomuConstants.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -78,6 +79,10 @@ class DesktopStatTile extends StatelessWidget {
 
 /// The streak flame color used across the app: the accent once today's
 /// reading is done, grey until then.
-Color streakColor({required int streak, required bool isActive}) {
-  return isActive ? YomuConstants.accent : YomuConstants.textSecondary;
+Color streakColor({
+  required YomuColors colors,
+  required int streak,
+  required bool isActive,
+}) {
+  return isActive ? colors.accent : colors.textSecondary;
 }

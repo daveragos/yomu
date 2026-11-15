@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:markdown_quill/markdown_quill.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../services/annotation_audio_service.dart';
 import 'voice_note_recorder.dart';
@@ -178,10 +179,15 @@ class _NoteEditorState extends State<NoteEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: widget.settings?.menuBackgroundColor ?? YomuConstants.surface,
+        // Dark mode keeps the reader's menu colour; light mode is an app
+        // sheet.
+        color: colors.isDark
+            ? widget.settings?.menuBackgroundColor ?? colors.surface
+            : colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Scaffold(
@@ -195,7 +201,7 @@ class _NoteEditorState extends State<NoteEditor> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: colors.tint(0.24),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -212,8 +218,8 @@ class _NoteEditorState extends State<NoteEditor> {
                       children: [
                         Text(
                           widget.title,
-                          style: const TextStyle(
-                            color: YomuConstants.accent,
+                          style: TextStyle(
+                            color: colors.accent,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -221,8 +227,8 @@ class _NoteEditorState extends State<NoteEditor> {
                         if (widget.subtitle != null)
                           Text(
                             widget.subtitle!,
-                            style: const TextStyle(
-                              color: Colors.white38,
+                            style: TextStyle(
+                              color: colors.tint(0.38),
                               fontSize: 12,
                             ),
                           ),
@@ -234,10 +240,10 @@ class _NoteEditorState extends State<NoteEditor> {
                       _onSave();
                       Navigator.pop(context);
                     },
-                    child: const Text(
+                    child: Text(
                       'SAVE',
                       style: TextStyle(
-                        color: YomuConstants.accent,
+                        color: colors.accent,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -298,7 +304,7 @@ class _NoteEditorState extends State<NoteEditor> {
                 onRemoved: _onAudioRemoved,
               ),
             ),
-            const Divider(height: 1, color: Colors.white10),
+            Divider(height: 1, color: colors.tint(0.10)),
             QuillSimpleToolbar(
               controller: _controller,
               config: QuillSimpleToolbarConfig(
@@ -330,12 +336,12 @@ class _NoteEditorState extends State<NoteEditor> {
                   base: QuillToolbarBaseButtonOptions(
                     iconTheme: QuillIconTheme(
                       iconButtonUnselectedData: IconButtonData(
-                        color: Colors.white70,
+                        color: colors.tint(0.70),
                       ),
                       iconButtonSelectedData: IconButtonData(
-                        color: YomuConstants.accent,
+                        color: colors.accent,
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.1),
+                          backgroundColor: colors.tint(0.1),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -346,7 +352,7 @@ class _NoteEditorState extends State<NoteEditor> {
                 ),
               ),
             ),
-            const Divider(height: 1, color: Colors.white10),
+            Divider(height: 1, color: colors.tint(0.10)),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -361,8 +367,8 @@ class _NoteEditorState extends State<NoteEditor> {
                     placeholder: 'Write something amazing...',
                     customStyles: DefaultStyles(
                       paragraph: DefaultTextBlockStyle(
-                        const TextStyle(
-                          color: Colors.white,
+                        TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 18,
                           height: 1.6,
                         ),
@@ -372,8 +378,8 @@ class _NoteEditorState extends State<NoteEditor> {
                         null,
                       ),
                       placeHolder: DefaultTextBlockStyle(
-                        const TextStyle(
-                          color: Colors.white24,
+                        TextStyle(
+                          color: colors.tint(0.24),
                           fontSize: 18,
                         ),
                         const HorizontalSpacing(0, 0),

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../components/book_cover_image.dart';
-import '../../core/constants.dart';
+import '../../core/yomu_colors.dart';
 import '../../models/book_model.dart';
 import '../../providers/library_provider.dart';
 
@@ -38,13 +38,14 @@ class DesktopSidebar extends ConsumerWidget {
     final recent = state.allBooks.where((b) => b.lastReadAt != null).toList()
       ..sort((a, b) => b.lastReadAt!.compareTo(a.lastReadAt!));
     final current = recent.isEmpty ? null : recent.first;
+    final colors = context.yomu;
 
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: YomuConstants.surface.withValues(alpha: 0.35),
+        color: colors.surface.withValues(alpha: 0.35),
         border: Border(
-          right: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          right: BorderSide(color: colors.tint(0.06)),
         ),
       ),
       child: SafeArea(
@@ -86,8 +87,9 @@ class _Wordmark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 10),
+    final colors = context.yomu;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
@@ -95,17 +97,17 @@ class _Wordmark extends StatelessWidget {
           Text(
             'Yomu',
             style: TextStyle(
-              color: YomuConstants.textPrimary,
+              color: colors.textPrimary,
               fontSize: 24,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.3,
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Text(
             '読む',
             style: TextStyle(
-              color: YomuConstants.accent,
+              color: colors.accent,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -127,8 +129,8 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Text(
         text.toUpperCase(),
-        style: const TextStyle(
-          color: YomuConstants.textSecondary,
+        style: TextStyle(
+          color: context.yomu.textSecondary,
           fontSize: 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -164,10 +166,11 @@ class _NavItemState extends State<_NavItem> {
   @override
   Widget build(BuildContext context) {
     final selected = widget.isSelected;
+    final colors = context.yomu;
     final Color background = selected
-        ? Colors.white.withValues(alpha: 0.07)
+        ? colors.tint(0.07)
         : _hovered
-        ? Colors.white.withValues(alpha: 0.04)
+        ? colors.tint(0.04)
         : Colors.transparent;
 
     return Padding(
@@ -191,8 +194,8 @@ class _NavItemState extends State<_NavItem> {
                   widget.icon,
                   size: 20,
                   color: selected
-                      ? YomuConstants.accent
-                      : YomuConstants.textSecondary,
+                      ? colors.accent
+                      : colors.textSecondary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -200,8 +203,8 @@ class _NavItemState extends State<_NavItem> {
                     widget.label,
                     style: TextStyle(
                       color: selected
-                          ? YomuConstants.textPrimary
-                          : YomuConstants.textSecondary,
+                          ? colors.textPrimary
+                          : colors.textSecondary,
                       fontSize: 14,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                     ),
@@ -213,7 +216,7 @@ class _NavItemState extends State<_NavItem> {
                   child: Text(
                     widget.shortcut,
                     style: TextStyle(
-                      color: YomuConstants.textSecondary.withValues(alpha: 0.6),
+                      color: colors.textSecondary.withValues(alpha: 0.6),
                       fontSize: 11,
                     ),
                   ),
@@ -236,8 +239,9 @@ class _ContinueReading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (book.progress * 100).round();
+    final colors = context.yomu;
     return Material(
-      color: Colors.white.withValues(alpha: 0.03),
+      color: colors.tint(0.03),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -252,7 +256,7 @@ class _ContinueReading extends StatelessWidget {
                   width: 38,
                   height: 56,
                   child: ColoredBox(
-                    color: YomuConstants.surface,
+                    color: colors.surface,
                     child: BookCoverImage(book: book),
                   ),
                 ),
@@ -266,8 +270,8 @@ class _ContinueReading extends StatelessWidget {
                       book.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: YomuConstants.textPrimary,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         height: 1.25,
@@ -282,16 +286,16 @@ class _ContinueReading extends StatelessWidget {
                             child: LinearProgressIndicator(
                               value: book.progress.clamp(0.0, 1.0),
                               minHeight: 3,
-                              backgroundColor: YomuConstants.glassy,
-                              color: YomuConstants.accent,
+                              backgroundColor: colors.tint(0.1),
+                              color: colors.accent,
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '$percent%',
-                          style: const TextStyle(
-                            color: YomuConstants.accent,
+                          style: TextStyle(
+                            color: colors.accent,
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                           ),
@@ -321,9 +325,10 @@ class _RankCard extends StatelessWidget {
     // Same level math as the dashboard header: 1000 XP per level.
     final levelStart = (state.level - 1) * 1000;
     final progress = ((state.totalXP - levelStart) / 1000).clamp(0.0, 1.0);
+    final colors = context.yomu;
 
     return Material(
-      color: Colors.white.withValues(alpha: 0.03),
+      color: colors.tint(0.03),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -332,7 +337,7 @@ class _RankCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: colors.tint(0.05)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,8 +349,8 @@ class _RankCard extends StatelessWidget {
                       state.rankName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: YomuConstants.textPrimary,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -355,14 +360,14 @@ class _RankCard extends StatelessWidget {
                     Icons.local_fire_department_rounded,
                     size: 16,
                     color: state.isStreakActiveToday
-                        ? YomuConstants.accent
-                        : YomuConstants.textSecondary,
+                        ? colors.accent
+                        : colors.textSecondary,
                   ),
                   const SizedBox(width: 2),
                   Text(
                     '${state.currentStreak}',
-                    style: const TextStyle(
-                      color: YomuConstants.textPrimary,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -375,8 +380,8 @@ class _RankCard extends StatelessWidget {
                 children: [
                   Text(
                     'LEVEL ${state.level}',
-                    style: const TextStyle(
-                      color: YomuConstants.textSecondary,
+                    style: TextStyle(
+                      color: colors.textSecondary,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
@@ -384,8 +389,8 @@ class _RankCard extends StatelessWidget {
                   ),
                   Text(
                     '${state.totalXP - levelStart} / 1000 XP',
-                    style: const TextStyle(
-                      color: YomuConstants.textSecondary,
+                    style: TextStyle(
+                      color: colors.textSecondary,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -398,8 +403,8 @@ class _RankCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 5,
-                  backgroundColor: YomuConstants.glassy,
-                  color: YomuConstants.accent,
+                  backgroundColor: colors.tint(0.1),
+                  color: colors.accent,
                 ),
               ),
             ],

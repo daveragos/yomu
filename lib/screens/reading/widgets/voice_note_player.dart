@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../services/annotation_audio_service.dart';
 import '../../../services/voice_note_playback.dart';
 import '../../../utils/voice_waveform.dart';
@@ -23,7 +23,9 @@ class VoiceNotePlayer extends StatefulWidget {
 
   /// Saved waveform ([VoiceWaveform]); notes without one show even bars.
   final String? waveform;
-  final Color color;
+
+  /// Defaults to the theme's accent.
+  final Color? color;
   final Color? trackColor;
   final bool dense;
 
@@ -35,7 +37,7 @@ class VoiceNotePlayer extends StatefulWidget {
     required this.fileName,
     this.durationMs,
     this.waveform,
-    this.color = YomuConstants.accent,
+    this.color,
     this.trackColor,
     this.dense = false,
     this.animateIn = false,
@@ -114,16 +116,18 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
   Widget build(BuildContext context) {
     final iconSize = widget.dense ? 18.0 : 22.0;
     final buttonSize = widget.dense ? 30.0 : 38.0;
+    final colors = context.yomu;
+    final color = widget.color ?? colors.accent;
 
     if (_missing) {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.mic_off_rounded, size: iconSize, color: Colors.white38),
+          Icon(Icons.mic_off_rounded, size: iconSize, color: colors.tint(0.38)),
           const SizedBox(width: 6),
-          const Text(
+          Text(
             'Voice note unavailable',
-            style: TextStyle(color: Colors.white38, fontSize: 12),
+            style: TextStyle(color: colors.tint(0.38), fontSize: 12),
           ),
         ],
       );
@@ -142,11 +146,11 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
               child: IconButton(
                 padding: EdgeInsets.zero,
                 style: IconButton.styleFrom(
-                  backgroundColor: widget.color.withValues(alpha: 0.15),
+                  backgroundColor: color.withValues(alpha: 0.15),
                 ),
                 icon: Icon(
                   playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: widget.color,
+                  color: color,
                   size: iconSize,
                 ),
                 tooltip: playing ? 'Pause voice note' : 'Play voice note',
@@ -174,7 +178,9 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
                       : position;
                   return Row(
                     children: [
-                      Expanded(child: _buildWaveform(shown, total, shownTime)),
+                      Expanded(
+                        child: _buildWaveform(shown, total, shownTime, color),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         playing || position > Duration.zero ||
@@ -182,7 +188,7 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
                             ? formatVoiceNoteDuration(shownTime)
                             : formatVoiceNoteDuration(total),
                         style: TextStyle(
-                          color: widget.color.withValues(alpha: 0.8),
+                          color: color.withValues(alpha: 0.8),
                           fontSize: widget.dense ? 11 : 12,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
@@ -191,7 +197,7 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
                         const SizedBox(width: 6),
                         _SpeedChip(
                           speed: _playback.speed,
-                          color: widget.color,
+                          color: color,
                           dense: widget.dense,
                           onTap: _playback.cycleSpeed,
                         ),
@@ -207,7 +213,12 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
     );
   }
 
-  Widget _buildWaveform(double shown, Duration total, Duration shownTime) {
+  Widget _buildWaveform(
+    double shown,
+    Duration total,
+    Duration shownTime,
+    Color color,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -246,9 +257,9 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
                 progress: shown,
                 grow: grow,
                 height: widget.dense ? 22 : 28,
-                playedColor: widget.color,
+                playedColor: color,
                 unplayedColor:
-                    widget.trackColor ?? widget.color.withValues(alpha: 0.3),
+                    widget.trackColor ?? color.withValues(alpha: 0.3),
                 dense: widget.dense,
               ),
             ),

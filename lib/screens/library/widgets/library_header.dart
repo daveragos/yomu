@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../components/desktop/page_header.dart';
 import '../../../core/breakpoints.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../providers/library_provider.dart';
 
 class LibraryHeader extends ConsumerStatefulWidget {
@@ -253,6 +253,7 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
 
     if (Breakpoints.isWide(context)) return _buildWide(state, notifier);
 
+    final colors = context.yomu;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Column(
@@ -267,11 +268,11 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
                   decoration: InputDecoration(
                     hintText: 'Search titles, authors...',
                     hintStyle: TextStyle(
-                      color: YomuConstants.textSecondary.withValues(alpha: 0.5),
+                      color: colors.textSecondary.withValues(alpha: 0.5),
                     ),
                     prefixIcon: Icon(
                       Icons.search_rounded,
-                      color: YomuConstants.textSecondary,
+                      color: colors.textSecondary,
                       size: 20,
                     ),
                     suffixIcon: IconButton(
@@ -279,15 +280,15 @@ class _LibraryHeaderState extends ConsumerState<LibraryHeader> {
                       icon: Icon(
                         _isExpanded ? Icons.expand_less : Icons.tune_rounded,
                         color: _isExpanded
-                            ? YomuConstants.accent
-                            : YomuConstants.textSecondary,
+                            ? colors.accent
+                            : colors.textSecondary,
                         size: 20,
                       ),
                       onPressed: () =>
                           setState(() => _isExpanded = !_isExpanded),
                     ),
                     filled: true,
-                    fillColor: YomuConstants.surface,
+                    fillColor: colors.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
@@ -366,11 +367,13 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
+    // White on the green fill of a selected chip, in both appearances.
     final chipContent = Container(
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: isSelected ? YomuConstants.accent : YomuConstants.surface,
+        color: isSelected ? colors.accent : colors.surface,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -380,14 +383,14 @@ class _FilterChip extends StatelessWidget {
             Icon(
               icon,
               size: 16,
-              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+              color: isSelected ? Colors.white : colors.textSecondary,
             ),
             const SizedBox(width: 8),
           ],
           Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+              color: isSelected ? Colors.white : colors.textSecondary,
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -397,7 +400,7 @@ class _FilterChip extends StatelessWidget {
             Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 18,
-              color: isSelected ? Colors.white : YomuConstants.textSecondary,
+              color: isSelected ? Colors.white : colors.textSecondary,
             ),
           ],
         ],
@@ -408,7 +411,7 @@ class _FilterChip extends StatelessWidget {
       return PopupMenuButton<String>(
         onSelected: onSelected,
         offset: const Offset(0, 44),
-        color: YomuConstants.surface,
+        color: colors.surface,
         elevation: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         itemBuilder: (context) => (dropdownOptions ?? []).map((opt) {
@@ -424,7 +427,7 @@ class _FilterChip extends StatelessWidget {
             child: Text(
               labelMapper?.call(opt) ?? opt,
               style: TextStyle(
-                color: YomuConstants.textPrimary,
+                color: colors.textPrimary,
                 fontSize: 14,
                 fontWeight: isItemSelected
                     ? FontWeight.bold
@@ -450,6 +453,7 @@ class _StatusTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -459,7 +463,7 @@ class _StatusTab extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : YomuConstants.textSecondary,
+                color: isSelected ? colors.textPrimary : colors.textSecondary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 14,
               ),
@@ -470,7 +474,7 @@ class _StatusTab extends StatelessWidget {
               width: isSelected ? 24 : 0,
               height: 3,
               decoration: BoxDecoration(
-                color: YomuConstants.accent,
+                color: colors.accent,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -495,6 +499,7 @@ class _DesktopSearchField extends StatelessWidget {
       borderSide: BorderSide(color: color),
     );
 
+    final colors = context.yomu;
     return SizedBox(
       height: 46,
       child: ValueListenableBuilder<TextEditingValue>(
@@ -502,26 +507,26 @@ class _DesktopSearchField extends StatelessWidget {
         builder: (context, value, _) => TextField(
           controller: controller,
           onChanged: onChanged,
-          style: const TextStyle(color: YomuConstants.textPrimary, fontSize: 14),
-          cursorColor: YomuConstants.accent,
+          style: TextStyle(color: colors.textPrimary, fontSize: 14),
+          cursorColor: colors.accent,
           decoration: InputDecoration(
             hintText: 'Search titles, authors...',
             hintStyle: TextStyle(
-              color: YomuConstants.textSecondary.withValues(alpha: 0.6),
+              color: colors.textSecondary.withValues(alpha: 0.6),
               fontSize: 14,
             ),
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.search_rounded,
-              color: YomuConstants.textSecondary,
+              color: colors.textSecondary,
               size: 19,
             ),
             suffixIcon: value.text.isEmpty
                 ? null
                 : IconButton(
                     tooltip: 'Clear search',
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close_rounded,
-                      color: YomuConstants.textSecondary,
+                      color: colors.textSecondary,
                       size: 18,
                     ),
                     onPressed: () {
@@ -530,10 +535,10 @@ class _DesktopSearchField extends StatelessWidget {
                     },
                   ),
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
+            fillColor: colors.tint(0.05),
             contentPadding: const EdgeInsets.symmetric(vertical: 13),
-            enabledBorder: border(Colors.white.withValues(alpha: 0.08)),
-            focusedBorder: border(YomuConstants.accent.withValues(alpha: 0.6)),
+            enabledBorder: border(colors.tint(0.08)),
+            focusedBorder: border(colors.accent.withValues(alpha: 0.6)),
           ),
         ),
       ),
@@ -558,6 +563,7 @@ class _DesktopIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
@@ -565,12 +571,12 @@ class _DesktopIconButton extends StatelessWidget {
       style: IconButton.styleFrom(
         fixedSize: const Size(46, 46),
         foregroundColor: isActive
-            ? YomuConstants.accent
-            : YomuConstants.textSecondary,
-        backgroundColor: Colors.white.withValues(alpha: 0.05),
+            ? colors.accent
+            : colors.textSecondary,
+        backgroundColor: colors.tint(0.05),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          side: BorderSide(color: colors.tint(0.08)),
         ),
       ),
     );
@@ -600,6 +606,7 @@ class _StatusPillState extends State<_StatusPill> {
   @override
   Widget build(BuildContext context) {
     final selected = widget.isSelected;
+    final colors = context.yomu;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: MouseRegion(
@@ -613,23 +620,23 @@ class _StatusPillState extends State<_StatusPill> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: selected
-                  ? Colors.white.withValues(alpha: 0.10)
+                  ? colors.tint(0.10)
                   : _hovered
-                  ? Colors.white.withValues(alpha: 0.05)
+                  ? colors.tint(0.05)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: selected
-                    ? Colors.white.withValues(alpha: 0.14)
-                    : Colors.white.withValues(alpha: 0.06),
+                    ? colors.tint(0.14)
+                    : colors.tint(0.06),
               ),
             ),
             child: Text(
               widget.label,
               style: TextStyle(
                 color: selected
-                    ? YomuConstants.textPrimary
-                    : YomuConstants.textSecondary,
+                    ? colors.textPrimary
+                    : colors.textSecondary,
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book_model.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import 'glass_container.dart';
 
 class BookOverlayMenu extends ConsumerStatefulWidget {
@@ -105,7 +105,7 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
                     width: menuWidth,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     borderRadius: 16,
-                    color: YomuConstants.surface,
+                    color: context.yomu.surface,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -127,8 +127,8 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
                           label: 'Share with notes',
                           onTap: () => widget.onAction('share_notes'),
                         ),
-                        const Divider(
-                          color: Colors.white10,
+                        Divider(
+                          color: context.yomu.tint(0.10),
                           height: 1,
                           indent: 12,
                           endIndent: 12,
@@ -163,12 +163,12 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: color ?? Colors.white70),
+            Icon(icon, size: 20, color: color ?? context.yomu.tint(0.70)),
             const SizedBox(width: 12),
             Text(
               label,
               style: TextStyle(
-                color: color ?? Colors.white,
+                color: color ?? context.yomu.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),

@@ -7,27 +7,38 @@ class YomuConstants {
   static const double horizontalPadding = 20.0;
   static const double verticalPadding = 20.0;
 
-  // Colors (Stitch Design Alignment)
+  // Colors (Stitch Design Alignment). Everything that differs between light
+  // and dark lives in YomuColors (context.yomu); these are the brand green
+  // and the dark palette's original values.
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color background = Color(0xFF0A0B0E);
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color surface = Color(0xFF16171D);
   static const Color accent = Color(
     0xFF2ECC71,
   ); // Vibrant Green from Stitch alignment attempt
   static const Color accentGreen = Color(0xFF2ECC71); // Emerald Green
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color textPrimary = Color(0xFFFFFFFF);
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color textSecondary = Color(0xFF94A3B8); // Slate 400
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color glassy = Color(0x1AFFFFFF);
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color outline = Color(0xFF1E293B); // Slate 800
 
   // Card edge: a hairline that separates a surface from the background.
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const Color hairline = Color(0x0FFFFFFF);
 
   // Shadows
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static const List<BoxShadow> cardShadow = [
     BoxShadow(color: Color(0x40000000), blurRadius: 20, offset: Offset(0, 10)),
   ];
 
   // GitHub Graph Colors
+  @Deprecated('Dark mode only. Use context.yomu (lib/core/yomu_colors.dart).')
   static List<Color> graphColors = [
     const Color(0xFF161B22), // empty
     const Color(0xFF0E4429), // level 1

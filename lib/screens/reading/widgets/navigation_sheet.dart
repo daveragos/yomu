@@ -11,6 +11,7 @@ import '../../../models/highlight_model.dart';
 import '../../../models/vocabulary_model.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/annotation_reply_model.dart';
 import '../../../services/database_service.dart';
 import '../../../utils/annotation_order.dart';
@@ -184,8 +185,8 @@ class _NavigationSheetState extends State<NavigationSheet> {
               ).toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white38,
+              style: TextStyle(
+                color: context.yomu.tint(0.38),
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2,
@@ -300,6 +301,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return DefaultTabController(
       length: 2,
       child: Container(
@@ -307,9 +309,9 @@ class _NavigationSheetState extends State<NavigationSheet> {
         height: widget.scrollController == null
             ? MediaQuery.of(context).size.height * NavigationSheet.initialSize
             : null,
-        decoration: const BoxDecoration(
-          color: YomuConstants.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
@@ -324,18 +326,18 @@ class _NavigationSheetState extends State<NavigationSheet> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white24,
+                      color: colors.tint(0.24),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
               ),
             ),
-            const TabBar(
-              indicatorColor: YomuConstants.accent,
-              labelColor: YomuConstants.accent,
-              unselectedLabelColor: Colors.white54,
-              tabs: [
+            TabBar(
+              indicatorColor: colors.accent,
+              labelColor: colors.accent,
+              unselectedLabelColor: colors.tint(0.54),
+              tabs: const [
                 Tab(text: 'CHAPTERS'),
                 Tab(text: 'ANNOTATIONS'),
               ],
@@ -361,6 +363,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
   }
 
   Widget _buildJumpToSection() {
+    final colors = context.yomu;
     final isEpub = widget.book.filePath.toLowerCase().endsWith('.epub');
 
     return Padding(
@@ -372,14 +375,14 @@ class _NavigationSheetState extends State<NavigationSheet> {
               controller: _jumpController,
               focusNode: _jumpFocusNode,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              style: TextStyle(color: colors.textPrimary, fontSize: 16),
               decoration: InputDecoration(
                 hintText: isEpub
                     ? 'Jump to %'
                     : 'Jump to page${widget.totalPages > 0 ? " (1 - ${widget.totalPages})" : ""}',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                hintStyle: TextStyle(color: colors.tint(0.38), fontSize: 13),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: colors.tint(0.05),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -391,23 +394,23 @@ class _NavigationSheetState extends State<NavigationSheet> {
                 suffixText: isEpub
                     ? '%'
                     : (widget.totalPages > 0 ? "/ ${widget.totalPages}" : null),
-                suffixStyle: const TextStyle(color: Colors.white38),
+                suffixStyle: TextStyle(color: colors.tint(0.38)),
               ),
               onSubmitted: (value) => _handleJump(),
             ),
           ),
           const SizedBox(width: 8),
           Material(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: colors.tint(0.05),
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: _handleJump,
               borderRadius: BorderRadius.circular(12),
-              child: const Padding(
-                padding: EdgeInsets.all(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Icon(
                   Icons.arrow_forward_rounded,
-                  color: YomuConstants.accent,
+                  color: colors.accent,
                   size: 20,
                 ),
               ),
@@ -447,34 +450,35 @@ class _NavigationSheetState extends State<NavigationSheet> {
         context: context,
         builder: (context) {
           bool includeVocab = true;
+          final colors = context.yomu;
           return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                backgroundColor: YomuConstants.surface,
-                title: const Text(
+                backgroundColor: colors.surface,
+                title: Text(
                   'Export Annotations',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: colors.textPrimary),
                 ),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'Ready to export your selections as Markdown.',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: colors.tint(0.70), fontSize: 14),
                     ),
                     const SizedBox(height: 16),
                     CheckboxListTile(
-                      title: const Text(
+                      title: Text(
                         'Include Vocabulary List',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
+                        style: TextStyle(color: colors.textPrimary, fontSize: 14),
                       ),
-                      subtitle: const Text(
+                      subtitle: Text(
                         'Add words you looked up in this book',
-                        style: TextStyle(color: Colors.white38, fontSize: 11),
+                        style: TextStyle(color: colors.tint(0.38), fontSize: 11),
                       ),
                       value: includeVocab,
-                      activeColor: YomuConstants.accent,
-                      checkColor: Colors.black,
+                      activeColor: colors.accent,
+                      checkColor: colors.onAccent,
                       contentPadding: EdgeInsets.zero,
                       onChanged: (val) =>
                           setDialogState(() => includeVocab = val ?? true),
@@ -484,16 +488,16 @@ class _NavigationSheetState extends State<NavigationSheet> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, null),
-                    child: const Text(
+                    child: Text(
                       'CANCEL',
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: colors.tint(0.54)),
                     ),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(context, includeVocab),
-                    child: const Text(
+                    child: Text(
                       'SHARE',
-                      style: TextStyle(color: YomuConstants.accent),
+                      style: TextStyle(color: colors.accent),
                     ),
                   ),
                 ],
@@ -631,6 +635,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
   }
 
   Widget _buildBookmarksList() {
+    final colors = context.yomu;
     return StatefulBuilder(
       builder: (context, setSheetState) {
         return FutureBuilder<List<dynamic>>(
@@ -659,15 +664,15 @@ class _NavigationSheetState extends State<NavigationSheet> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.note_alt_outlined,
                       size: 64,
-                      color: Colors.white10,
+                      color: colors.tint(0.10),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'No annotations found yet',
-                      style: TextStyle(color: Colors.white54, fontSize: 16),
+                      style: TextStyle(color: colors.tint(0.54), fontSize: 16),
                     ),
                     if (widget.onExport != null) ...[
                       const SizedBox(height: 24),
@@ -676,8 +681,8 @@ class _NavigationSheetState extends State<NavigationSheet> {
                         icon: const Icon(Icons.ios_share_rounded, size: 18),
                         label: const Text('Export Current Book'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: YomuConstants.accent,
-                          foregroundColor: Colors.black,
+                          backgroundColor: colors.accent,
+                          foregroundColor: colors.onAccent,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -869,12 +874,12 @@ class _NavigationSheetState extends State<NavigationSheet> {
                         }),
                       ],
                       if (filtersActive && filteredHighlights.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(32),
+                        Padding(
+                          padding: const EdgeInsets.all(32),
                           child: Center(
                             child: Text(
                               'No notes match.',
-                              style: TextStyle(color: Colors.white38),
+                              style: TextStyle(color: colors.tint(0.38)),
                             ),
                           ),
                         ),
@@ -948,12 +953,12 @@ class _NavigationSheetState extends State<NavigationSheet> {
                         }),
                       ],
                       if (vocabulary.isNotEmpty && !filtersActive) ...[
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                           child: Text(
                             'VOCABULARY',
                             style: TextStyle(
-                              color: Colors.white24,
+                              color: colors.tint(0.24),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
@@ -973,7 +978,9 @@ class _NavigationSheetState extends State<NavigationSheet> {
                                   label: Text(
                                     v.word,
                                     style: TextStyle(
-                                      color: isSelected ? Colors.black : Colors.white70,
+                                      color: isSelected
+                                          ? colors.onAccent
+                                          : colors.tint(0.70),
                                       fontSize: 12,
                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                     ),
@@ -992,9 +999,9 @@ class _NavigationSheetState extends State<NavigationSheet> {
                                       widget.onLookup?.call(v.word);
                                     }
                                   },
-                                  backgroundColor: Colors.white.withValues(alpha: 0.05),
-                                  selectedColor: YomuConstants.accent,
-                                  checkmarkColor: Colors.black,
+                                  backgroundColor: colors.tint(0.05),
+                                  selectedColor: colors.accent,
+                                  checkmarkColor: colors.onAccent,
                                   side: BorderSide.none,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
@@ -1065,6 +1072,7 @@ class _ChapterTreeItemState extends State<_ChapterTreeItem> {
         widget.chapter.SubChapters!.isNotEmpty;
     final index = widget.flattenedChapters.indexOf(widget.chapter);
     final isCurrent = widget.currentChapterIndex == index;
+    final colors = context.yomu;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1090,7 +1098,7 @@ class _ChapterTreeItemState extends State<_ChapterTreeItem> {
                     child: Text(
                       widget.chapter.Title?.trim() ?? 'Chapter',
                       style: TextStyle(
-                        color: isCurrent ? YomuConstants.accent : Colors.white,
+                        color: isCurrent ? colors.accent : colors.textPrimary,
                         fontWeight: isCurrent
                             ? FontWeight.bold
                             : FontWeight.normal,
@@ -1104,7 +1112,7 @@ class _ChapterTreeItemState extends State<_ChapterTreeItem> {
                         _isExpanded
                             ? Icons.keyboard_arrow_up_rounded
                             : Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white54,
+                        color: colors.tint(0.54),
                         size: 20,
                       ),
                       onPressed: () {
@@ -1180,6 +1188,7 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
   Widget build(BuildContext context) {
     final hasChildren = widget.node.children.isNotEmpty;
     final isCurrent = widget.currentPdfNode == widget.node;
+    final colors = context.yomu;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1201,7 +1210,7 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
                     child: Text(
                       widget.node.title,
                       style: TextStyle(
-                        color: isCurrent ? YomuConstants.accent : Colors.white,
+                        color: isCurrent ? colors.accent : colors.textPrimary,
                         fontWeight: isCurrent
                             ? FontWeight.bold
                             : FontWeight.normal,
@@ -1215,7 +1224,7 @@ class _PdfTreeItemState extends State<_PdfTreeItem> {
                         _isExpanded
                             ? Icons.keyboard_arrow_up_rounded
                             : Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white54,
+                        color: colors.tint(0.54),
                         size: 20,
                       ),
                       onPressed: () {
@@ -1278,11 +1287,12 @@ class _AnnotationHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
-        border: const Border(bottom: BorderSide(color: Colors.white10)),
+        color: colors.tint(0.02),
+        border: Border(bottom: BorderSide(color: colors.tint(0.10))),
       ),
       child: Row(
         children: [
@@ -1293,8 +1303,8 @@ class _AnnotationHeader extends StatelessWidget {
               children: [
                 Text(
                   isSelectionMode ? "$selectedCount SELECTED" : "ANNOTATIONS",
-                  style: const TextStyle(
-                    color: YomuConstants.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.8,
@@ -1303,25 +1313,25 @@ class _AnnotationHeader extends StatelessWidget {
                 if (!isSelectionMode)
                   Text(
                     "$count items",
-                    style: const TextStyle(color: Colors.white38, fontSize: 10),
+                    style: TextStyle(color: colors.tint(0.38), fontSize: 10),
                   ),
               ],
             ),
           ),
           if (isSelectionMode) ...[
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.format_quote_rounded,
-                color: YomuConstants.accent,
+                color: colors.accent,
                 size: 20,
               ),
               onPressed: selectedCount > 0 ? onShareQuote : null,
               tooltip: 'Share as Quote',
             ),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.ios_share_rounded,
-                color: YomuConstants.accent,
+                color: colors.accent,
                 size: 20,
               ),
               onPressed: selectedCount > 0 ? onShareSelected : null,
@@ -1337,9 +1347,9 @@ class _AnnotationHeader extends StatelessWidget {
               tooltip: 'Delete selected',
             ),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.close_rounded,
-                color: Colors.white54,
+                color: colors.tint(0.54),
                 size: 20,
               ),
               onPressed: onCloseSelection,
@@ -1348,9 +1358,9 @@ class _AnnotationHeader extends StatelessWidget {
           ] else ...[
             if (onShareAnnotated != null)
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.group_add_outlined,
-                  color: YomuConstants.accent,
+                  color: colors.accent,
                   size: 20,
                 ),
                 onPressed: onShareAnnotated,
@@ -1358,9 +1368,9 @@ class _AnnotationHeader extends StatelessWidget {
               ),
             if (onExport != null)
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.ios_share_rounded,
-                  color: YomuConstants.accent,
+                  color: colors.accent,
                   size: 18,
                 ),
                 onPressed: onExport,
@@ -1368,9 +1378,9 @@ class _AnnotationHeader extends StatelessWidget {
               ),
             TextButton(
               onPressed: onToggleSelection,
-              child: const Text(
+              child: Text(
                 'SELECT',
-                style: TextStyle(color: YomuConstants.accent, fontSize: 12),
+                style: TextStyle(color: colors.accent, fontSize: 12),
               ),
             ),
           ],
@@ -1391,12 +1401,13 @@ class _ColorFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.01),
-        border: const Border(bottom: BorderSide(color: Colors.white10)),
+        color: colors.tint(0.01),
+        border: Border(bottom: BorderSide(color: colors.tint(0.10))),
       ),
       child: ListView(
         scrollDirection: Axis.horizontal,
@@ -1411,12 +1422,12 @@ class _ColorFilterBar extends StatelessWidget {
               selected: selectedColor == null,
               onSelected: (_) => onColorTap(null),
               backgroundColor: Colors.transparent,
-              selectedColor: Colors.white.withValues(alpha: 0.08),
-              checkmarkColor: YomuConstants.accent,
+              selectedColor: colors.tint(0.08),
+              checkmarkColor: colors.accent,
               side: BorderSide(
                 color: selectedColor == null
-                    ? YomuConstants.accent
-                    : Colors.white10,
+                    ? colors.accent
+                    : colors.tint(0.10),
               ),
               visualDensity: VisualDensity.compact,
             ),
@@ -1441,7 +1452,7 @@ class _ColorFilterBar extends StatelessWidget {
                 onSelected: (_) => onColorTap(hexColor),
                 backgroundColor: color.withValues(alpha: 0.1),
                 selectedColor: color.withValues(alpha: 0.3),
-                checkmarkColor: Colors.white,
+                checkmarkColor: colors.textPrimary,
                 side: BorderSide(
                   color: isSelected ? color : Colors.transparent,
                 ),
@@ -1502,12 +1513,15 @@ class _AnnotationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
+    // Amber accent only reads on a dark sheet; a deep amber on a light one.
+    final unplacedColor = colors.isDark
+        ? Colors.amberAccent.withValues(alpha: 0.7)
+        : const Color(0xFF9A6700);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Material(
-        color: isSelected
-            ? Colors.white.withValues(alpha: 0.08)
-            : Colors.white.withValues(alpha: 0.03),
+        color: isSelected ? colors.tint(0.08) : colors.tint(0.03),
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1521,7 +1535,7 @@ class _AnnotationCard extends StatelessWidget {
                 if (isSelectionMode) ...[
                   Checkbox(
                     value: isSelected,
-                    activeColor: YomuConstants.accent,
+                    activeColor: colors.accent,
                     onChanged: onSelectedChanged,
                   ),
                   const SizedBox(width: 8),
@@ -1536,9 +1550,7 @@ class _AnnotationCard extends StatelessWidget {
                             Icon(
                               Icons.person_outline_rounded,
                               size: 14,
-                              color: YomuConstants.accent.withValues(
-                                alpha: 0.8,
-                              ),
+                              color: colors.accent.withValues(alpha: 0.8),
                             ),
                             const SizedBox(width: 4),
                             Flexible(
@@ -1546,9 +1558,7 @@ class _AnnotationCard extends StatelessWidget {
                                 'Shared by $sharedBy',
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: YomuConstants.accent.withValues(
-                                    alpha: 0.8,
-                                  ),
+                                  color: colors.accent.withValues(alpha: 0.8),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -1561,18 +1571,18 @@ class _AnnotationCard extends StatelessWidget {
                       if (isHighlight) ...[
                         Container(
                           padding: const EdgeInsets.only(left: 12),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             border: Border(
                               left: BorderSide(
-                                color: YomuConstants.accent,
+                                color: colors.accent,
                                 width: 3,
                               ),
                             ),
                           ),
                           child: Text(
                             text,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: colors.textPrimary,
                               fontSize: 14,
                               height: 1.5,
                               fontStyle: FontStyle.italic,
@@ -1584,8 +1594,8 @@ class _AnnotationCard extends StatelessWidget {
                       ] else ...[
                         Text(
                           title ?? 'Bookmark',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: colors.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1595,8 +1605,8 @@ class _AnnotationCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               text,
-                              style: const TextStyle(
-                                color: Colors.white70,
+                              style: TextStyle(
+                                color: colors.tint(0.70),
                                 fontSize: 13,
                               ),
                               maxLines: 1,
@@ -1609,7 +1619,7 @@ class _AnnotationCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: colors.tint(0.05),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
@@ -1619,16 +1629,14 @@ class _AnnotationCard extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.notes_rounded,
-                                    color: YomuConstants.accent.withValues(
-                                      alpha: 0.7,
-                                    ),
+                                    color: colors.accent.withValues(alpha: 0.7),
                                     size: 14,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'NOTE',
                                     style: TextStyle(
-                                      color: YomuConstants.accent.withValues(
+                                      color: colors.accent.withValues(
                                         alpha: 0.7,
                                       ),
                                       fontSize: 10,
@@ -1643,7 +1651,7 @@ class _AnnotationCard extends StatelessWidget {
                                 markdown: note!,
                                 settings: readerSettings,
                                 fontSize: 13,
-                                textColor: Colors.white70,
+                                textColor: colors.tint(0.70),
                               ),
                             ],
                           ),
@@ -1673,33 +1681,31 @@ class _AnnotationCard extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       color: isUnplaced
-                                          ? Colors.amberAccent.withValues(
-                                              alpha: 0.7,
-                                            )
-                                          : Colors.white24,
+                                          ? unplacedColor
+                                          : colors.tint(0.24),
                                       fontSize: 11,
                                     ),
                                   ),
                                 ),
                                 if (isPrivate) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(
+                                  Icon(
                                     Icons.lock_outline,
                                     size: 13,
-                                    color: Colors.white38,
+                                    color: colors.tint(0.38),
                                   ),
                                 ],
                                 if (replyCount > 0) ...[
                                   const SizedBox(width: 8),
-                                  const Icon(
+                                  Icon(
                                     Icons.chat_bubble_outline,
                                     size: 13,
-                                    color: Colors.white38,
+                                    color: colors.tint(0.38),
                                   ),
                                   Text(
                                     ' $replyCount',
-                                    style: const TextStyle(
-                                      color: Colors.white38,
+                                    style: TextStyle(
+                                      color: colors.tint(0.38),
                                       fontSize: 11,
                                     ),
                                   ),
@@ -1719,7 +1725,7 @@ class _AnnotationCard extends StatelessWidget {
                                                 audioFile!.isNotEmpty)
                                         ? Icons.sticky_note_2_outlined
                                         : Icons.add_comment_outlined,
-                                    color: YomuConstants.accent,
+                                    color: colors.accent,
                                     size: 20,
                                   ),
                                   onPressed: onNoteTap,
@@ -1733,9 +1739,9 @@ class _AnnotationCard extends StatelessWidget {
                                 ),
                               if (!isSelectionMode && onDelete != null)
                                 IconButton(
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.delete_outline,
-                                    color: Colors.white24,
+                                    color: colors.tint(0.24),
                                     size: 20,
                                   ),
                                   onPressed: onDelete,
@@ -1827,15 +1833,14 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
     Widget? leading,
     Widget? trailing,
   }) {
+    final colors = context.yomu;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
-        color: selected
-            ? Colors.white.withValues(alpha: 0.1)
-            : Colors.white.withValues(alpha: 0.05),
+        color: selected ? colors.tint(0.1) : colors.tint(0.05),
         shape: StadiumBorder(
           side: BorderSide(
-            color: selected ? YomuConstants.accent : Colors.white10,
+            color: selected ? colors.accent : colors.tint(0.10),
           ),
         ),
         child: InkWell(
@@ -1861,7 +1866,8 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
   Widget build(BuildContext context) {
     final authors = _authors;
     final showPeople = authors.length > 1 || authors.any((a) => a.isNotEmpty);
-    const labelStyle = TextStyle(color: Colors.white70, fontSize: 12);
+    final colors = context.yomu;
+    final labelStyle = TextStyle(color: colors.tint(0.70), fontSize: 12);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -1872,22 +1878,22 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
             child: TextField(
               controller: _controller,
               onChanged: widget.onSearch,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: colors.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 isDense: true,
                 hintText: 'Search notes, replies, names',
-                hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                prefixIcon: const Icon(
+                hintStyle: TextStyle(color: colors.tint(0.30), fontSize: 13),
+                prefixIcon: Icon(
                   Icons.search_rounded,
-                  color: Colors.white38,
+                  color: colors.tint(0.38),
                   size: 20,
                 ),
                 suffixIcon: widget.search.isEmpty
                     ? null
                     : IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close_rounded,
-                          color: Colors.white38,
+                          color: colors.tint(0.38),
                           size: 18,
                         ),
                         onPressed: () {
@@ -1896,7 +1902,7 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
                         },
                       ),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: colors.tint(0.05),
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1915,15 +1921,15 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
                   _chip(
                     selected: false,
                     onTap: widget.onWalkThrough!,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.play_circle_outline_rounded,
                       size: 16,
-                      color: YomuConstants.accent,
+                      color: colors.accent,
                     ),
-                    label: const Text(
+                    label: Text(
                       'Walk through',
                       style: TextStyle(
-                        color: YomuConstants.accent,
+                        color: colors.accent,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1933,7 +1939,7 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
                   _chip(
                     selected: widget.authorFilter == null,
                     onTap: () => widget.onAuthor(null),
-                    label: const Text('Everyone', style: labelStyle),
+                    label: Text('Everyone', style: labelStyle),
                   ),
                   for (final key in authors)
                     _chip(
@@ -1968,7 +1974,7 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
                                         ? Icons.visibility_off_outlined
                                         : Icons.visibility_outlined,
                                     size: 16,
-                                    color: Colors.white54,
+                                    color: colors.tint(0.54),
                                   ),
                                 ),
                               ),
@@ -1979,12 +1985,12 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
                 _chip(
                   selected: widget.voiceOnly,
                   onTap: () => widget.onVoiceOnly(!widget.voiceOnly),
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.graphic_eq_rounded,
                     size: 16,
-                    color: Colors.white70,
+                    color: colors.tint(0.70),
                   ),
-                  label: const Text('With voice', style: labelStyle),
+                  label: Text('With voice', style: labelStyle),
                 ),
               ],
             ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/highlight_model.dart';
 import '../../../utils/annotation_order.dart';
 import 'note_author_avatar.dart';
@@ -147,12 +147,13 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return AlertDialog(
-      backgroundColor: YomuConstants.surface,
+      backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text(
+      title: Text(
         'Share with notes',
-        style: TextStyle(color: Colors.white),
+        style: TextStyle(color: colors.textPrimary),
       ),
       content: SizedBox(
         width: double.maxFinite,
@@ -164,7 +165,7 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
               Text(
                 'Anyone who opens this file in Yomu sees your highlights, '
                 'notes and voice notes on "${widget.bookTitle}".',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: colors.tint(0.70), fontSize: 14),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -172,20 +173,20 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
                 autofocus: (widget.initialName ?? '').isEmpty,
                 maxLength: 40,
                 textCapitalization: TextCapitalization.words,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: colors.textPrimary),
                 onChanged: (_) => setState(() {}),
                 onSubmitted: (_) => _submit(),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Your name',
                   helperText: 'Shown to readers next to your notes',
-                  labelStyle: TextStyle(color: Colors.white54),
-                  helperStyle: TextStyle(color: Colors.white38),
-                  counterStyle: TextStyle(color: Colors.white24),
+                  labelStyle: TextStyle(color: colors.tint(0.54)),
+                  helperStyle: TextStyle(color: colors.tint(0.38)),
+                  counterStyle: TextStyle(color: colors.tint(0.24)),
                   enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
+                    borderSide: BorderSide(color: colors.tint(0.24)),
                   ),
                   focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: YomuConstants.accent),
+                    borderSide: BorderSide(color: colors.accent),
                   ),
                 ),
               ),
@@ -193,11 +194,11 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
               SwitchListTile(
                 value: _includeBook,
                 onChanged: (v) => setState(() => _includeBook = v),
-                activeThumbColor: YomuConstants.accent,
+                activeThumbColor: colors.accent,
                 contentPadding: EdgeInsets.zero,
-                title: const Text(
+                title: Text(
                   'Include the book file',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
                 ),
                 subtitle: Text(
                   _includeBook
@@ -206,10 +207,10 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
                       : 'A small .yomu file with only your notes. Readers need '
                             'a copy of the same book; notes appear once they '
                             'add it.',
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: TextStyle(color: colors.tint(0.38), fontSize: 11),
                 ),
               ),
-              const Divider(color: Colors.white10),
+              Divider(color: colors.tint(0.10)),
               InkWell(
                 onTap: _shareable.isEmpty
                     ? null
@@ -221,8 +222,8 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
                       Expanded(
                         child: Text(
                           _summary(),
-                          style: const TextStyle(
-                            color: YomuConstants.accent,
+                          style: TextStyle(
+                            color: colors.accent,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -231,8 +232,8 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
                       if (_shareable.isNotEmpty)
                         Text(
                           _choosing ? 'DONE' : 'CHOOSE',
-                          style: const TextStyle(
-                            color: Colors.white54,
+                          style: TextStyle(
+                            color: colors.tint(0.54),
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -244,7 +245,7 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
               if (_choosing) _buildChooser(),
               Text(
                 'About ${formatFileSize(_estimatedBytes)}',
-                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                style: TextStyle(color: colors.tint(0.38), fontSize: 11),
               ),
             ],
           ),
@@ -253,14 +254,14 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+          child: Text('CANCEL', style: TextStyle(color: colors.tint(0.54))),
         ),
         TextButton(
           onPressed: _canShare ? _submit : null,
           child: Text(
             'SHARE',
             style: TextStyle(
-              color: _canShare ? YomuConstants.accent : Colors.white24,
+              color: _canShare ? colors.accent : colors.tint(0.24),
             ),
           ),
         ),
@@ -269,6 +270,7 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
   }
 
   Widget _buildChooser() {
+    final colors = context.yomu;
     final all = _selected.length == _shareable.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -284,7 +286,7 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
             }),
             child: Text(
               all ? 'Select none' : 'Select all',
-              style: const TextStyle(color: YomuConstants.accent, fontSize: 12),
+              style: TextStyle(color: colors.accent, fontSize: 12),
             ),
           ),
         ),
@@ -303,6 +305,7 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
   }
 
   Widget _buildNoteRow(Highlight h) {
+    final colors = context.yomu;
     final selectable = !h.isPrivate && h.uid != null;
     final replies = widget.replyCounts[h.uid] ?? 0;
     final details = [
@@ -320,34 +323,34 @@ class _ShareAnnotationsDialogState extends State<ShareAnnotationsDialog> {
       dense: true,
       contentPadding: EdgeInsets.zero,
       controlAffinity: ListTileControlAffinity.leading,
-      activeColor: YomuConstants.accent,
+      activeColor: colors.accent,
       title: Text(
         h.text,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: selectable ? Colors.white : Colors.white38,
+          color: selectable ? colors.textPrimary : colors.tint(0.38),
           fontSize: 13,
         ),
       ),
       subtitle: Text(
         details,
-        style: const TextStyle(color: Colors.white38, fontSize: 11),
+        style: TextStyle(color: colors.tint(0.38), fontSize: 11),
       ),
       secondary: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (h.isPrivate)
-            const Icon(Icons.lock_outline, size: 16, color: Colors.white38),
+            Icon(Icons.lock_outline, size: 16, color: colors.tint(0.38)),
           if (h.hasAudio)
-            const Icon(Icons.graphic_eq_rounded, size: 16, color: Colors.white54),
+            Icon(Icons.graphic_eq_rounded, size: 16, color: colors.tint(0.54)),
           if (h.hasNote)
-            const Icon(Icons.notes_rounded, size: 16, color: Colors.white54),
+            Icon(Icons.notes_rounded, size: 16, color: colors.tint(0.54)),
           if (replies > 0) ...[
-            const Icon(Icons.chat_bubble_outline, size: 14, color: Colors.white54),
+            Icon(Icons.chat_bubble_outline, size: 14, color: colors.tint(0.54)),
             Text(
               ' $replies',
-              style: const TextStyle(color: Colors.white54, fontSize: 11),
+              style: TextStyle(color: colors.tint(0.54), fontSize: 11),
             ),
           ],
         ],

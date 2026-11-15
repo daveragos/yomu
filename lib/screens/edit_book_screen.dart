@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book_model.dart';
 import '../providers/library_provider.dart';
 import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../core/breakpoints.dart';
 import '../components/desktop/route_shortcuts.dart';
 import 'package:flutter/services.dart';
@@ -149,6 +150,7 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
             (width - Breakpoints.formMaxWidth) / 2,
           )
         : YomuConstants.horizontalPadding;
+    final colors = context.yomu;
 
     // Escape closes the editor, as it would a desktop window or sheet.
     return RouteShortcuts(
@@ -194,7 +196,7 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                   Text(
                     '${_audioTracks.length} items',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
+                      color: colors.tint(0.5),
                       fontSize: 12,
                     ),
                   ),
@@ -202,11 +204,11 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
             ),
             const SizedBox(height: 10),
             if (_audioTracks.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
                   'No audio parts attached.',
-                  style: TextStyle(color: Colors.white54),
+                  style: TextStyle(color: colors.tint(0.54)),
                 ),
               ),
           ],
@@ -307,19 +309,19 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
           final track = _audioTracks[index];
           return Card(
             key: ValueKey(track.path + index.toString()),
-            color: YomuConstants.surface,
+            color: colors.surface,
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
               dense: true,
               title: Text(
                 track.title,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: colors.textPrimary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 p.basename(track.path),
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: colors.tint(0.54), fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -334,7 +336,7 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                       });
                     },
                   ),
-                  const Icon(Icons.drag_handle, color: Colors.white54),
+                  Icon(Icons.drag_handle, color: colors.tint(0.54)),
                 ],
               ),
             ),
@@ -345,19 +347,20 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
   }
 
   Widget _buildTextField(String label, TextEditingController controller) {
+    final colors = context.yomu;
     return TextField(
       controller: controller,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: colors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
+        labelStyle: TextStyle(color: colors.tint(0.70)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white24),
+          borderSide: BorderSide(color: colors.tint(0.24)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: YomuConstants.accent),
+          borderSide: BorderSide(color: colors.accent),
         ),
       ),
     );

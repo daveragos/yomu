@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../components/glass_container.dart';
 import '../../../providers/library_provider.dart';
 
@@ -11,6 +11,7 @@ class WeeklyGoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return GlassContainer(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -26,7 +27,7 @@ class WeeklyGoalCard extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               IconButton(
-                icon: const Icon(Icons.edit, size: 18, color: Colors.white54),
+                icon: Icon(Icons.edit, size: 18, color: colors.tint(0.54)),
                 onPressed: onEdit,
               ),
             ],
@@ -64,12 +65,12 @@ class WeeklyGoalCard extends StatelessWidget {
           if (state.weeklyPageGoal == 0 &&
               state.weeklyMinuteGoal == 0 &&
               state.weeklyXPGoal == 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
                   'No goals set for this week',
-                  style: TextStyle(color: Colors.white38),
+                  style: TextStyle(color: colors.tint(0.38)),
                 ),
               ),
             ),
@@ -87,6 +88,7 @@ class WeeklyGoalCard extends StatelessWidget {
   }) {
     final double progress = (current / goal).clamp(0.0, 1.0);
     final bool isGoalMet = progress >= 1.0;
+    final colors = context.yomu;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +99,7 @@ class WeeklyGoalCard extends StatelessWidget {
             Text(
               title,
               style: TextStyle(
-                color: Colors.white70,
+                color: colors.tint(0.70),
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -105,7 +107,7 @@ class WeeklyGoalCard extends StatelessWidget {
             Text(
               '${(progress * 100).toInt()}%',
               style: TextStyle(
-                color: isGoalMet ? YomuConstants.accent : Colors.white60,
+                color: isGoalMet ? colors.accent : colors.tint(0.60),
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -117,17 +119,15 @@ class WeeklyGoalCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: progress,
-            backgroundColor: Colors.white10,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isGoalMet ? YomuConstants.accentGreen : YomuConstants.accent,
-            ),
+            backgroundColor: colors.tint(0.10),
+            valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
             minHeight: 6,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           '${current.toInt()} / ${goal.toInt()} $unit',
-          style: const TextStyle(color: Colors.white38, fontSize: 11),
+          style: TextStyle(color: colors.tint(0.38), fontSize: 11),
         ),
       ],
     );

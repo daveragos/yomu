@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../components/glass_container.dart';
 import '../../../providers/library_provider.dart';
 
@@ -11,6 +12,7 @@ class LevelMetadataSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ranks = YomuConstants.ranks;
+    final colors = context.yomu;
 
     return GlassContainer(
       borderRadius: 24,
@@ -20,31 +22,31 @@ class LevelMetadataSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Reading Ranks',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: colors.tint(0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: colors.tint(0.10)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.bolt, color: YomuConstants.accent, size: 16),
+                  Icon(Icons.bolt, color: colors.accent, size: 16),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Earn XP: PDF (10/page), EPUB (40/chapter) + 5 XP/min. Every 1000 XP = 1 Level!',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: colors.tint(0.70),
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -67,18 +69,18 @@ class LevelMetadataSheet extends StatelessWidget {
                       height: 36,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: colors.tint(0.05),
                         border: Border.all(
-                          color: isReached
-                              ? YomuConstants.accent
-                              : Colors.white10,
+                          color: isReached ? colors.accent : colors.tint(0.10),
                         ),
                       ),
                       child: Center(
                         child: Text(
                           '${t.level}',
                           style: TextStyle(
-                            color: isReached ? Colors.white : Colors.white54,
+                            color: isReached
+                                ? colors.textPrimary
+                                : colors.tint(0.54),
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -93,7 +95,9 @@ class LevelMetadataSheet extends StatelessWidget {
                           Text(
                             t.name,
                             style: TextStyle(
-                              color: isReached ? Colors.white : Colors.white54,
+                              color: isReached
+                                  ? colors.textPrimary
+                                  : colors.tint(0.54),
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                             ),
@@ -102,8 +106,8 @@ class LevelMetadataSheet extends StatelessWidget {
                             'Level ${t.level}+ • ${t.achievementsRequired} Achievements\n${t.description}',
                             style: TextStyle(
                               color: isReached
-                                  ? YomuConstants.textSecondary
-                                  : Colors.white30,
+                                  ? colors.textSecondary
+                                  : colors.tint(0.30),
                               fontSize: 11,
                             ),
                           ),
@@ -113,7 +117,7 @@ class LevelMetadataSheet extends StatelessWidget {
                     if (isReached)
                       Icon(
                         Icons.check_circle,
-                        color: YomuConstants.accent,
+                        color: colors.accent,
                         size: 18,
                       ),
                   ],

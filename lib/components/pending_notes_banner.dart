@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import '../screens/reading/widgets/note_author_avatar.dart';
 import '../services/annotation_share_service.dart';
 
@@ -31,10 +31,11 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
   @override
   Widget build(BuildContext context) {
     final count = widget.pending.length;
+    final colors = context.yomu;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Material(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: colors.tint(0.05),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -46,9 +47,9 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.mark_email_unread_outlined,
-                      color: YomuConstants.accent,
+                      color: colors.accent,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -57,8 +58,8 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
                         count == 1
                             ? 'Notes waiting for a book'
                             : '$count sets of notes waiting for their books',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -68,7 +69,7 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
                       _expanded
                           ? Icons.expand_less_rounded
                           : Icons.expand_more_rounded,
-                      color: Colors.white54,
+                      color: colors.tint(0.54),
                     ),
                   ],
                 ),
@@ -87,6 +88,7 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
   Widget _buildRow(PendingNotes notes) {
     final m = notes.manifest;
     final noteCount = m.annotations.length;
+    final colors = context.yomu;
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: Column(
@@ -104,13 +106,13 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
                       '${m.sharedBy ?? 'Someone'} · "${m.title}"',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 13),
                     ),
                     Text(
                       '$noteCount ${noteCount == 1 ? 'note' : 'notes'} · '
                       'received ${_date(notes.receivedAt)}',
-                      style: const TextStyle(
-                        color: Colors.white38,
+                      style: TextStyle(
+                        color: colors.tint(0.38),
                         fontSize: 11,
                       ),
                     ),
@@ -125,24 +127,24 @@ class _PendingNotesBannerState extends State<PendingNotesBanner> {
               if (notes.similarBook != null)
                 TextButton(
                   onPressed: () => widget.onPlace(notes),
-                  child: const Text(
+                  child: Text(
                     'Place on my copy',
-                    style: TextStyle(color: YomuConstants.accent),
+                    style: TextStyle(color: colors.accent),
                   ),
                 )
               else
                 TextButton(
                   onPressed: widget.onAddBook,
-                  child: const Text(
+                  child: Text(
                     'Add the book',
-                    style: TextStyle(color: YomuConstants.accent),
+                    style: TextStyle(color: colors.accent),
                   ),
                 ),
               TextButton(
                 onPressed: () => widget.onDiscard(notes),
-                child: const Text(
+                child: Text(
                   'Discard',
-                  style: TextStyle(color: Colors.white54),
+                  style: TextStyle(color: colors.tint(0.54)),
                 ),
               ),
             ],

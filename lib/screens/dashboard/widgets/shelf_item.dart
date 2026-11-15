@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../components/desktop/hover_lift.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../models/book_model.dart';
 import '../../../providers/library_provider.dart';
 import '../../reading_screen.dart';
@@ -28,6 +28,7 @@ class _ShelfItemState extends ConsumerState<ShelfItem> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return GestureDetector(
       onTapDown: (details) {
         setState(() {
@@ -63,8 +64,8 @@ class _ShelfItemState extends ConsumerState<ShelfItem> {
                 height: 140,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: YomuConstants.surface,
-                  boxShadow: YomuConstants.cardShadow,
+                  color: colors.surface,
+                  boxShadow: colors.cardShadow,
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -131,8 +132,8 @@ class _ShelfItemState extends ConsumerState<ShelfItem> {
             width: 100,
             child: Text(
               widget.book.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../components/glass_container.dart';
 import '../../../providers/library_provider.dart';
 
@@ -70,6 +70,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return SingleChildScrollView(
       child: Container(
         padding: EdgeInsets.only(
@@ -87,9 +88,9 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Set targets for the metrics you want to track.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: colors.tint(0.70), fontSize: 14),
               ),
               const SizedBox(height: 24),
 
@@ -148,7 +149,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: YomuConstants.accent,
+                    backgroundColor: colors.accent,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -176,6 +177,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
     required VoidCallback onIncrement,
     required VoidCallback onSelect,
   }) {
+    final colors = context.yomu;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -185,7 +187,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
             Text(
               title,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.9),
+                color: colors.tint(0.9),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -195,16 +197,16 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: colors.tint(0.10),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: isActive ? YomuConstants.accent : Colors.transparent,
+                    color: isActive ? colors.accent : Colors.transparent,
                   ),
                 ),
                 child: Text(
                   isActive ? 'Active' : 'Show on Graph',
                   style: TextStyle(
-                    color: isActive ? YomuConstants.accent : Colors.white60,
+                    color: isActive ? colors.accent : colors.tint(0.60),
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -228,7 +230,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: isActive ? YomuConstants.accent : Colors.white,
+                        color: isActive ? colors.accent : colors.textPrimary,
                       ),
                       decoration: const InputDecoration(
                         border: InputBorder.none,
@@ -248,7 +250,7 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
                     unit,
                     style: TextStyle(
                       fontSize: 14,
-                      color: YomuConstants.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ],
@@ -268,15 +270,16 @@ class _GoalSettingsSheetState extends ConsumerState<GoalSettingsSheet> {
   }
 
   Widget _buildValueBtn(IconData icon, VoidCallback onTap) {
+    final colors = context.yomu;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white10,
+          color: colors.tint(0.10),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: 20, color: Colors.white),
+        child: Icon(icon, size: 20, color: colors.textPrimary),
       ),
     );
   }

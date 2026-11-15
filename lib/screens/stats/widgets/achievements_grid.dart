@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants.dart';
+import '../../../core/yomu_colors.dart';
 import '../../../providers/library_provider.dart';
 
 class AchievementBadge extends StatelessWidget {
@@ -18,6 +18,7 @@ class AchievementBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.yomu;
     return Column(
       children: [
         Container(
@@ -25,15 +26,15 @@ class AchievementBadge extends StatelessWidget {
           height: 60,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.05),
+            color: colors.tint(0.05),
             border: Border.all(
-              color: isUnlocked ? YomuConstants.accent : Colors.white10,
+              color: isUnlocked ? colors.accent : colors.tint(0.10),
               width: 2,
             ),
           ),
           child: Icon(
             icon,
-            color: isUnlocked ? YomuConstants.accent : Colors.white24,
+            color: isUnlocked ? colors.accent : colors.tint(0.24),
             size: 28,
           ),
         ),
@@ -44,7 +45,7 @@ class AchievementBadge extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: isUnlocked ? Colors.white : Colors.white24,
+            color: isUnlocked ? colors.textPrimary : colors.tint(0.24),
             fontSize: 10,
             fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal,
           ),
@@ -55,7 +56,7 @@ class AchievementBadge extends StatelessWidget {
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white24, fontSize: 8),
+          style: TextStyle(color: colors.tint(0.24), fontSize: 8),
         ),
       ],
     );
@@ -242,61 +243,66 @@ class AchievementsGrid extends StatelessWidget {
   }) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: YomuConstants.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.05),
-                border: Border.all(
-                  color: isUnlocked ? YomuConstants.accent : Colors.white10,
-                  width: 2.5,
+      builder: (context) {
+        final colors = context.yomu;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colors.tint(0.05),
+                  border: Border.all(
+                    color: isUnlocked ? colors.accent : colors.tint(0.10),
+                    width: 2.5,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  color: isUnlocked ? colors.accent : colors.tint(0.24),
+                  size: 40,
                 ),
               ),
-              child: Icon(
-                icon,
-                color: isUnlocked ? YomuConstants.accent : Colors.white24,
-                size: 40,
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isUnlocked ? colors.textPrimary : colors.tint(0.38),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isUnlocked ? Colors.white : Colors.white38,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 8),
+              Text(
+                desc,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isUnlocked ? colors.tint(0.70) : colors.tint(0.24),
+                  fontSize: 14,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              desc,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isUnlocked ? Colors.white70 : Colors.white24,
-                fontSize: 14,
+              const SizedBox(height: 12),
+              Text(
+                isUnlocked ? 'Unlocked' : 'Keep reading to unlock!',
+                style: TextStyle(
+                  color: isUnlocked ? colors.accent : colors.tint(0.24),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              isUnlocked ? 'Unlocked' : 'Keep reading to unlock!',
-              style: TextStyle(
-                color: isUnlocked ? YomuConstants.accent : Colors.white24,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

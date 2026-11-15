@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../core/constants.dart';
+import '../core/yomu_colors.dart';
 import './glass_container.dart';
 import '../models/book_model.dart';
 import '../providers/library_provider.dart';
@@ -54,6 +54,7 @@ class DailyActivitySheet extends ConsumerWidget {
     }
 
     final mergedSessions = aggregatedMap.values.toList();
+    final colors = context.yomu;
 
     return GlassContainer(
       borderRadius: 24,
@@ -70,8 +71,8 @@ class DailyActivitySheet extends ConsumerWidget {
                 children: [
                   Text(
                     DateFormat('EEEE, MMMM d').format(date),
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -79,7 +80,7 @@ class DailyActivitySheet extends ConsumerWidget {
                   Text(
                     'Daily Achievement',
                     style: TextStyle(
-                      color: YomuConstants.textSecondary,
+                      color: colors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -91,14 +92,14 @@ class DailyActivitySheet extends ConsumerWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: colors.tint(0.06),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white10),
+                  border: Border.all(color: colors.tint(0.10)),
                 ),
                 child: Text(
                   '$totalValue $goalType',
                   style: TextStyle(
-                    color: YomuConstants.accent,
+                    color: colors.accent,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -107,22 +108,22 @@ class DailyActivitySheet extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'Books Read',
             style: TextStyle(
-              color: Colors.white70,
+              color: colors.tint(0.70),
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
           if (mergedSessions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
                   'No specific book data for this day',
-                  style: TextStyle(color: Colors.white38),
+                  style: TextStyle(color: colors.tint(0.38)),
                 ),
               ),
             )
@@ -166,7 +167,7 @@ class DailyActivitySheet extends ConsumerWidget {
                             width: 32,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: Colors.white10,
+                              color: colors.tint(0.10),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Padding(
@@ -178,11 +179,11 @@ class DailyActivitySheet extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'Unknown Book (Removed)',
                               style: TextStyle(
-                                color: Colors.white38,
+                                color: colors.tint(0.38),
                                 fontSize: 14,
                                 fontStyle: FontStyle.italic,
                               ),
@@ -190,8 +191,8 @@ class DailyActivitySheet extends ConsumerWidget {
                           ),
                           Text(
                             '+$val',
-                            style: const TextStyle(
-                              color: Colors.white38,
+                            style: TextStyle(
+                              color: colors.tint(0.38),
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
@@ -273,8 +274,8 @@ class DailyActivitySheet extends ConsumerWidget {
                                 children: [
                                   Text(
                                     book.title,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -284,7 +285,7 @@ class DailyActivitySheet extends ConsumerWidget {
                                   Text(
                                     book.author,
                                     style: TextStyle(
-                                      color: YomuConstants.textSecondary,
+                                      color: colors.textSecondary,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -293,8 +294,8 @@ class DailyActivitySheet extends ConsumerWidget {
                             ),
                             Text(
                               '+$val',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -312,7 +313,7 @@ class DailyActivitySheet extends ConsumerWidget {
             child: Text(
               'Keep it up!',
               style: TextStyle(
-                color: YomuConstants.textSecondary,
+                color: colors.textSecondary,
                 fontStyle: FontStyle.italic,
                 fontSize: 14,
               ),

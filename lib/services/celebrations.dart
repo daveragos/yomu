@@ -44,6 +44,10 @@ abstract final class Celebrations {
 
   static Stream<Celebration> get stream => _controller.stream;
 
+  /// Whether the app is dark right now, so the native macOS card matches
+  /// it. Kept up to date by the app's root (`YomuApp`).
+  static bool isDark = true;
+
   static void show(Celebration celebration) {
     final now = DateTime.now();
     _recent.removeWhere((_, at) => now.difference(at) > _dedupeWindow);
@@ -56,6 +60,7 @@ abstract final class Celebrations {
             'kind': celebration.kind.name,
             'title': celebration.title,
             'body': celebration.body,
+            'dark': isDark,
           })
           .catchError((Object _) => _controller.add(celebration));
       return;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/yomu_colors.dart';
+
 /// Lifts [child] slightly and rims it with a light outline while the
 /// pointer is over it, so cards read as clickable on desktop.
 ///
@@ -48,7 +50,7 @@ class _HoverLiftState extends State<HoverLift> {
                 borderRadius: widget.borderRadius,
                 border: Border.all(
                   color: _hovered
-                      ? Colors.white.withValues(alpha: 0.14)
+                      ? context.yomu.tint(0.14)
                       : Colors.transparent,
                 ),
               )
