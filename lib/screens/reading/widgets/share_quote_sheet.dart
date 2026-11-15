@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../../components/desktop/adaptive_sheet.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -24,7 +25,7 @@ class ShareQuoteSheet extends StatefulWidget {
     String? bookTitle,
     String? bookAuthor,
   }) {
-    return showModalBottomSheet(
+    return showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

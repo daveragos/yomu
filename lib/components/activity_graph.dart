@@ -50,29 +50,34 @@ class ActivityGraph extends StatelessWidget {
           }).toList(),
         ),
         const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 0.85,
+        LayoutBuilder(
+          builder: (context, constraints) => GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              // Seven columns always fill the width, so in a wide layout
+              // tall cells would make the month very tall. Make them
+              // wider than high there instead.
+              childAspectRatio: constraints.maxWidth > 500 ? 1.6 : 0.85,
+            ),
+            itemCount: daysInMonth + leadingEmptyDays,
+            itemBuilder: (context, index) {
+              final int dayIndex = index - leadingEmptyDays;
+              if (dayIndex < 0) return const SizedBox.shrink();
+
+              final DateTime date = DateTime(year, month, dayIndex + 1);
+              final String dateStr = date.toIso8601String().split('T')[0];
+              final int value = dailyValues[dateStr] ?? 0;
+
+              return GestureDetector(
+                onTap: () => onDateTapped?.call(date, value),
+                child: _buildDayCell(context, date.day, value),
+              );
+            },
           ),
-          itemCount: daysInMonth + leadingEmptyDays,
-          itemBuilder: (context, index) {
-            final int dayIndex = index - leadingEmptyDays;
-            if (dayIndex < 0) return const SizedBox.shrink();
-
-            final DateTime date = DateTime(year, month, dayIndex + 1);
-            final String dateStr = date.toIso8601String().split('T')[0];
-            final int value = dailyValues[dateStr] ?? 0;
-
-            return GestureDetector(
-              onTap: () => onDateTapped?.call(date, value),
-              child: _buildDayCell(context, date.day, value),
-            );
-          },
         ),
       ],
     );

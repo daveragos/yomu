@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
+import '../../../core/breakpoints.dart';
 import './control_button.dart';
 
 class ReadingBottomControls extends StatelessWidget {
@@ -65,6 +66,12 @@ class ReadingBottomControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasMultipleTracks = book.audioTracks.length > 1;
+    if (Breakpoints.isWide(context)) {
+      return _buildFloatingBar(
+        book.audioPath != null || book.audioTracks.isNotEmpty,
+        hasMultipleTracks,
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -137,103 +144,178 @@ class ReadingBottomControls extends StatelessWidget {
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ControlButton(
-                    key: tocKey,
-                    settings: settings,
-                    onTap: onShowNavigationSheet,
-                    child: Icon(
-                      Icons.format_list_bulleted_rounded,
-                      color: isNavigationSheetOpen
-                          ? YomuConstants.accent
-                          : settings.textColor,
-                      size: 22,
-                    ),
-                  ),
-                  ControlButton(
-                    settings: settings,
-                    onTap: onToggleBookmark,
-                    child: Icon(
-                      isBookmarked
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_outline_rounded,
-                      color: isBookmarked
-                          ? YomuConstants.accent
-                          : settings.textColor,
-                      size: 22,
-                    ),
-                  ),
-                  if (book.audioPath != null || book.audioTracks.isNotEmpty)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ControlButton(
-                          key: audioKey,
-                          settings: settings,
-                          onTap: onToggleAudioControls,
-                          child: Icon(
-                            isAudioControlsExpanded
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.tune_rounded,
-                            color: settings.textColor,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        playPauseButton,
-                      ],
-                    )
-                  else
-                    ControlButton(
-                      key: audioKey,
-                      settings: settings,
-                      onTap: onPickAudio,
-                      child: const Icon(
-                        Icons.add_rounded,
-                        color: YomuConstants.accent,
-                        size: 24,
-                      ),
-                    ),
-                  ControlButton(
-                    key: autoScrollKey,
-                    settings: settings,
-                    onTap: onToggleAutoScroll,
-                    child: Icon(
-                      isAutoScrolling
-                          ? Icons.pause_circle_outline_rounded
-                          : Icons.play_circle_outline_rounded,
-                      color: isAutoScrolling
-                          ? YomuConstants.accent
-                          : settings.textColor,
-                      size: 22,
-                    ),
-                  ),
-                  ControlButton(
-                    settings: settings,
-                    onTap: onToggleOrientation,
-                    child: Icon(
-                      Icons.screen_rotation_rounded,
-                      color: settings.textColor,
-                      size: 20,
-                    ),
-                  ),
-                  ControlButton(
-                    key: displaySettingsKey,
-                    settings: settings,
-                    onTap: onShowDisplaySettings,
-                    child: Icon(
-                      Icons.text_fields_rounded,
-                      color: settings.textColor,
-                      size: 22,
-                    ),
-                  ),
-                ],
+                children: _buildMainButtons(desktop: false),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// In a wide window the controls float as a compact bar centered under
+  /// the text, instead of a full-width panel along the bottom edge.
+  Widget _buildFloatingBar(bool hasAudio, bool hasMultipleTracks) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      heightFactor: 1,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(
+                settings.textColor.withValues(alpha: 0.05),
+                settings.backgroundColor,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: settings.textColor.withValues(alpha: 0.08),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasAudio && audioSection != null) audioSection!,
+                if (hasAudio && isAudioControlsExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: _buildAudioControlButtons(
+                        hasMultipleTracks,
+                        withSizedBoxes: true,
+                        spacing: 8,
+                      ),
+                    ),
+                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final (i, button)
+                        in _buildMainButtons(desktop: true).indexed) ...[
+                      if (i > 0) const SizedBox(width: 6),
+                      button,
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The always-visible controls. On desktop they get tooltips, and the
+  /// screen-rotation toggle is left out.
+  List<Widget> _buildMainButtons({required bool desktop}) {
+    final hasAudio = book.audioPath != null || book.audioTracks.isNotEmpty;
+    String? tip(String text) => desktop ? text : null;
+
+    return [
+      ControlButton(
+        key: tocKey,
+        settings: settings,
+        onTap: onShowNavigationSheet,
+        tooltip: tip('Contents and notes'),
+        child: Icon(
+          Icons.format_list_bulleted_rounded,
+          color: isNavigationSheetOpen
+              ? YomuConstants.accent
+              : settings.textColor,
+          size: 22,
+        ),
+      ),
+      ControlButton(
+        settings: settings,
+        onTap: onToggleBookmark,
+        tooltip: tip(isBookmarked ? 'Remove bookmark' : 'Bookmark this page'),
+        child: Icon(
+          isBookmarked
+              ? Icons.bookmark_rounded
+              : Icons.bookmark_outline_rounded,
+          color: isBookmarked ? YomuConstants.accent : settings.textColor,
+          size: 22,
+        ),
+      ),
+      if (hasAudio)
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ControlButton(
+              key: audioKey,
+              settings: settings,
+              onTap: onToggleAudioControls,
+              tooltip: tip('Audio controls'),
+              child: Icon(
+                isAudioControlsExpanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.tune_rounded,
+                color: settings.textColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 8),
+            playPauseButton,
+          ],
+        )
+      else
+        ControlButton(
+          key: audioKey,
+          settings: settings,
+          onTap: onPickAudio,
+          tooltip: tip('Add an audiobook'),
+          child: const Icon(
+            Icons.add_rounded,
+            color: YomuConstants.accent,
+            size: 24,
+          ),
+        ),
+      ControlButton(
+        key: autoScrollKey,
+        settings: settings,
+        onTap: onToggleAutoScroll,
+        tooltip: tip(isAutoScrolling ? 'Stop auto-scroll' : 'Auto-scroll'),
+        child: Icon(
+          isAutoScrolling
+              ? Icons.pause_circle_outline_rounded
+              : Icons.play_circle_outline_rounded,
+          color: isAutoScrolling ? YomuConstants.accent : settings.textColor,
+          size: 22,
+        ),
+      ),
+      if (!desktop)
+        ControlButton(
+          settings: settings,
+          onTap: onToggleOrientation,
+          child: Icon(
+            Icons.screen_rotation_rounded,
+            color: settings.textColor,
+            size: 20,
+          ),
+        ),
+      ControlButton(
+        key: displaySettingsKey,
+        settings: settings,
+        onTap: onShowDisplaySettings,
+        tooltip: tip('Text and display'),
+        child: Icon(
+          Icons.text_fields_rounded,
+          color: settings.textColor,
+          size: 22,
+        ),
+      ),
+    ];
   }
 
   List<Widget> _buildAudioControlButtons(

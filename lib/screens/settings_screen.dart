@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../core/breakpoints.dart';
+import '../components/desktop/page_header.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -20,6 +22,21 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: YomuConstants.background,
       body: CustomScrollView(
         slivers: [
+          if (Breakpoints.isWide(context))
+            const SliverSafeArea(
+              bottom: false,
+              sliver: SliverPadding(
+                padding: EdgeInsets.fromLTRB(24, 28, 24, 8),
+                sliver: SliverToBoxAdapter(
+                  child: DesktopPageHeader(
+                    eyebrow: 'Yomu',
+                    title: 'Settings',
+                    subtitle: 'Reminders, your rank, and how to support Yomu',
+                  ),
+                ),
+              ),
+            )
+          else
           SliverAppBar(
             backgroundColor: YomuConstants.background.withValues(alpha: 0.8),
             floating: true,
@@ -236,9 +253,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               trailing: const Icon(Icons.send_rounded, color: YomuConstants.accent, size: 20),
               onTap: () async {
-                final status = await Permission.notification.status;
-
-                if (status.isPermanentlyDenied) {
+                if (await NotificationService().isBlockedBySystem()) {
                   if (context.mounted) {
                     showGeneralDialog(
                       context: context,

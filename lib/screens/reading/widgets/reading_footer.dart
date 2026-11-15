@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/platform_caps.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 
@@ -35,6 +36,8 @@ class ReadingFooter extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
+            // A computer shows its own clock and battery in the menu bar.
+            if (!PlatformCaps.isDesktop)
             Row(
               children: [
                 Icon(

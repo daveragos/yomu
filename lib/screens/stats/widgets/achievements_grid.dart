@@ -203,8 +203,9 @@ class AchievementsGrid extends StatelessWidget {
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
+          // Three columns on phones, more as the layout widens.
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 140,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
             childAspectRatio: 0.8,
