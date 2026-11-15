@@ -13,71 +13,49 @@ class DashboardHeader extends ConsumerWidget {
     final libraryState = ref.watch(libraryProvider);
     final rankName = libraryState.rankName;
 
-    return Stack(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Positioned(
-          top: -20,
-          right: -20,
-          child: Container(
-            width: 150,
-            height: 150,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  YomuConstants.accent.withValues(alpha: 0.15),
-                  Colors.transparent,
-                ],
-              ),
-            ),
+        Text(
+          DateFormat('EEEE, MMM d').format(now),
+          style: const TextStyle(
+            color: YomuConstants.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              DateFormat('EEEE, MMM d').format(now).toUpperCase(),
-              style: TextStyle(
-                color: YomuConstants.accent.withValues(alpha: 0.8),
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2.0,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text.rich(
+        const SizedBox(height: 8),
+        Text.rich(
+          TextSpan(
+            children: [
               TextSpan(
-                children: [
-                  TextSpan(
-                    text: now.hour < 12
-                        ? 'Good Morning, '
-                        : now.hour < 17
-                        ? 'Good Afternoon, '
-                        : 'Good Evening, ',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 18,
-                      color: YomuConstants.textSecondary,
-                      height: 1.2,
-                    ),
-                  ),
-                  TextSpan(
-                    text: rankName,
-                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      color: YomuConstants.textPrimary,
-                    ),
-                  ),
-                ],
+                text: now.hour < 12
+                    ? 'Good Morning, '
+                    : now.hour < 17
+                    ? 'Good Afternoon, '
+                    : 'Good Evening, ',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 18,
+                  color: YomuConstants.textSecondary,
+                  height: 1.2,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            _buildXPProgressBar(libraryState),
-          ],
+              TextSpan(
+                text: rankName,
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: YomuConstants.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        const SizedBox(height: 16),
+        _buildXPProgressBar(libraryState),
       ],
     );
   }
@@ -129,20 +107,8 @@ class DashboardHeader extends ConsumerWidget {
             widthFactor: progress,
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    YomuConstants.accent,
-                    YomuConstants.accent.withValues(alpha: 0.6),
-                  ],
-                ),
+                color: YomuConstants.accent,
                 borderRadius: BorderRadius.circular(3),
-                boxShadow: [
-                  BoxShadow(
-                    color: YomuConstants.accent.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
             ),
           ),

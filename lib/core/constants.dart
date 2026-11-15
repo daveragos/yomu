@@ -19,6 +19,9 @@ class YomuConstants {
   static const Color glassy = Color(0x1AFFFFFF);
   static const Color outline = Color(0xFF1E293B); // Slate 800
 
+  // Card edge: a hairline that separates a surface from the background.
+  static const Color hairline = Color(0x0FFFFFFF);
+
   // Shadows
   static const List<BoxShadow> cardShadow = [
     BoxShadow(color: Color(0x40000000), blurRadius: 20, offset: Offset(0, 10)),

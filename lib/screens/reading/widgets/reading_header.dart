@@ -219,11 +219,9 @@ class ReadingHeader extends StatelessWidget {
                         horizontal: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: YomuConstants.accent.withValues(alpha: 0.1),
+                        color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: YomuConstants.accent.withValues(alpha: 0.3),
-                        ),
+                        border: Border.all(color: Colors.white10),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,

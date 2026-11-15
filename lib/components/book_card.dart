@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/breakpoints.dart';
@@ -147,99 +146,94 @@ class _BookCardState extends State<BookCard> {
                           size: 16,
                         ),
                       ),
-                    // Bottom Metadata Overlay (Glassy)
+                    // Bottom metadata strip
                     if (widget.book.progress > 0 && widget.book.progress < 1.0)
                       Positioned(
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        child: ClipRect(
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                width: 0.5,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                border: Border(
-                                  top: BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.1),
-                                    width: 0.5,
-                                  ),
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            1,
-                                          ),
-                                          child: LinearProgressIndicator(
-                                            value: widget.book.progress,
-                                            backgroundColor: Colors.white
-                                                .withValues(alpha: 0.1),
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  YomuConstants.accent,
-                                                ),
-                                            minHeight: 2,
-                                          ),
-                                        ),
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(
+                                        1,
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '${(widget.book.progress * 100).toStringAsFixed(0)}%',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                      child: LinearProgressIndicator(
+                                        value: widget.book.progress,
+                                        backgroundColor: Colors.white
+                                            .withValues(alpha: 0.1),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              YomuConstants.accent,
+                                            ),
+                                        minHeight: 2,
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Wrap(
-                                    spacing: 4,
-                                    runSpacing: 0,
-                                    children: [
-                                      if (widget.book.totalPages > 0)
-                                        Text(
-                                          '${widget.book.filePath.toLowerCase().endsWith('.epub') ? 'Ch.' : 'Pg.'} ${widget.book.currentPage + 1}/${widget.book.totalPages}',
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 9,
-                                          ),
-                                        ),
-                                      if (widget.book.estimatedReadingMinutes >
-                                          0)
-                                        Text(
-                                          '• ${_formatReadingTime(widget.book.estimatedReadingMinutes)}',
-                                          style: const TextStyle(
-                                            color: Colors.white60,
-                                            fontSize: 9,
-                                          ),
-                                        ),
-                                      if (widget.book.lastReadAt != null)
-                                        Text(
-                                          '• ${_formatLastRead(widget.book.lastReadAt!)}',
-                                          style: const TextStyle(
-                                            color: Colors.white38,
-                                            fontSize: 8,
-                                            fontStyle: FontStyle.italic,
-                                          ),
-                                        ),
-                                    ],
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${(widget.book.progress * 100).toStringAsFixed(0)}%',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 0,
+                                children: [
+                                  if (widget.book.totalPages > 0)
+                                    Text(
+                                      '${widget.book.filePath.toLowerCase().endsWith('.epub') ? 'Ch.' : 'Pg.'} ${widget.book.currentPage + 1}/${widget.book.totalPages}',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                  if (widget.book.estimatedReadingMinutes >
+                                      0)
+                                    Text(
+                                      '• ${_formatReadingTime(widget.book.estimatedReadingMinutes)}',
+                                      style: const TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                  if (widget.book.lastReadAt != null)
+                                    Text(
+                                      '• ${_formatLastRead(widget.book.lastReadAt!)}',
+                                      style: const TextStyle(
+                                        color: Colors.white38,
+                                        fontSize: 8,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -249,7 +243,7 @@ class _BookCardState extends State<BookCard> {
                         child: Container(
                           decoration: BoxDecoration(
                             color: widget.isSelected
-                                ? YomuConstants.accent.withValues(alpha: 0.3)
+                                ? Colors.black45
                                 : Colors.black26,
                           ),
                           child: Center(

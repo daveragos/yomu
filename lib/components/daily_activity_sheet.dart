@@ -91,11 +91,9 @@ class DailyActivitySheet extends ConsumerWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: YomuConstants.accent.withValues(alpha: 0.1),
+                  color: Colors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: YomuConstants.accent.withValues(alpha: 0.3),
-                  ),
+                  border: Border.all(color: Colors.white10),
                 ),
                 child: Text(
                   '$totalValue $goalType',
@@ -314,7 +312,7 @@ class DailyActivitySheet extends ConsumerWidget {
             child: Text(
               'Keep it up!',
               style: TextStyle(
-                color: YomuConstants.accent.withValues(alpha: 0.8),
+                color: YomuConstants.textSecondary,
                 fontStyle: FontStyle.italic,
                 fontSize: 14,
               ),

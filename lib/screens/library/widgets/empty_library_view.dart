@@ -68,18 +68,12 @@ class EmptyLibraryView extends ConsumerWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: YomuConstants.accent.withValues(alpha: 0.12),
+                    color: Colors.white.withValues(alpha: 0.05),
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: YomuConstants.accent.withValues(alpha: 0.18),
-                        blurRadius: 32,
-                      ),
-                    ],
                   ),
                   child: const Icon(
                     Icons.auto_stories_rounded,
-                    color: YomuConstants.accent,
+                    color: YomuConstants.textSecondary,
                     size: 34,
                   ),
                 ),

@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import '../core/constants.dart';
 import './glass_container.dart';
 
 class StatBadge extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final Color color;
+
+  /// Only for an icon that carries state, like a lit streak flame.
+  final Color? color;
 
   const StatBadge({
     super.key,
     required this.label,
     required this.value,
     required this.icon,
-    required this.color,
+    this.color,
   });
 
   @override
@@ -21,7 +24,7 @@ class StatBadge extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
+          Icon(icon, color: color ?? YomuConstants.textSecondary, size: 24),
           const SizedBox(height: 8),
           Text(
             value,

@@ -398,7 +398,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
           ),
           const SizedBox(width: 8),
           Material(
-            color: YomuConstants.accent.withValues(alpha: 0.1),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: _handleJump,
@@ -1294,10 +1294,10 @@ class _AnnotationHeader extends StatelessWidget {
                 Text(
                   isSelectionMode ? "$selectedCount SELECTED" : "ANNOTATIONS",
                   style: const TextStyle(
-                    color: YomuConstants.accent,
+                    color: YomuConstants.textSecondary,
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.8,
                   ),
                 ),
                 if (!isSelectionMode)
@@ -1411,7 +1411,7 @@ class _ColorFilterBar extends StatelessWidget {
               selected: selectedColor == null,
               onSelected: (_) => onColorTap(null),
               backgroundColor: Colors.transparent,
-              selectedColor: YomuConstants.accent.withValues(alpha: 0.2),
+              selectedColor: Colors.white.withValues(alpha: 0.08),
               checkmarkColor: YomuConstants.accent,
               side: BorderSide(
                 color: selectedColor == null
@@ -1506,7 +1506,7 @@ class _AnnotationCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Material(
         color: isSelected
-            ? YomuConstants.accent.withValues(alpha: 0.1)
+            ? Colors.white.withValues(alpha: 0.08)
             : Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
@@ -1831,7 +1831,7 @@ class _NoteFiltersBarState extends State<_NoteFiltersBar> {
       padding: const EdgeInsets.only(right: 8),
       child: Material(
         color: selected
-            ? YomuConstants.accent.withValues(alpha: 0.18)
+            ? Colors.white.withValues(alpha: 0.1)
             : Colors.white.withValues(alpha: 0.05),
         shape: StadiumBorder(
           side: BorderSide(

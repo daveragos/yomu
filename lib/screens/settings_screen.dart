@@ -29,7 +29,6 @@ class SettingsScreen extends ConsumerWidget {
                 padding: EdgeInsets.fromLTRB(24, 28, 24, 8),
                 sliver: SliverToBoxAdapter(
                   child: DesktopPageHeader(
-                    eyebrow: 'Yomu',
                     title: 'Settings',
                     subtitle: 'Reminders, your rank, and how to support Yomu',
                   ),
@@ -76,11 +75,11 @@ class SettingsScreen extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
-          color: YomuConstants.accent.withValues(alpha: 0.8),
+        style: const TextStyle(
+          color: YomuConstants.textSecondary,
           fontSize: 12,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -98,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: YomuConstants.accent.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.05),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -306,7 +305,7 @@ class SettingsScreen extends ConsumerWidget {
                 if (granted) {
                   await NotificationService().showNotification(
                     id: 888,
-                    title: 'Test Notification \uD83D\uDCD6',
+                    title: 'Test Notification',
                     body: "Reminders are working correctly! Happy reading.",
                   );
                 } else if (context.mounted) {
@@ -345,7 +344,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               subtitle: Text(
-                'Support the developer and the project \u2764\uFE0F',
+                'Support the developer and the project',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,
@@ -379,7 +378,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               subtitle: Text(
-                'Help build the future of Yomu \uD83D\uDE80',
+                'Help build the future of Yomu',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,

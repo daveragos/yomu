@@ -11,9 +11,7 @@ class StreakWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color fireColor = isActive
-        ? (streak >= 30
-              ? Colors.amber
-              : (streak >= 7 ? Colors.orange : Colors.redAccent))
+        ? YomuConstants.accent
         : YomuConstants.textSecondary;
 
     return GlassContainer(

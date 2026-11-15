@@ -27,6 +27,7 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     (NSApplication.shared.delegate as? AppDelegate)?.listenForOpenFiles(
       on: flutterViewController.engine.binaryMessenger)
+    CelebrationPanels.shared.listen(on: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
   }

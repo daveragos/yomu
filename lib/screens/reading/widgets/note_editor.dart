@@ -275,15 +275,6 @@ class _NoteEditorState extends State<NoteEditor> {
                             decoration: BoxDecoration(
                               color: color,
                               shape: BoxShape.circle,
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: color.withValues(alpha: 0.4),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      )
-                                    ]
-                                  : null,
                             ),
                             child: isSelected
                                 ? const Icon(Icons.check, size: 16, color: Colors.black)
@@ -344,8 +335,7 @@ class _NoteEditorState extends State<NoteEditor> {
                       iconButtonSelectedData: IconButtonData(
                         color: YomuConstants.accent,
                         style: IconButton.styleFrom(
-                          backgroundColor:
-                              YomuConstants.accent.withValues(alpha: 0.12),
+                          backgroundColor: Colors.white.withValues(alpha: 0.1),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

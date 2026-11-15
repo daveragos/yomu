@@ -429,13 +429,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         label: 'Pages',
         value: '${state.totalPagesRead}',
         icon: Icons.auto_stories,
-        color: YomuConstants.accentGreen,
       ),
       DesktopStatTile(
         label: 'Minutes',
         value: '${state.totalMinutesRead}',
         icon: Icons.timer,
-        color: Colors.orangeAccent,
       ),
       // The level card above already shows the level, so the fourth tile
       // shows total XP instead.
@@ -443,7 +441,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         label: 'Total XP',
         value: '${state.totalXP}',
         icon: Icons.stars_rounded,
-        color: Colors.purpleAccent,
       ),
     ];
     return Column(
@@ -498,7 +495,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             label: 'Pages',
             value: '${state.totalPagesRead}',
             icon: Icons.auto_stories,
-            color: YomuConstants.accentGreen,
           ),
         ),
         const SizedBox(width: 8),
@@ -507,7 +503,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             label: 'Minutes',
             value: '${state.totalMinutesRead}',
             icon: Icons.timer,
-            color: Colors.orangeAccent,
           ),
         ),
         const SizedBox(width: 8),
@@ -516,7 +511,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             label: 'Level',
             value: '${state.level}',
             icon: Icons.stars_rounded,
-            color: Colors.purpleAccent,
           ),
         ),
       ],

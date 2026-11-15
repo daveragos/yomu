@@ -525,12 +525,12 @@ class MissingBookFile extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: YomuConstants.accent.withValues(alpha: 0.12),
+                  color: Colors.white.withValues(alpha: 0.05),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.folder_open_rounded,
-                  color: YomuConstants.accent,
+                  color: YomuConstants.textSecondary,
                   size: 30,
                 ),
               ),

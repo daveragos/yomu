@@ -165,7 +165,7 @@ class _NavItemState extends State<_NavItem> {
   Widget build(BuildContext context) {
     final selected = widget.isSelected;
     final Color background = selected
-        ? YomuConstants.accent.withValues(alpha: 0.12)
+        ? Colors.white.withValues(alpha: 0.07)
         : _hovered
         ? Colors.white.withValues(alpha: 0.04)
         : Colors.transparent;
@@ -355,7 +355,7 @@ class _RankCard extends StatelessWidget {
                     Icons.local_fire_department_rounded,
                     size: 16,
                     color: state.isStreakActiveToday
-                        ? Colors.deepOrangeAccent
+                        ? YomuConstants.accent
                         : YomuConstants.textSecondary,
                   ),
                   const SizedBox(width: 2),
