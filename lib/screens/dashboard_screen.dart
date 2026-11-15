@@ -15,6 +15,7 @@ import 'main_navigation.dart';
 import '../models/book_model.dart';
 import 'edit_book_screen.dart';
 import '../components/book_overlay_menu.dart';
+import 'reading/widgets/share_with_notes.dart';
 
 final hasDashboardAnimatedProvider = StateProvider<bool>((ref) => false);
 
@@ -283,6 +284,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 builder: (context) => EditBookScreen(book: book),
               ),
             );
+            break;
+          case 'share_notes':
+            shareBookWithNotes(context, book);
             break;
           case 'delete':
             _showDeleteConfirmation(book);

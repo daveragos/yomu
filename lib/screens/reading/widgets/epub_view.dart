@@ -30,6 +30,8 @@ class ReadingEpubView extends StatelessWidget {
   final Function(Highlight) onHighlight;
   final Function(int) onDeleteHighlight;
   final Function(String)? onLookup;
+  final void Function(Highlight highlight)? onOpenNote;
+  final Map<String, int> replyCounts;
 
   const ReadingEpubView({
     super.key,
@@ -55,6 +57,8 @@ class ReadingEpubView extends StatelessWidget {
     required this.onHighlight,
     required this.onDeleteHighlight,
     this.onLookup,
+    this.onOpenNote,
+    this.replyCounts = const {},
     this.searchQuery,
     this.epubBook,
   });
@@ -74,6 +78,9 @@ class ReadingEpubView extends StatelessWidget {
         return EpubChapterPage(
           index: index,
           isCurrentPage: index == currentChapterIndex,
+          // A chapter above the current one slides in from the top when
+          // going back, so it has to show its end, not its first page.
+          opensAtEnd: index < currentChapterIndex,
           chapter: chapters[index],
           settings: settings,
           shouldJumpToBottom: shouldJumpToBottom,
@@ -87,7 +94,9 @@ class ReadingEpubView extends StatelessWidget {
           onHideControls: onHideControls,
           onToggleControls: onToggleControls,
           onInteraction: onInteraction,
-          pullTriggerDistance: 80.0,
+          // Overscroll (after the bounce friction, so roughly half the finger
+          // travel) needed before releasing changes chapter.
+          pullTriggerDistance: 56.0,
           pullDeadzone: 8.0,
           chapters: chapters,
           pageController: pageController,
@@ -98,6 +107,8 @@ class ReadingEpubView extends StatelessWidget {
           onHighlight: onHighlight,
           onDeleteHighlight: onDeleteHighlight,
           onLookup: onLookup,
+          onOpenNote: onOpenNote,
+          replyCounts: replyCounts,
           bookTitle: book.title,
           bookAuthor: book.author,
         );

@@ -11,7 +11,11 @@ import '../../../models/highlight_model.dart';
 import '../../../models/vocabulary_model.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
-import './note_editor.dart';
+import '../../../models/annotation_reply_model.dart';
+import '../../../services/database_service.dart';
+import '../../../utils/annotation_order.dart';
+import './note_author_avatar.dart';
+import './note_card_sheet.dart';
 import './note_view.dart';
 import './voice_note_player.dart';
 import './share_quote_sheet.dart';
@@ -43,8 +47,26 @@ class NavigationSheet extends StatefulWidget {
   final void Function(double)? onJumpToPercent;
   final VoidCallback? onExport;
   final VoidCallback? onShareAnnotated;
+
+  /// Readers whose notes are hidden in the text ('' is the reader's own).
+  final Set<String> hiddenAuthors;
+  final Future<void> Function(String? author, bool hidden)? onSetAuthorHidden;
+
+  /// Starts stepping through these notes in the text.
+  final void Function(List<Highlight> notes)? onWalkThrough;
   final bool focusJump;
   final int totalPages;
+
+  /// From the [DraggableScrollableSheet] hosting this sheet: the lists use
+  /// it so that scrolling them resizes the sheet first.
+  final ScrollController? scrollController;
+
+  /// Resizes the hosting sheet when its handle is dragged.
+  final DraggableScrollableController? sheetController;
+
+  /// Sizes of the hosting sheet, as a share of the screen height.
+  static const initialSize = 0.7;
+  static const minSize = 0.3;
   final ReaderSettings readerSettings;
 
   const NavigationSheet({
@@ -75,8 +97,13 @@ class NavigationSheet extends StatefulWidget {
     this.onJumpToPercent,
     this.onExport,
     this.onShareAnnotated,
+    this.hiddenAuthors = const {},
+    this.onSetAuthorHidden,
+    this.onWalkThrough,
     this.focusJump = false,
     this.totalPages = 0,
+    this.scrollController,
+    this.sheetController,
     required this.readerSettings,
   });
 
@@ -85,6 +112,8 @@ class NavigationSheet extends StatefulWidget {
 }
 
 class _NavigationSheetState extends State<NavigationSheet> {
+  bool get _isPdf => widget.book.filePath.toLowerCase().endsWith('.pdf');
+
   final TextEditingController _jumpController = TextEditingController();
   final FocusNode _jumpFocusNode = FocusNode();
 
@@ -94,6 +123,109 @@ class _NavigationSheetState extends State<NavigationSheet> {
   final Set<int> _selectedVocabularyIds = {};
   Future<List<dynamic>>? _annotationsFuture;
   String? _selectedFilterColor;
+
+  /// Filters for the notes list.
+  String _search = '';
+  String? _authorFilter; // null: everyone; '': the reader's own
+  bool _voiceOnly = false;
+  late final Set<String> _hiddenAuthors = {...widget.hiddenAuthors};
+
+  List<String?> get _chapterTitles => [for (final c in widget.chapters) c.Title];
+
+  /// Notes matching the filters, in reading order.
+  List<Highlight> _filterNotes(
+    List<Highlight> highlights,
+    List<AnnotationReply> replies,
+  ) {
+    final query = _search.trim().toLowerCase();
+    final replyText = <String, String>{};
+    if (query.isNotEmpty) {
+      for (final r in replies) {
+        replyText[r.highlightUid] =
+            '${replyText[r.highlightUid] ?? ''} ${r.text} ${r.author ?? ''}'
+                .toLowerCase();
+      }
+    }
+    final filtered = highlights.where((h) {
+      if (_selectedFilterColor != null && h.color != _selectedFilterColor) {
+        return false;
+      }
+      if (_authorFilter != null && (h.sharedBy ?? '') != _authorFilter) {
+        return false;
+      }
+      if (_voiceOnly && !h.hasAudio) return false;
+      if (query.isEmpty) return true;
+      return h.text.toLowerCase().contains(query) ||
+          (h.note?.toLowerCase().contains(query) ?? false) ||
+          (h.sharedBy?.toLowerCase().contains(query) ?? false) ||
+          (replyText[h.uid]?.contains(query) ?? false);
+    });
+    return AnnotationOrder.sorted(filtered, isPdf: _isPdf);
+  }
+
+  /// Cards for [notes] with a heading wherever the chapter (or page) changes.
+  List<Widget> _withSectionHeaders(
+    List<Highlight> notes,
+    Widget Function(Highlight h) card,
+  ) {
+    final widgets = <Widget>[];
+    int? section;
+    for (final h in notes) {
+      if (h.chapterIndex != section) {
+        section = h.chapterIndex;
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+            child: Text(
+              AnnotationOrder.location(
+                h,
+                isPdf: _isPdf,
+                chapterTitles: _chapterTitles,
+              ).toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+        );
+      }
+      widgets.add(card(h));
+    }
+    return widgets;
+  }
+
+  void _openNoteCard(Highlight h, StateSetter setSheetState) {
+    showNoteCard(
+      context,
+      highlight: h,
+      settings: widget.readerSettings,
+      location: AnnotationOrder.location(
+        h,
+        isPdf: _isPdf,
+        chapterTitles: _chapterTitles,
+      ),
+      onUpdate: widget.onUpdateHighlight,
+      onDelete: widget.onDeleteHighlight,
+      onGoTo: () => widget.onHighlightTap(h),
+    ).then((_) {
+      if (!mounted) return;
+      setState(_refreshAnnotations);
+      setSheetState(() {});
+    });
+  }
+
+  Future<void> _toggleHidden(String key) async {
+    final hidden = !_hiddenAuthors.contains(key);
+    setState(() {
+      hidden ? _hiddenAuthors.add(key) : _hiddenAuthors.remove(key);
+    });
+    await widget.onSetAuthorHidden?.call(key.isEmpty ? null : key, hidden);
+  }
 
   @override
   void initState() {
@@ -111,6 +243,10 @@ class _NavigationSheetState extends State<NavigationSheet> {
       widget.getBookmarks(),
       widget.getHighlights(),
       widget.getVocabulary(),
+      if (widget.book.id != null)
+        DatabaseService().getRepliesForBook(widget.book.id!)
+      else
+        Future.value(<AnnotationReply>[]),
     ]);
   }
 
@@ -121,26 +257,77 @@ class _NavigationSheetState extends State<NavigationSheet> {
     super.dispose();
   }
 
+  /// Dragging the handle resizes the sheet like dragging a list does; the
+  /// smallest size closes it.
+  void _onHandleDragUpdate(DragUpdateDetails details) {
+    final controller = widget.sheetController;
+    final height = MediaQuery.of(context).size.height;
+    if (controller == null || !controller.isAttached || height <= 0) return;
+    try {
+      controller.jumpTo(
+        (controller.size - (details.primaryDelta ?? 0) / height).clamp(
+          NavigationSheet.minSize,
+          1.0,
+        ),
+      );
+    } catch (e) {
+      // Both tabs' lists are attached mid tab-swipe; skip that frame.
+      debugPrint('Sheet drag skipped: $e');
+    }
+  }
+
+  /// A fling on the handle opens the sheet fully or closes it; otherwise it
+  /// stays where it was let go.
+  void _onHandleDragEnd(DragEndDetails details) {
+    final controller = widget.sheetController;
+    if (controller == null || !controller.isAttached) return;
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 1200) return;
+    final media = MediaQuery.of(context);
+    final max = ((media.size.height - media.padding.top - 8) /
+            media.size.height)
+        .clamp(NavigationSheet.initialSize, 1.0);
+    try {
+      controller.animateTo(
+        velocity < 0 ? max : NavigationSheet.minSize,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    } catch (e) {
+      debugPrint('Sheet fling skipped: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.7,
+        // Inside a DraggableScrollableSheet the sheet sets the height.
+        height: widget.scrollController == null
+            ? MediaQuery.of(context).size.height * NavigationSheet.initialSize
+            : null,
         decoration: const BoxDecoration(
           color: YomuConstants.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
-            const SizedBox(height: 12),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: _onHandleDragUpdate,
+              onVerticalDragEnd: _onHandleDragEnd,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -351,8 +538,8 @@ class _NavigationSheetState extends State<NavigationSheet> {
           buffer.writeln('**Note:** ${h.note}');
           buffer.writeln();
         }
-        final pos = h.position.contains(':')
-            ? 'Chapter ${int.parse(h.position.split(':')[0]) + 1}'
+        final pos = !_isPdf && h.position.contains(':')
+            ? 'Chapter ${(int.tryParse(h.position.split(':')[0]) ?? h.chapterIndex) + 1}'
             : 'Page ${h.chapterIndex + 1}';
         buffer.writeln('*Position: $pos — ${widget.formatDate(h.createdAt)}*');
         buffer.writeln('---');
@@ -405,225 +592,10 @@ class _NavigationSheetState extends State<NavigationSheet> {
     }
   }
 
-  void _showNoteDetailSheet(
-    BuildContext context,
-    Highlight h,
-    StateSetter setSheetState,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: const BoxDecoration(
-          color: YomuConstants.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: YomuConstants.accent.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'HIGHLIGHT',
-                            style: TextStyle(
-                              color: YomuConstants.accent,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton.icon(
-                          icon: const Icon(
-                            Icons.location_on_rounded,
-                            size: 16,
-                            color: YomuConstants.accent,
-                          ),
-                          label: const Text(
-                            'GO TO POSITION',
-                            style: TextStyle(
-                              color: YomuConstants.accent,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.pop(context); // Close detail sheet
-                            Navigator.pop(context); // Close navigation sheet
-                            widget.onHighlightTap(h);
-                          },
-                          style: TextButton.styleFrom(
-                            backgroundColor: YomuConstants.accent.withValues(
-                              alpha: 0.1,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 0,
-                            ),
-                            minimumSize: const Size(0, 32),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit_note_rounded,
-                            color: YomuConstants.accent,
-                          ),
-                          onPressed: () {
-                            Navigator.pop(context); // Close detail sheet
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) => NoteEditor(
-                                initialMarkdown: h.note ?? '',
-                                initialColor: h.color,
-                                initialAudioFile: h.audioFile,
-                                initialAudioDurationMs: h.audioDurationMs,
-                                settings: widget.readerSettings,
-                                subtitle: h.sharedBy != null
-                                    ? 'Shared by ${h.sharedBy}'
-                                    : null,
-                                onSave: (result) async {
-                                  await widget.onUpdateHighlight(
-                                    h.copyWith(
-                                      note: result.markdown,
-                                      color: result.color,
-                                      audioFile: result.audioFile,
-                                      audioDurationMs: result.audioDurationMs,
-                                    ),
-                                  );
-                                  if (mounted) {
-                                    setState(() => _refreshAnnotations());
-                                  }
-                                },
-                              ),
-                            ).then((_) {
-                              setSheetState(() {});
-                            });
-                          },
-                        ),
-                        Text(
-                          widget.formatDate(h.createdAt),
-                          style: const TextStyle(
-                            color: Colors.white24,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.03),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: Text(
-                        h.text,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          height: 1.6,
-                          fontStyle: FontStyle.italic,
-                          fontFamily: 'Serif',
-                        ),
-                      ),
-                    ),
-                    if (h.hasAudio) ...[
-                      const SizedBox(height: 32),
-                      Text(
-                        h.sharedBy != null
-                            ? 'VOICE NOTE FROM ${h.sharedBy!.toUpperCase()}'
-                            : 'MY VOICE NOTE',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      VoiceNotePlayer(
-                        fileName: h.audioFile!,
-                        durationMs: h.audioDurationMs,
-                      ),
-                    ],
-                    if (h.note != null && h.note!.isNotEmpty) ...[
-                      const SizedBox(height: 32),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.notes_rounded,
-                            color: YomuConstants.accent,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            h.sharedBy != null
-                                ? 'NOTE FROM ${h.sharedBy!.toUpperCase()}'
-                                : 'MY NOTE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      NoteView(
-                        markdown: h.note!,
-                        settings: widget.readerSettings,
-                        fontSize: 16,
-                        textColor: Colors.white70,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildChaptersList() {
     if (widget.book.filePath.toLowerCase().endsWith('.epub')) {
       return SingleChildScrollView(
+        controller: widget.scrollController,
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -640,6 +612,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
       );
     } else {
       return SingleChildScrollView(
+        controller: widget.scrollController,
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -670,9 +643,19 @@ class _NavigationSheetState extends State<NavigationSheet> {
             final bookmarks = snapshot.data![0] as List<Bookmark>;
             final highlights = snapshot.data![1] as List<Highlight>;
             final vocabulary = snapshot.data![2] as List<VocabularyLookup>;
+            final replies = snapshot.data![3] as List<AnnotationReply>;
+            final replyCounts = <String, int>{};
+            for (final r in replies) {
+              replyCounts[r.highlightUid] =
+                  (replyCounts[r.highlightUid] ?? 0) + 1;
+            }
 
             if (bookmarks.isEmpty && highlights.isEmpty && vocabulary.isEmpty) {
-              return Center(
+              // Scrollable, so dragging here resizes the sheet too.
+              return SingleChildScrollView(
+                controller: widget.scrollController,
+                padding: const EdgeInsets.only(top: 80),
+                child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -703,21 +686,23 @@ class _NavigationSheetState extends State<NavigationSheet> {
                     ],
                   ],
                 ),
+                ),
               );
             }
 
-            final filteredHighlights = _selectedFilterColor == null
-                ? highlights
-                : highlights
-                      .where((h) => h.color == _selectedFilterColor)
-                      .toList();
+            final filteredHighlights = _filterNotes(highlights, replies);
+            final filtersActive =
+                _selectedFilterColor != null ||
+                _authorFilter != null ||
+                _voiceOnly ||
+                _search.trim().isNotEmpty;
 
             return Column(
               children: [
                 _AnnotationHeader(
-                  count: _selectedFilterColor == null
-                      ? bookmarks.length + highlights.length + vocabulary.length
-                      : bookmarks.length + filteredHighlights.length,
+                  count: filtersActive
+                      ? filteredHighlights.length
+                      : bookmarks.length + highlights.length + vocabulary.length,
                   isSelectionMode: _isSelectionMode,
                   selectedCount:
                       _selectedHighlightIds.length +
@@ -778,25 +763,56 @@ class _NavigationSheetState extends State<NavigationSheet> {
                     _shareQuotes(selectedHighlights);
                   },
                 ),
-                if (!_isSelectionMode && highlights.isNotEmpty)
-                  _ColorFilterBar(
-                    selectedColor: _selectedFilterColor,
-                    onColorTap: (color) {
-                      setSheetState(() {
-                        if (_selectedFilterColor == color) {
-                          _selectedFilterColor = null;
-                        } else {
-                          _selectedFilterColor = color;
-                        }
-                      });
-                    },
-                  ),
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    // Scrolling the notes resizes the sheet first.
+                    controller: widget.scrollController,
+                    padding: const EdgeInsets.only(bottom: 12),
                     children: [
-                      if (bookmarks.isNotEmpty &&
-                          _selectedFilterColor == null) ...[
+                      // The filters scroll away with the notes, leaving the
+                      // whole sheet to them.
+                      if (!_isSelectionMode && highlights.isNotEmpty)
+                        _ColorFilterBar(
+                          selectedColor: _selectedFilterColor,
+                          onColorTap: (color) {
+                            setSheetState(() {
+                              if (_selectedFilterColor == color) {
+                                _selectedFilterColor = null;
+                              } else {
+                                _selectedFilterColor = color;
+                              }
+                            });
+                          },
+                        ),
+                      if (!_isSelectionMode && highlights.isNotEmpty)
+                        _NoteFiltersBar(
+                          highlights: highlights,
+                          search: _search,
+                          authorFilter: _authorFilter,
+                          voiceOnly: _voiceOnly,
+                          hiddenAuthors: _hiddenAuthors,
+                          canHide: widget.onSetAuthorHidden != null,
+                          onSearch: (q) => setSheetState(() => _search = q),
+                          onAuthor: (a) => setSheetState(() => _authorFilter = a),
+                          onVoiceOnly: (v) => setSheetState(() => _voiceOnly = v),
+                          onToggleHidden: (key) async {
+                            await _toggleHidden(key);
+                            setSheetState(() {});
+                          },
+                          onWalkThrough:
+                              widget.onWalkThrough == null ||
+                                  !filteredHighlights.any(
+                                    (h) => h.hasNote || h.hasAudio,
+                                  )
+                              ? null
+                              : () => widget.onWalkThrough!(
+                                  filteredHighlights
+                                      .where((h) => h.hasNote || h.hasAudio)
+                                      .toList(),
+                                ),
+                        ),
+
+                      if (bookmarks.isNotEmpty && !filtersActive) ...[
                         ...bookmarks.map((bookmark) {
                           final isSelected =
                               bookmark.id != null &&
@@ -852,8 +868,18 @@ class _NavigationSheetState extends State<NavigationSheet> {
                           );
                         }),
                       ],
+                      if (filtersActive && filteredHighlights.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Center(
+                            child: Text(
+                              'No notes match.',
+                              style: TextStyle(color: Colors.white38),
+                            ),
+                          ),
+                        ),
                       if (filteredHighlights.isNotEmpty) ...[
-                        ...filteredHighlights.map((h) {
+                        ..._withSectionHeaders(filteredHighlights, (h) {
                           final isSelected = _selectedHighlightIds.contains(
                             h.id,
                           );
@@ -863,7 +889,11 @@ class _NavigationSheetState extends State<NavigationSheet> {
                             note: h.note,
                             audioFile: h.audioFile,
                             audioDurationMs: h.audioDurationMs,
+                            audioWaveform: h.audioWaveform,
                             sharedBy: h.sharedBy,
+                            replyCount: replyCounts[h.uid] ?? 0,
+                            isPrivate: h.isPrivate,
+                            isUnplaced: h.isUnplaced,
                             date: widget.formatDate(h.createdAt),
                             isHighlight: true,
                             isSelectionMode: _isSelectionMode,
@@ -903,7 +933,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
                             },
                             onNoteTap: () {
                               if (!_isSelectionMode) {
-                                _showNoteDetailSheet(context, h, setSheetState);
+                                _openNoteCard(h, setSheetState);
                               }
                             },
                             onLongPress: () {
@@ -917,8 +947,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
                           );
                         }),
                       ],
-                      if (vocabulary.isNotEmpty &&
-                          _selectedFilterColor == null) ...[
+                      if (vocabulary.isNotEmpty && !filtersActive) ...[
                         const Padding(
                           padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
                           child: Text(
@@ -1432,7 +1461,11 @@ class _AnnotationCard extends StatelessWidget {
   final String? note;
   final String? audioFile;
   final int? audioDurationMs;
+  final String? audioWaveform;
   final String? sharedBy;
+  final int replyCount;
+  final bool isPrivate;
+  final bool isUnplaced;
   final String date;
   final bool isHighlight;
   final bool isSelectionMode;
@@ -1450,7 +1483,11 @@ class _AnnotationCard extends StatelessWidget {
     this.note,
     this.audioFile,
     this.audioDurationMs,
+    this.audioWaveform,
     this.sharedBy,
+    this.replyCount = 0,
+    this.isPrivate = false,
+    this.isUnplaced = false,
     required this.date,
     required this.isHighlight,
     required this.isSelectionMode,
@@ -1617,6 +1654,7 @@ class _AnnotationCard extends StatelessWidget {
                         VoiceNotePlayer(
                           fileName: audioFile!,
                           durationMs: audioDurationMs,
+                          waveform: audioWaveform,
                           dense: true,
                         ),
                       ],
@@ -1624,11 +1662,49 @@ class _AnnotationCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            date,
-                            style: const TextStyle(
-                              color: Colors.white24,
-                              fontSize: 11,
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    isUnplaced
+                                        ? 'Not found in your copy · $date'
+                                        : date,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isUnplaced
+                                          ? Colors.amberAccent.withValues(
+                                              alpha: 0.7,
+                                            )
+                                          : Colors.white24,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                if (isPrivate) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(
+                                    Icons.lock_outline,
+                                    size: 13,
+                                    color: Colors.white38,
+                                  ),
+                                ],
+                                if (replyCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 13,
+                                    color: Colors.white38,
+                                  ),
+                                  Text(
+                                    ' $replyCount',
+                                    style: const TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           Row(
@@ -1681,6 +1757,239 @@ class _AnnotationCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Search, people and voice filters for the notes list. Each person chip
+/// also has an eye to show or hide that reader's notes in the text.
+class _NoteFiltersBar extends StatefulWidget {
+  final List<Highlight> highlights;
+  final String search;
+  final String? authorFilter;
+  final bool voiceOnly;
+  final Set<String> hiddenAuthors;
+  final bool canHide;
+  final ValueChanged<String> onSearch;
+  final ValueChanged<String?> onAuthor;
+  final ValueChanged<bool> onVoiceOnly;
+  final ValueChanged<String> onToggleHidden;
+  final VoidCallback? onWalkThrough;
+
+  const _NoteFiltersBar({
+    required this.highlights,
+    required this.search,
+    required this.authorFilter,
+    required this.voiceOnly,
+    required this.hiddenAuthors,
+    required this.canHide,
+    required this.onSearch,
+    required this.onAuthor,
+    required this.onVoiceOnly,
+    required this.onToggleHidden,
+    required this.onWalkThrough,
+  });
+
+  @override
+  State<_NoteFiltersBar> createState() => _NoteFiltersBarState();
+}
+
+class _NoteFiltersBarState extends State<_NoteFiltersBar> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.search,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// '' for the reader's own notes, then the other readers by name.
+  List<String> get _authors {
+    final names = <String>{};
+    var mine = false;
+    for (final h in widget.highlights) {
+      if (h.sharedBy == null) {
+        mine = true;
+      } else {
+        names.add(h.sharedBy!);
+      }
+    }
+    return [if (mine) '', ...names.toList()..sort()];
+  }
+
+  Widget _chip({
+    required bool selected,
+    required VoidCallback onTap,
+    required Widget label,
+    Widget? leading,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: selected
+            ? YomuConstants.accent.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.05),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? YomuConstants.accent : Colors.white10,
+          ),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (leading != null) ...[leading, const SizedBox(width: 6)],
+                label,
+                if (trailing != null) trailing else const SizedBox(width: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authors = _authors;
+    final showPeople = authors.length > 1 || authors.any((a) => a.isNotEmpty);
+    const labelStyle = TextStyle(color: Colors.white70, fontSize: 12);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 40,
+            child: TextField(
+              controller: _controller,
+              onChanged: widget.onSearch,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search notes, replies, names',
+                hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: Colors.white38,
+                  size: 20,
+                ),
+                suffixIcon: widget.search.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          _controller.clear();
+                          widget.onSearch('');
+                        },
+                      ),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                if (widget.onWalkThrough != null)
+                  _chip(
+                    selected: false,
+                    onTap: widget.onWalkThrough!,
+                    leading: const Icon(
+                      Icons.play_circle_outline_rounded,
+                      size: 16,
+                      color: YomuConstants.accent,
+                    ),
+                    label: const Text(
+                      'Walk through',
+                      style: TextStyle(
+                        color: YomuConstants.accent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                if (showPeople) ...[
+                  _chip(
+                    selected: widget.authorFilter == null,
+                    onTap: () => widget.onAuthor(null),
+                    label: const Text('Everyone', style: labelStyle),
+                  ),
+                  for (final key in authors)
+                    _chip(
+                      selected: widget.authorFilter == key,
+                      onTap: () => widget.onAuthor(
+                        widget.authorFilter == key ? null : key,
+                      ),
+                      leading: NoteAuthorAvatar(
+                        name: key.isEmpty ? null : key,
+                        size: 20,
+                      ),
+                      label: Text(
+                        noteAuthorName(key.isEmpty ? null : key),
+                        style: labelStyle.copyWith(
+                          decoration: widget.hiddenAuthors.contains(key)
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                      trailing: widget.canHide
+                          ? Tooltip(
+                              message: widget.hiddenAuthors.contains(key)
+                                  ? 'Show in the text'
+                                  : 'Hide in the text',
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () => widget.onToggleHidden(key),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 6),
+                                  child: Icon(
+                                    widget.hiddenAuthors.contains(key)
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                    size: 16,
+                                    color: Colors.white54,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+                ],
+                _chip(
+                  selected: widget.voiceOnly,
+                  onTap: () => widget.onVoiceOnly(!widget.voiceOnly),
+                  leading: const Icon(
+                    Icons.graphic_eq_rounded,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
+                  label: const Text('With voice', style: labelStyle),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

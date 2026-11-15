@@ -10,6 +10,7 @@ import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
 import '../services/annotation_share_service.dart';
+import '../services/incoming_files.dart';
 import '../models/quest_model.dart';
 import '../services/notification_service.dart';
 import '../models/vocabulary_model.dart';
@@ -976,6 +977,34 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     );
     await loadBooks();
     return result;
+  }
+
+  /// Imports files picked in the app or opened with Yomu: books, and books
+  /// shared with annotations. Anything else is skipped and counted.
+  Future<IncomingImportSummary> importIncoming(List<String> paths) async {
+    final sorted = await IncomingFiles.sort(paths);
+    final packages = <SharedImportResult>[];
+    final failures = <String>[];
+    for (final path in sorted.packages) {
+      try {
+        packages.add(await importAnnotatedPackage(path));
+      } catch (e) {
+        debugPrint('Failed to import annotated book: $e');
+        failures.add(
+          e is FormatException ? e.message : 'Could not open the shared book.',
+        );
+      }
+    }
+    final books = sorted.books.isEmpty
+        ? <Book>[]
+        : await importFiles(sorted.books);
+    return IncomingImportSummary(
+      books: books,
+      packages: packages,
+      failures: failures,
+      skipped:
+          sorted.unsupported.length + (sorted.books.length - books.length),
+    );
   }
 
   /// Attaches annotations someone shared before this exact book was added.

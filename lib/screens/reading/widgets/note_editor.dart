@@ -13,12 +13,14 @@ class NoteEditorResult {
   final String? color;
   final String? audioFile;
   final int? audioDurationMs;
+  final String? audioWaveform;
 
   const NoteEditorResult({
     required this.markdown,
     this.color,
     this.audioFile,
     this.audioDurationMs,
+    this.audioWaveform,
   });
 }
 
@@ -31,6 +33,7 @@ class NoteEditor extends StatefulWidget {
   final String? initialColor;
   final String? initialAudioFile;
   final int? initialAudioDurationMs;
+  final String? initialAudioWaveform;
 
   const NoteEditor({
     super.key,
@@ -42,6 +45,7 @@ class NoteEditor extends StatefulWidget {
     this.initialColor,
     this.initialAudioFile,
     this.initialAudioDurationMs,
+    this.initialAudioWaveform,
   });
 
   @override
@@ -54,6 +58,7 @@ class _NoteEditorState extends State<NoteEditor> {
   String? _currentColor;
   String? _audioFile;
   int? _audioDurationMs;
+  String? _audioWaveform;
   bool _saved = false;
 
   /// Recordings made while this editor was open. Any that are not kept when
@@ -66,6 +71,7 @@ class _NoteEditorState extends State<NoteEditor> {
     _currentColor = widget.initialColor;
     _audioFile = widget.initialAudioFile;
     _audioDurationMs = widget.initialAudioDurationMs;
+    _audioWaveform = widget.initialAudioWaveform;
     _initializeController();
   }
 
@@ -121,7 +127,7 @@ class _NoteEditorState extends State<NoteEditor> {
     super.dispose();
   }
 
-  void _onRecorded(String fileName, int durationMs) {
+  void _onRecorded(String fileName, int durationMs, String? waveform) {
     setState(() {
       // Drop an unsaved take that this one replaces.
       if (_audioFile != null && _sessionRecordings.contains(_audioFile)) {
@@ -131,6 +137,7 @@ class _NoteEditorState extends State<NoteEditor> {
       _sessionRecordings.add(fileName);
       _audioFile = fileName;
       _audioDurationMs = durationMs;
+      _audioWaveform = waveform;
     });
   }
 
@@ -141,6 +148,7 @@ class _NoteEditorState extends State<NoteEditor> {
       }
       _audioFile = null;
       _audioDurationMs = null;
+      _audioWaveform = null;
     });
   }
 
@@ -163,6 +171,7 @@ class _NoteEditorState extends State<NoteEditor> {
         color: _currentColor,
         audioFile: _audioFile,
         audioDurationMs: _audioFile == null ? null : _audioDurationMs,
+        audioWaveform: _audioFile == null ? null : _audioWaveform,
       ),
     );
   }
@@ -293,6 +302,7 @@ class _NoteEditorState extends State<NoteEditor> {
               child: VoiceNoteRecorder(
                 fileName: _audioFile,
                 durationMs: _audioDurationMs,
+                waveform: _audioWaveform,
                 onRecorded: _onRecorded,
                 onRemoved: _onAudioRemoved,
               ),

@@ -15,6 +15,11 @@ import '../components/book_overlay_menu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
+import 'reading/widgets/share_with_notes.dart';
+import 'reading/widgets/shared_notes_prompts.dart';
+import '../components/pending_notes_banner.dart';
+import '../providers/shared_welcome_provider.dart';
+import '../services/annotation_share_service.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -34,6 +39,71 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   bool _fabTutorialShown = true;
   bool _bookCardTutorialShown = true;
+
+  /// Notes shared without their book, waiting for it.
+  List<PendingNotes> _pending = const [];
+
+  Future<void> _loadPending() async {
+    try {
+      final pending = await AnnotationShareService().listPending();
+      if (mounted) setState(() => _pending = pending);
+    } catch (e) {
+      debugPrint('Could not list waiting notes: $e');
+    }
+  }
+
+  Future<void> _placePending(PendingNotes notes) async {
+    final result = await offerToPlaceNotes(
+      context,
+      pendingPath: notes.path,
+      manifest: notes.manifest,
+      book: notes.similarBook!,
+    );
+    await _loadPending();
+    if (result == null || !mounted) return;
+    await ref.read(libraryProvider.notifier).loadBooks();
+    ref.read(sharedWelcomeProvider.notifier).state = SharedWelcome(
+      bookId: result.book!.id!,
+      sharedBy: result.manifest.sharedBy,
+      newNotes: result.added,
+      newReplies: result.repliesAdded,
+    );
+    _showBookDetails(result.book!);
+  }
+
+  Future<void> _discardPending(PendingNotes notes) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: YomuConstants.surface,
+        title: const Text(
+          'Discard these notes?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          '${notes.manifest.sharedBy ?? 'Someone'}\'s notes on '
+          '"${notes.manifest.title}" will be deleted. You can\'t undo this.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('KEEP'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'DISCARD',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await AnnotationShareService().discardPending(notes.path);
+    await _loadPending();
+  }
 
   void _toggleSelection(Book book) {
     if (book.id == null) return;
@@ -61,6 +131,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   void initState() {
     super.initState();
     _checkFirstLaunch();
+    _loadPending();
   }
 
   Future<void> _checkFirstLaunch() async {
@@ -192,35 +263,42 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       return;
     }
 
-    // Use pickBooks directly which uses pickFiles, bypassing getDirectoryPath restrictions
-    final importedBooks = await bookService.pickBooks();
+    final paths = await bookService.pickImportPaths();
+    if (paths.isEmpty) return;
+    final summary = await notifier.importIncoming(paths);
+    await _loadPending();
 
-    if (importedBooks.isNotEmpty) {
-      // Reload books to ensure UI updates with new imports
-      await notifier.loadBooks();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                'Successfully imported ${importedBooks.length} books.',
-              ),
-              action: SnackBarAction(
-                label: 'OK',
-                onPressed: () {},
-                textColor: YomuConstants.accent,
-              ),
+    final count = summary.books.length;
+    final messages = [
+      if (count > 0) 'Imported $count ${count == 1 ? 'book' : 'books'}.',
+      ...summary.messages(),
+    ];
+    if (mounted && messages.isNotEmpty) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(messages.join('\n')),
+            duration: Duration(seconds: messages.length > 1 ? 6 : 4),
+            action: SnackBarAction(
+              label: 'OK',
+              onPressed: () {},
+              textColor: YomuConstants.accent,
             ),
-          );
-      }
+          ),
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
+
+    // Adding the book that waiting notes were made in uses them up.
+    ref.listen(
+      libraryProvider.select((s) => s.allBooks.length),
+      (_, _) => _loadPending(),
+    );
 
     ref.listen(libraryProvider, (previous, next) {
       if (_fabTutorialShown &&
@@ -250,6 +328,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   LibraryHeader(
                     searchController: _searchController,
                     filterKey: _filterKey,
+                  ),
+                if (!_isSelectionMode && _pending.isNotEmpty)
+                  PendingNotesBanner(
+                    pending: _pending,
+                    onPlace: _placePending,
+                    onAddBook: _handleSelectiveImport,
+                    onDiscard: _discardPending,
                   ),
                 Expanded(
                   child: state.allBooks.isEmpty
@@ -490,6 +575,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 builder: (context) => EditBookScreen(book: book),
               ),
             );
+            break;
+          case 'share_notes':
+            shareBookWithNotes(context, book);
             break;
           case 'delete':
             _showDeleteConfirmation(book);

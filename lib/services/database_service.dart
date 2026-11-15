@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
+import '../models/annotation_reply_model.dart';
 import '../models/highlight_model.dart';
 import '../models/vocabulary_model.dart';
 import 'annotation_audio_service.dart';
@@ -25,7 +26,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'yomu.db');
     return await openDatabase(
       path,
-      version: 19,
+      version: 21,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -107,9 +108,13 @@ class DatabaseService {
         uid TEXT,
         audioFile TEXT,
         audioDurationMs INTEGER,
-        sharedBy TEXT
+        audioWaveform TEXT,
+        sharedBy TEXT,
+        isPrivate INTEGER DEFAULT 0,
+        anchorState TEXT
       )
     ''');
+    await _createRepliesTable(db);
     await db.execute('''
       CREATE TABLE dictionary_lookups(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -247,6 +252,38 @@ class DatabaseService {
       );
       await db.execute('ALTER TABLE highlights ADD COLUMN sharedBy TEXT');
     }
+    if (oldVersion < 20) {
+      await db.execute('ALTER TABLE highlights ADD COLUMN audioWaveform TEXT');
+    }
+    if (oldVersion < 21) {
+      await db.execute(
+        'ALTER TABLE highlights ADD COLUMN isPrivate INTEGER DEFAULT 0',
+      );
+      await db.execute('ALTER TABLE highlights ADD COLUMN anchorState TEXT');
+      // Replies point at their note's uid, so every note needs one.
+      await db.execute(
+        'UPDATE highlights SET uid = lower(hex(randomblob(16))) '
+        'WHERE uid IS NULL',
+      );
+      await _createRepliesTable(db);
+    }
+  }
+
+  Future<void> _createRepliesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE annotation_replies(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookId INTEGER,
+        highlightUid TEXT,
+        uid TEXT,
+        author TEXT,
+        text TEXT,
+        audioFile TEXT,
+        audioDurationMs INTEGER,
+        audioWaveform TEXT,
+        createdAt TEXT
+      )
+    ''');
   }
 
   // Book CRUD
@@ -299,6 +336,11 @@ class DatabaseService {
       );
       await txn.delete('bookmarks', where: 'bookId = ?', whereArgs: [id]);
       await txn.delete('highlights', where: 'bookId = ?', whereArgs: [id]);
+      await txn.delete(
+        'annotation_replies',
+        where: 'bookId = ?',
+        whereArgs: [id],
+      );
       await txn.delete(
         'dictionary_lookups',
         where: 'bookId = ?',
@@ -438,22 +480,36 @@ class DatabaseService {
     );
   }
 
+  /// Deletes a highlight with its voice note and the replies under it.
   Future<int> deleteHighlight(int id) async {
     final db = await database;
     final rows = await db.query(
       'highlights',
-      columns: ['audioFile'],
+      columns: ['audioFile', 'uid', 'bookId'],
       where: 'id = ?',
       whereArgs: [id],
     );
+    final audioFiles = rows.map((r) => r['audioFile'] as String?).toList();
+    for (final row in rows) {
+      final uid = row['uid'] as String?;
+      if (uid == null) continue;
+      final where = 'bookId = ? AND highlightUid = ?';
+      final args = [row['bookId'], uid];
+      final replies = await db.query(
+        'annotation_replies',
+        columns: ['audioFile'],
+        where: where,
+        whereArgs: args,
+      );
+      audioFiles.addAll(replies.map((r) => r['audioFile'] as String?));
+      await db.delete('annotation_replies', where: where, whereArgs: args);
+    }
     final count = await db.delete(
       'highlights',
       where: 'id = ?',
       whereArgs: [id],
     );
-    await AnnotationAudioService.deleteAll(
-      rows.map((r) => r['audioFile'] as String?),
-    );
+    await AnnotationAudioService.deleteAll(audioFiles);
     return count;
   }
 
@@ -465,18 +521,84 @@ class DatabaseService {
       where: 'bookId = ?',
       whereArgs: [bookId],
     );
+    await db.delete(
+      'annotation_replies',
+      where: 'bookId = ?',
+      whereArgs: [bookId],
+    );
     await AnnotationAudioService.deleteAll(audioFiles);
     return count;
   }
 
   Future<List<String?>> _audioFilesForBook(Database db, int bookId) async {
-    final rows = await db.query(
-      'highlights',
-      columns: ['audioFile'],
-      where: 'bookId = ? AND audioFile IS NOT NULL',
+    final files = <String?>[];
+    for (final table in ['highlights', 'annotation_replies']) {
+      final rows = await db.query(
+        table,
+        columns: ['audioFile'],
+        where: 'bookId = ? AND audioFile IS NOT NULL',
+        whereArgs: [bookId],
+      );
+      files.addAll(rows.map((r) => r['audioFile'] as String?));
+    }
+    return files;
+  }
+
+  // Reply CRUD
+  Future<List<AnnotationReply>> getRepliesForBook(int bookId) async {
+    final db = await database;
+    final maps = await db.query(
+      'annotation_replies',
+      where: 'bookId = ?',
       whereArgs: [bookId],
+      orderBy: 'createdAt ASC',
     );
-    return rows.map((r) => r['audioFile'] as String?).toList();
+    return maps.map(AnnotationReply.fromMap).toList();
+  }
+
+  Future<AnnotationReply?> getReplyByUid(int bookId, String uid) async {
+    final db = await database;
+    final maps = await db.query(
+      'annotation_replies',
+      where: 'bookId = ? AND uid = ?',
+      whereArgs: [bookId, uid],
+      limit: 1,
+    );
+    return maps.isEmpty ? null : AnnotationReply.fromMap(maps.first);
+  }
+
+  Future<int> insertReply(AnnotationReply reply) async {
+    final db = await database;
+    return db.insert('annotation_replies', reply.toMap());
+  }
+
+  Future<int> updateReply(AnnotationReply reply) async {
+    final db = await database;
+    return db.update(
+      'annotation_replies',
+      reply.toMap(),
+      where: 'id = ?',
+      whereArgs: [reply.id],
+    );
+  }
+
+  Future<int> deleteReply(int id) async {
+    final db = await database;
+    final rows = await db.query(
+      'annotation_replies',
+      columns: ['audioFile'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    final count = await db.delete(
+      'annotation_replies',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await AnnotationAudioService.deleteAll(
+      rows.map((r) => r['audioFile'] as String?),
+    );
+    return count;
   }
 
   // Dictionary Lookup CRUD
