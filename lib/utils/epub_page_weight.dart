@@ -69,6 +69,90 @@ int epubChapterPages(int textLength) {
   return math.max(1, (textLength / epubCharsPerPage).round());
 }
 
+/// The parts of one chapter that have been on screen, as 0–1 fractions of its
+/// content.
+class SeenRanges {
+  final List<(double, double)> _ranges = []; // sorted, non-overlapping
+
+  void add(double from, double to) {
+    var start = from.clamp(0.0, 1.0);
+    var end = to.clamp(0.0, 1.0);
+    if (end <= start) return;
+    final merged = <(double, double)>[];
+    var placed = false;
+    for (final (rangeStart, rangeEnd) in _ranges) {
+      if (rangeEnd < start) {
+        merged.add((rangeStart, rangeEnd));
+      } else if (rangeStart > end) {
+        if (!placed) merged.add((start, end));
+        placed = true;
+        merged.add((rangeStart, rangeEnd));
+      } else {
+        start = math.min(start, rangeStart);
+        end = math.max(end, rangeEnd);
+      }
+    }
+    if (!placed) merged.add((start, end));
+    _ranges
+      ..clear()
+      ..addAll(merged);
+  }
+
+  /// Share of the chapter seen so far (0–1).
+  double get fraction =>
+      _ranges.fold(0.0, (sum, range) => sum + range.$2 - range.$1);
+}
+
+/// Turns what a reader has had on screen into EPUB pages read.
+///
+/// Each chapter credits the share of its pages that has been on screen, once
+/// per session, so skipping through a chapter or re-reading it adds nothing.
+/// Pages are also credited no faster than one per [minTimePerPage] of reading
+/// time, the minimum a PDF page needs, so flinging to the end of a chapter
+/// does not count as reading it.
+class EpubReadingCredit {
+  EpubReadingCredit({this.minTimePerPage = const Duration(seconds: 5)});
+
+  final Duration minTimePerPage;
+  final Map<int, SeenRanges> _seen = {};
+  final Map<int, double> _settled = {}; // pages per chapter credited or skimmed
+  double _carry = 0; // fraction of a page credited but not yet reported
+
+  /// Records that [from]–[to] (0–1) of [chapter] is on screen.
+  void markSeen(int chapter, double from, double to) {
+    _seen.putIfAbsent(chapter, SeenRanges.new).add(from, to);
+  }
+
+  /// Whole pages read since the last call, given each chapter's page count
+  /// and the reading time [elapsed] since the last call.
+  ///
+  /// Newly seen pages beyond what [elapsed] allows were skimmed and are
+  /// dropped; part pages carry over to the next call.
+  int takePages(List<int> chapterPages, Duration elapsed) {
+    var allowed = elapsed.inMicroseconds / minTimePerPage.inMicroseconds;
+    for (final MapEntry(key: chapter, value: seen) in _seen.entries) {
+      if (chapter < 0 || chapter >= chapterPages.length) continue;
+      final seenPages = seen.fraction * chapterPages[chapter];
+      final fresh = seenPages - (_settled[chapter] ?? 0);
+      if (fresh <= 0) continue;
+      final credited = math.min(fresh, math.max(allowed, 0.0));
+      allowed -= credited;
+      _carry += credited;
+      _settled[chapter] = seenPages;
+    }
+    final whole = (_carry + 1e-9).floor();
+    _carry = math.max(_carry - whole, 0.0);
+    return whole;
+  }
+
+  /// Forgets everything, for a new book or session.
+  void clear() {
+    _seen.clear();
+    _settled.clear();
+    _carry = 0;
+  }
+}
+
 /// Overall progress (0–1) for being [scroll] (0–1) through [chapter],
 /// weighting each chapter by [lengths].
 double epubProgressAt(List<int> lengths, int chapter, double scroll) {
@@ -98,11 +182,15 @@ double epubProgressAt(List<int> lengths, int chapter, double scroll) {
       savedChapter >= 0 &&
       savedChapter < lengths.length) {
     chapter = savedChapter;
+  } else if (target <= 0) {
+    chapter = 0; // a new book opens at the very start, cover included
   } else {
     var end = 0;
     for (var i = 0; i < lengths.length; i++) {
       end += lengths[i];
-      if (end >= target) {
+      // Strictly past this chapter: progress that ends exactly at a chapter
+      // boundary resumes at the start of the next chapter.
+      if (end > target) {
         chapter = i;
         break;
       }

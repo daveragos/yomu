@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:epubx/epubx.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yomu/utils/epub_page_weight.dart';
@@ -103,6 +105,101 @@ void main() {
     });
   });
 
+  group('SeenRanges', () {
+    test('merges overlapping and touching windows', () {
+      final seen = SeenRanges()
+        ..add(0.0, 0.1)
+        ..add(0.05, 0.2)
+        ..add(0.2, 0.3);
+      expect(seen.fraction, closeTo(0.3, 1e-9));
+    });
+
+    test('does not count a skipped gap', () {
+      final seen = SeenRanges()
+        ..add(0.0, 0.1)
+        ..add(0.8, 0.9);
+      expect(seen.fraction, closeTo(0.2, 1e-9));
+      seen.add(0.05, 0.85); // later reads the gap
+      expect(seen.fraction, closeTo(0.9, 1e-9));
+    });
+
+    test('ignores empty windows and clamps to the chapter', () {
+      final seen = SeenRanges()
+        ..add(0.5, 0.5)
+        ..add(-0.2, 0.1)
+        ..add(0.95, 1.4);
+      expect(seen.fraction, closeTo(0.15, 1e-9));
+    });
+  });
+
+  group('EpubReadingCredit', () {
+    const pages = [10, 4];
+    const plenty = Duration(minutes: 30);
+
+    /// Scrolls through [from]–[to] of [chapter] one screen (2%) at a time.
+    void scroll(EpubReadingCredit credit, int chapter, double from, double to) {
+      for (var top = from; top < to - 1e-9; top += 0.02) {
+        credit.markSeen(chapter, top, math.min(top + 0.02, to));
+      }
+    }
+
+    test('credits only the part of a chapter scrolled through', () {
+      final credit = EpubReadingCredit();
+      scroll(credit, 0, 0.0, 0.5);
+      expect(credit.takePages(pages, plenty), 5);
+    });
+
+    test('resuming mid-chapter credits from there, not from the start', () {
+      final credit = EpubReadingCredit();
+      scroll(credit, 0, 0.6, 1.0);
+      expect(credit.takePages(pages, plenty), 4);
+    });
+
+    test('opening a chapter and leaving after a few seconds credits ~nothing',
+        () {
+      final credit = EpubReadingCredit()..markSeen(0, 0.0, 0.03);
+      expect(credit.takePages(pages, const Duration(seconds: 6)), 0);
+    });
+
+    test('flinging through a chapter credits one page per 5 s at most', () {
+      final credit = EpubReadingCredit();
+      scroll(credit, 0, 0.0, 1.0);
+      expect(credit.takePages(pages, const Duration(seconds: 10)), 2);
+      // The skimmed rest is not credited later by time spent elsewhere.
+      expect(credit.takePages(pages, plenty), 0);
+    });
+
+    test('re-reading a chapter in the same session adds nothing', () {
+      final credit = EpubReadingCredit();
+      scroll(credit, 0, 0.0, 1.0);
+      expect(credit.takePages(pages, plenty), 10);
+      scroll(credit, 0, 0.0, 1.0);
+      expect(credit.takePages(pages, plenty), 0);
+    });
+
+    test('carries part pages over and counts every chapter read', () {
+      final credit = EpubReadingCredit();
+      scroll(credit, 0, 0.0, 0.25); // 2.5 pages
+      expect(credit.takePages(pages, plenty), 2);
+      scroll(credit, 1, 0.0, 0.5); // 2 pages + the 0.5 carried
+      expect(credit.takePages(pages, plenty), 2);
+      scroll(credit, 1, 0.5, 0.65); // 0.6 pages + 0.5 carried
+      expect(credit.takePages(pages, plenty), 1);
+    });
+
+    test('ignores chapters outside the book', () {
+      final credit = EpubReadingCredit()..markSeen(7, 0, 1);
+      expect(credit.takePages(pages, plenty), 0);
+    });
+
+    test('clear starts a fresh session', () {
+      final credit = EpubReadingCredit();
+      scroll(credit, 1, 0.0, 1.0);
+      credit.clear();
+      expect(credit.takePages(pages, plenty), 0);
+    });
+  });
+
   group('progress and resume', () {
     const lengths = [1200, 0, 5000, 3000, 800];
 
@@ -151,6 +248,24 @@ void main() {
       final position =
           epubPositionAt(textLengths, savedProgress, savedChapter: 3);
       expect(position.chapter, 3);
+      expect(position.scroll, 0.0);
+    });
+
+    test('progress on a chapter boundary resumes at the next chapter start',
+        () {
+      final atStartOf3 = epubProgressAt(lengths, 3, 0);
+      final position = epubPositionAt(lengths, atStartOf3);
+      expect(position.chapter, 3);
+      expect(position.scroll, 0.0);
+
+      final finished = epubPositionAt(lengths, 1.0);
+      expect(finished.chapter, lengths.length - 1);
+      expect(finished.scroll, 1.0);
+    });
+
+    test('a new book opens at the start even if it begins with no text', () {
+      final position = epubPositionAt(const [0, 0, 4000, 3000], 0.0);
+      expect(position.chapter, 0);
       expect(position.scroll, 0.0);
     });
 

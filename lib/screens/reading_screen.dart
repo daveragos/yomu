@@ -72,7 +72,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   DateTime? _pageEntryTime;
   final Set<int> _pagesReadThisSession = {};
   DateTime? _epubPageEntryTime;
-  final Set<int> _epubChaptersReadThisSession = {};
+  late final EpubReadingCredit _epubReadingCredit = EpubReadingCredit(
+    minTimePerPage: _readThreshold,
+  );
 
   // Audio state
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -177,7 +179,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _pageController?.dispose();
     _pageController = null;
     _pagesReadThisSession.clear();
-    _epubChaptersReadThisSession.clear();
+    _epubReadingCredit.clear();
     _isAutoScrolling = false;
     _pdfAutoScrollTicker?.stop();
     _pdfSearcher?.dispose();
@@ -1097,20 +1099,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     if (index == _currentChapterIndex) return;
 
     final now = DateTime.now();
-    final int previousChapter = _currentChapterIndex;
 
-    // Check if the chapter we are LEAVING was read
-    if (_epubPageEntryTime != null) {
-      final timeOnChapter = now.difference(_epubPageEntryTime!);
-      if (timeOnChapter >= _readThreshold &&
-          !_isJumpingFromToc &&
-          !_epubChaptersReadThisSession.contains(previousChapter)) {
-        _epubChaptersReadThisSession.add(previousChapter);
-      }
-    }
-
-    // Reset entry time for the new chapter
-    _epubPageEntryTime = now;
+    // Credit what was scrolled through since the last update
+    final int pagesRead = _takeEpubPagesRead(now);
 
     setState(() {
       _shouldJumpToBottom = !_isJumpingFromToc && index < _currentChapterIndex;
@@ -1123,10 +1114,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     _recordInteraction();
 
     final progress = _calculateCurrentProgress(book);
-    final int pagesRead = _epubChaptersReadThisSession.fold(
-      0,
-      (sum, idx) => sum + _getEpubChapterWeight(idx),
-    );
 
     // Report pages read if any were accumulated
     ref
@@ -1134,16 +1121,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         .updateBookProgress(
           book.id!,
           progress,
-          pagesRead: pagesRead > 0 ? pagesRead : 0,
+          pagesRead: pagesRead,
           durationMinutes: 0,
           currentPage: _currentChapterIndex,
           totalPages: _chapters.length,
           estimateReadingTime: false,
         );
-
-    if (pagesRead > 0) {
-      _epubChaptersReadThisSession.clear();
-    }
   }
 
   void _startHeartbeat(Book book) {
@@ -1346,14 +1329,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       }
     }
 
-    if (_epubPageEntryTime != null) {
-      final timeOnChapter = now.difference(_epubPageEntryTime!);
-      if (timeOnChapter >= _readThreshold &&
-          !_epubChaptersReadThisSession.contains(_currentChapterIndex)) {
-        _epubChaptersReadThisSession.add(_currentChapterIndex);
-      }
-    }
-
     int pagesRead = 0;
     double progress = _calculateCurrentProgress(book);
     int currentPage = book.currentPage;
@@ -1366,10 +1341,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         totalPages = _pdfPages;
       }
     } else if (book.filePath.toLowerCase().endsWith('.epub')) {
-      // Use weights instead of simple counts
-      for (var chapterIndex in _epubChaptersReadThisSession) {
-        pagesRead += _getEpubChapterWeight(chapterIndex);
-      }
+      pagesRead = _takeEpubPagesRead(now);
       currentPage = _currentChapterIndex;
       totalPages = _chapters.length;
     }
@@ -1387,7 +1359,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             estimateReadingTime: false,
           );
       _pagesReadThisSession.clear();
-      _epubChaptersReadThisSession.clear();
       _lastSyncTime = now;
     }
     _accumulatedSeconds = 0;
@@ -1398,6 +1369,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       return 0;
     }
     return epubChapterPages(_epubChapterLengths[index]);
+  }
+
+  /// Whole EPUB pages read since the last call: the newly seen part of each
+  /// chapter, at most one page per [_readThreshold] since the last call.
+  int _takeEpubPagesRead(DateTime now) {
+    final since = _epubPageEntryTime;
+    _epubPageEntryTime = now;
+    if (since == null || _chapters.isEmpty) return 0;
+    return _epubReadingCredit.takePages(
+      List.generate(_chapters.length, _getEpubChapterWeight),
+      now.difference(since),
+    );
   }
 
   Future<void> _addHighlight(Highlight highlight) async {
@@ -1618,6 +1601,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 onHighlight: _addHighlight,
                                 onDeleteHighlight: _deleteHighlight,
                                 onLookup: _lookupDictionary,
+                                onContentSeen: _epubReadingCredit.markSeen,
                                 searchQuery: _activeSearchQuery,
                                 epubBook: _epubBook,
                               );

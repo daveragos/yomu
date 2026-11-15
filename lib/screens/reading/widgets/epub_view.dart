@@ -30,6 +30,7 @@ class ReadingEpubView extends StatelessWidget {
   final Function(Highlight) onHighlight;
   final Function(int) onDeleteHighlight;
   final Function(String)? onLookup;
+  final void Function(int chapter, double from, double to)? onContentSeen;
 
   const ReadingEpubView({
     super.key,
@@ -55,6 +56,7 @@ class ReadingEpubView extends StatelessWidget {
     required this.onHighlight,
     required this.onDeleteHighlight,
     this.onLookup,
+    this.onContentSeen,
     this.searchQuery,
     this.epubBook,
   });
@@ -98,6 +100,7 @@ class ReadingEpubView extends StatelessWidget {
           onHighlight: onHighlight,
           onDeleteHighlight: onDeleteHighlight,
           onLookup: onLookup,
+          onContentSeen: onContentSeen,
           bookTitle: book.title,
           bookAuthor: book.author,
         );
