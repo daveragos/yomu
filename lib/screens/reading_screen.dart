@@ -18,6 +18,7 @@ import '../models/book_model.dart';
 import '../models/reader_settings_model.dart';
 import '../models/bookmark_model.dart';
 import '../models/search_result_model.dart';
+import '../utils/epub_page_weight.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:battery_plus/battery_plus.dart';
@@ -1005,8 +1006,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     controller.document.then((document) {
       final flattenedChapters = _flattenChapters(document.Chapters ?? []);
       
-      // Calculate chapter lengths and total length for weighted progress
-      final lengths = flattenedChapters.map((c) => c.HtmlContent?.length ?? 0).toList();
+      // Visible text length per chapter, for page weights and weighted progress
+      final lengths = epubChapterTextLengths(flattenedChapters);
       final total = lengths.fold(0, (sum, len) => sum + len);
 
       setState(() {
@@ -1017,26 +1018,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
         // Find initial chapter index and scroll progress from overall progress
         if (total > 0) {
-          final double targetTotalProgress = book.progress * total.toDouble();
-          int chapterIndex = 0;
-          double accumulatedLength = 0.0;
-
-          for (int i = 0; i < lengths.length; i++) {
-            final double length = lengths[i].toDouble();
-            if (accumulatedLength + length >= targetTotalProgress) {
-              chapterIndex = i;
-              break;
-            }
-            accumulatedLength += length;
-            if (i == lengths.length - 1) chapterIndex = i;
-          }
-
-          final double remainingLength = targetTotalProgress - accumulatedLength;
-          final double chapterLength = lengths[chapterIndex].toDouble();
-          
-          _currentChapterIndex = chapterIndex;
-          _initialScrollProgress = (chapterLength > 0 ? remainingLength / chapterLength : 0.0)
-              .clamp(0.0, 1.0);
+          // EPUB saves store the chapter index in currentPage/totalPages
+          final position = epubPositionAt(
+            lengths,
+            book.progress,
+            savedChapter: book.totalPages == lengths.length
+                ? book.currentPage
+                : null,
+          );
+          _currentChapterIndex = position.chapter;
+          _initialScrollProgress = position.scroll;
         } else {
           // Fallback to equal chapters if lengths are unknown
           double totalProgress = book.progress * flattenedChapters.length;
@@ -1079,15 +1070,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       return book.progress;
     } else if (book.filePath.toLowerCase().endsWith('.epub')) {
       if (_chapters.isNotEmpty && _epubTotalLength > 0) {
-        double accumulatedLength = 0.0;
-        for (int i = 0; i < _currentChapterIndex; i++) {
-          accumulatedLength += _epubChapterLengths[i].toDouble();
-        }
-        
-        final double currentChapterProgress = 
-            (_epubChapterLengths[_currentChapterIndex].toDouble() * _scrollProgressNotifier.value);
-            
-        final double progress = (accumulatedLength + currentChapterProgress) / _epubTotalLength.toDouble();
+        final double progress = epubProgressAt(
+          _epubChapterLengths,
+          _currentChapterIndex,
+          _scrollProgressNotifier.value,
+        );
 
         // If we are in the last chapter and very close to the end, snap to 1.0
         if (_currentChapterIndex == _chapters.length - 1 &&
@@ -1410,9 +1397,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     if (index < 0 || index >= _chapters.length || _epubChapterLengths.isEmpty) {
       return 0;
     }
-    final contentLength = _epubChapterLengths[index];
-    // Use 1000 characters as a standard "page" weight
-    return (contentLength / 1000).ceil();
+    return epubChapterPages(_epubChapterLengths[index]);
   }
 
   Future<void> _addHighlight(Highlight highlight) async {
