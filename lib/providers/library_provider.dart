@@ -10,6 +10,7 @@ import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
 import '../services/library_files.dart';
+import '../services/file_storage_service.dart';
 import '../services/annotation_share_service.dart';
 import '../services/incoming_files.dart';
 import '../models/quest_model.dart';
@@ -328,6 +329,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   Future<void> _init() async {
     try {
       await _loadGoal();
+      try {
+        await _dbService.migrateCachedFilePaths();
+      } catch (e) {
+        debugPrint('Error moving books out of the cache dir: $e');
+      }
       await loadBooks();
       await _loadQuests();
 
@@ -937,55 +943,74 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     final existing = await _dbService.getBooks();
 
     for (var path in paths) {
-      final file = io.File(path);
-      final book = await _bookService.processFile(file);
-      if (book != null) {
-        final duplicate = existing.firstWhereOrNull(
-          (b) =>
-              b.filePath == book.filePath ||
-              (book.contentHash != null && b.contentHash == book.contentHash),
-        );
-
-        if (duplicate == null) {
-          final stored = await LibraryFiles.keep(path);
-          final bookToInsert = book.copyWith(
-            filePath: stored,
-            folderPath: p.dirname(stored),
-          );
-          final id = await _dbService.insertBook(bookToInsert);
-          final inserted = bookToInsert.copyWith(id: id);
-          await _attachPendingAnnotations(inserted);
-          result.add(inserted);
-        } else if (duplicate.isDeleted) {
-          debugPrint('Restoring soft-deleted book: ${duplicate.title}');
-          final stored = await LibraryFiles.keep(path);
-          final bookToUpdate = duplicate.copyWith(
-            isDeleted: false,
-            folderPath: p.dirname(stored),
-            filePath: stored, // Path might have changed
-          );
-          await _dbService.updateBook(bookToUpdate);
-          await _dbService.restoreBook(duplicate.id!);
-          await _attachPendingAnnotations(bookToUpdate);
-          result.add(bookToUpdate);
-        } else if (await LibraryFiles.needsRelink(duplicate.filePath)) {
-          // The same book again, and the entry's file can't be kept: point
-          // the existing entry (progress, highlights, notes) at this copy.
-          final stored = await LibraryFiles.keep(path);
-          final relinked = duplicate.copyWith(
-            filePath: stored,
-            folderPath: p.dirname(stored),
-          );
-          await _dbService.updateBook(relinked);
-          result.add(relinked);
-        } else {
-          debugPrint('Duplicate book found, skipping: ${book.title}');
-          result.add(duplicate);
+      try {
+        await _importFile(path, existing, result);
+      } finally {
+        // Once stored, file_picker's cache copy is no longer needed.
+        if (!existing.any((b) => b.filePath == path)) {
+          await FileStorageService.deleteCachedCopy(path);
         }
       }
     }
     await loadBooks();
     return result;
+  }
+
+  /// Adds the book at [path] to the library, or restores or relinks the
+  /// entry it duplicates, and adds it to [result]. New entries are added to
+  /// [existing] so a book picked twice in one go is only added once.
+  Future<void> _importFile(
+    String path,
+    List<Book> existing,
+    List<Book> result,
+  ) async {
+    final file = io.File(path);
+    final book = await _bookService.processFile(file);
+    if (book != null) {
+      final duplicate = existing.firstWhereOrNull(
+        (b) =>
+            b.filePath == book.filePath ||
+            (book.contentHash != null && b.contentHash == book.contentHash),
+      );
+
+      if (duplicate == null) {
+        final stored = await LibraryFiles.keep(path);
+        final bookToInsert = book.copyWith(
+          filePath: stored,
+          folderPath: p.dirname(stored),
+        );
+        final id = await _dbService.insertBook(bookToInsert);
+        final inserted = bookToInsert.copyWith(id: id);
+        existing.add(inserted);
+        await _attachPendingAnnotations(inserted);
+        result.add(inserted);
+      } else if (duplicate.isDeleted) {
+        debugPrint('Restoring soft-deleted book: ${duplicate.title}');
+        final stored = await LibraryFiles.keep(path);
+        final bookToUpdate = duplicate.copyWith(
+          isDeleted: false,
+          folderPath: p.dirname(stored),
+          filePath: stored, // Path might have changed
+        );
+        await _dbService.updateBook(bookToUpdate);
+        await _dbService.restoreBook(duplicate.id!);
+        await _attachPendingAnnotations(bookToUpdate);
+        result.add(bookToUpdate);
+      } else if (await LibraryFiles.needsRelink(duplicate.filePath)) {
+        // The same book again, and the entry's file can't be kept: point
+        // the existing entry (progress, highlights, notes) at this copy.
+        final stored = await LibraryFiles.keep(path);
+        final relinked = duplicate.copyWith(
+          filePath: stored,
+          folderPath: p.dirname(stored),
+        );
+        await _dbService.updateBook(relinked);
+        result.add(relinked);
+      } else {
+        debugPrint('Duplicate book found, skipping: ${book.title}');
+        result.add(duplicate);
+      }
+    }
   }
 
   /// Imports a `.yomu` package: the shared book (unless the exact same book

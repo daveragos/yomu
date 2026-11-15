@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/book_model.dart';
@@ -6,6 +10,7 @@ import '../models/annotation_reply_model.dart';
 import '../models/highlight_model.dart';
 import '../models/vocabulary_model.dart';
 import 'annotation_audio_service.dart';
+import 'file_storage_service.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -349,6 +354,98 @@ class DatabaseService {
       await txn.delete('books', where: 'id = ?', whereArgs: [id]);
     });
     await AnnotationAudioService.deleteAll(audioFiles);
+  }
+
+  static const _cacheMigrationKey = 'migrated_files_out_of_cache';
+
+  /// One-time move of book and audio files that still point at
+  /// file_picker's copy in the cache dir, which Android may clear.
+  ///
+  /// Entries whose file is already gone are left as they are. If any copy
+  /// fails, the migration runs again on the next start.
+  Future<void> migrateCachedFilePaths() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_cacheMigrationKey) ?? false) return;
+
+    final db = await database;
+    final rows = await db.query('books'); // soft-deleted books too
+    final moved = <String, String>{}; // cache path -> durable path
+    var failed = false;
+
+    // Returns the durable path for [path], copying the file if needed, or
+    // null when it isn't in the cache or no longer exists.
+    Future<String?> relocate(
+      Object? path,
+      Future<Directory> Function() targetDir,
+    ) async {
+      if (path is! String || path.isEmpty) return null;
+      if (moved.containsKey(path)) return moved[path];
+      if (!await FileStorageService.isInCache(path)) return null;
+      final file = File(path);
+      if (!await file.exists()) return null;
+      try {
+        final stored = await FileStorageService.copyInto(
+          file,
+          await targetDir(),
+        );
+        return moved[path] = stored.path;
+      } catch (e) {
+        debugPrint('Could not move $path out of the cache: $e');
+        failed = true;
+        return null;
+      }
+    }
+
+    for (final row in rows) {
+      final id = row['id'] as int;
+      Future<Directory> audioDir() => FileStorageService.audioDir(id);
+      final changes = <String, Object?>{};
+
+      final filePath = row['filePath'];
+      final newFilePath = await relocate(
+        filePath,
+        FileStorageService.booksDir,
+      );
+      if (newFilePath != null) {
+        changes['filePath'] = newFilePath;
+        if (row['folderPath'] == dirname(filePath as String)) {
+          changes['folderPath'] = dirname(newFilePath);
+        }
+      }
+
+      final newAudioPath = await relocate(row['audioPath'], audioDir);
+      if (newAudioPath != null) changes['audioPath'] = newAudioPath;
+
+      final tracksJson = row['audioTracks'];
+      if (tracksJson is String && tracksJson.isNotEmpty) {
+        try {
+          final tracks = json.decode(tracksJson) as List<dynamic>;
+          var tracksChanged = false;
+          for (final track in tracks) {
+            if (track is! Map) continue;
+            final newPath = await relocate(track['path'], audioDir);
+            if (newPath != null) {
+              track['path'] = newPath;
+              tracksChanged = true;
+            }
+          }
+          if (tracksChanged) changes['audioTracks'] = json.encode(tracks);
+        } catch (e) {
+          debugPrint('Skipping unreadable audio tracks of book $id: $e');
+        }
+      }
+
+      if (changes.isNotEmpty) {
+        await db.update('books', changes, where: 'id = ?', whereArgs: [id]);
+      }
+    }
+
+    if (failed) return;
+    for (final path in moved.keys) {
+      await FileStorageService.deleteCachedCopy(path);
+    }
+    await prefs.setBool(_cacheMigrationKey, true);
+    debugPrint('Moved ${moved.length} files out of the cache dir');
   }
 
   Future<int> restoreBook(int id) async {
