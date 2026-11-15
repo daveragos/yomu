@@ -9,6 +9,7 @@ import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
 import '../services/database_service.dart';
 import '../services/book_service.dart';
+import '../services/library_files.dart';
 import '../services/annotation_share_service.dart';
 import '../services/incoming_files.dart';
 import '../models/quest_model.dart';
@@ -946,22 +947,37 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         );
 
         if (duplicate == null) {
-          final bookToInsert = book.copyWith(folderPath: p.dirname(path));
+          final stored = await LibraryFiles.keep(path);
+          final bookToInsert = book.copyWith(
+            filePath: stored,
+            folderPath: p.dirname(stored),
+          );
           final id = await _dbService.insertBook(bookToInsert);
           final inserted = bookToInsert.copyWith(id: id);
           await _attachPendingAnnotations(inserted);
           result.add(inserted);
         } else if (duplicate.isDeleted) {
           debugPrint('Restoring soft-deleted book: ${duplicate.title}');
+          final stored = await LibraryFiles.keep(path);
           final bookToUpdate = duplicate.copyWith(
             isDeleted: false,
-            folderPath: p.dirname(path),
-            filePath: path, // Path might have changed
+            folderPath: p.dirname(stored),
+            filePath: stored, // Path might have changed
           );
           await _dbService.updateBook(bookToUpdate);
           await _dbService.restoreBook(duplicate.id!);
           await _attachPendingAnnotations(bookToUpdate);
           result.add(bookToUpdate);
+        } else if (await LibraryFiles.needsRelink(duplicate.filePath)) {
+          // The same book again, and the entry's file can't be kept: point
+          // the existing entry (progress, highlights, notes) at this copy.
+          final stored = await LibraryFiles.keep(path);
+          final relinked = duplicate.copyWith(
+            filePath: stored,
+            folderPath: p.dirname(stored),
+          );
+          await _dbService.updateBook(relinked);
+          result.add(relinked);
         } else {
           debugPrint('Duplicate book found, skipping: ${book.title}');
           result.add(duplicate);
