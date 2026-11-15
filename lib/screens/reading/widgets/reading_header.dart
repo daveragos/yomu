@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/breakpoints.dart';
 import '../../../models/book_model.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../core/constants.dart';
@@ -49,6 +50,7 @@ class ReadingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = Breakpoints.isWide(context);
     return Container(
       decoration: BoxDecoration(
         color: settings.backgroundColor,
@@ -78,7 +80,14 @@ class ReadingHeader extends StatelessWidget {
                   ),
                   if (isSearching)
                     Expanded(
-                      child: TextField(
+                      // A compact field in a wide window rather than one
+                      // stretched across the whole header.
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isWide ? 560 : double.infinity,
+                          ),
+                          child: TextField(
                         controller: searchController,
                         focusNode: searchFocusNode,
                         style: TextStyle(color: settings.textColor),
@@ -87,7 +96,22 @@ class ReadingHeader extends StatelessWidget {
                           hintStyle: TextStyle(
                             color: settings.secondaryTextColor,
                           ),
-                          border: InputBorder.none,
+                          filled: isWide,
+                          fillColor: settings.textColor.withValues(alpha: 0.06),
+                          isDense: isWide,
+                          prefixIcon: isWide
+                              ? Icon(
+                                  Icons.search_rounded,
+                                  size: 18,
+                                  color: settings.secondaryTextColor,
+                                )
+                              : null,
+                          border: isWide
+                              ? OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                )
+                              : InputBorder.none,
                           suffixIcon: IconButton(
                             icon: Icon(Icons.close, color: settings.textColor),
                             onPressed: onClearSearch,
@@ -99,6 +123,8 @@ class ReadingHeader extends StatelessWidget {
                           }
                         },
                         onSubmitted: onSearchSubmitted,
+                          ),
+                        ),
                       ),
                     )
                   else ...[

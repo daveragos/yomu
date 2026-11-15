@@ -8,8 +8,10 @@ import 'package:file_picker/file_picker.dart';
 import '../models/book_model.dart';
 import 'database_service.dart';
 import 'annotation_share_service.dart';
+import 'library_files.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
+import 'package:collection/collection.dart';
 
 class BookService {
   final DatabaseService _dbService = DatabaseService();
@@ -56,9 +58,17 @@ class BookService {
       if (pickedFile.path == null) continue;
       final file = File(pickedFile.path!);
 
-      // Check if already in DB
-      if (existingBooks.any((b) => b.filePath == file.path)) {
-        debugPrint('Already in library: ${file.path}');
+      // Check if already in DB. Picking a book again also repairs an entry
+      // whose file Yomu can no longer read (see LibraryFiles).
+      final samePath = existingBooks.firstWhereOrNull(
+        (b) => b.filePath == file.path,
+      );
+      if (samePath != null) {
+        if (await LibraryFiles.needsRelink(samePath.filePath)) {
+          await _relink(samePath, file.path);
+        } else {
+          debugPrint('Already in library: ${file.path}');
+        }
         continue;
       }
 
@@ -78,8 +88,13 @@ class BookService {
         );
 
         if (!isDuplicate) {
-          final id = await _dbService.insertBook(book);
-          final inserted = book.copyWith(id: id);
+          final stored = await LibraryFiles.keep(file.path);
+          final storedBook = book.copyWith(
+            filePath: stored,
+            folderPath: p.dirname(stored),
+          );
+          final id = await _dbService.insertBook(storedBook);
+          final inserted = storedBook.copyWith(id: id);
           try {
             await AnnotationShareService().applyPendingFor(inserted);
           } catch (e) {
@@ -88,12 +103,31 @@ class BookService {
           importedBooks.add(inserted);
           debugPrint('Imported: ${book.title}');
         } else {
-          debugPrint('Duplicate book found, skipping: ${book.title}');
+          final existing = existingBooks.firstWhere(
+            (b) =>
+                b.filePath == book!.filePath ||
+                (book.contentHash != null && b.contentHash == book.contentHash),
+          );
+          if (await LibraryFiles.needsRelink(existing.filePath)) {
+            await _relink(existing, file.path);
+          } else {
+            debugPrint('Duplicate book found, skipping: ${book.title}');
+          }
         }
       }
     }
 
     return importedBooks;
+  }
+
+  /// Points [existing] at a fresh copy of its file picked from [path],
+  /// keeping its progress, highlights and notes.
+  Future<void> _relink(Book existing, String path) async {
+    final stored = await LibraryFiles.keep(path);
+    await _dbService.updateBook(
+      existing.copyWith(filePath: stored, folderPath: p.dirname(stored)),
+    );
+    debugPrint('Relinked ${existing.title} to $stored');
   }
 
 

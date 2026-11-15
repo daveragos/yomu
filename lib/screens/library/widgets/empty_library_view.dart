@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../components/desktop/page_header.dart';
+import '../../../core/breakpoints.dart';
 import '../../../core/constants.dart';
 
 class EmptyLibraryView extends ConsumerWidget {
@@ -9,6 +11,8 @@ class EmptyLibraryView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (Breakpoints.isWide(context)) return _buildWide();
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -38,6 +42,86 @@ class EmptyLibraryView extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// A centered welcome card instead of a lone icon floating in a large
+  /// window: what Yomu reads, what it tracks, and the one action to take.
+  Widget _buildWide() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(36, 40, 36, 32),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: YomuConstants.accent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: YomuConstants.accent.withValues(alpha: 0.18),
+                        blurRadius: 32,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.auto_stories_rounded,
+                    color: YomuConstants.accent,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Your library is empty',
+                  style: TextStyle(
+                    color: YomuConstants.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Add EPUB or PDF books to start reading. Yomu keeps your '
+                  'place, streak and XP as you go.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: YomuConstants.textSecondary,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                DesktopPrimaryButton(
+                  icon: Icons.add_rounded,
+                  label: 'Add books',
+                  onPressed: onImportFiles,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Supports EPUB and PDF',
+                  style: TextStyle(
+                    color: YomuConstants.textSecondary.withValues(alpha: 0.6),
+                    fontSize: 11.5,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

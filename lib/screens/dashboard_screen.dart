@@ -15,6 +15,16 @@ import 'main_navigation.dart';
 import '../models/book_model.dart';
 import 'edit_book_screen.dart';
 import '../components/book_overlay_menu.dart';
+import '../components/daily_quests_card.dart';
+import '../components/desktop/adaptive_sheet.dart';
+import '../components/desktop/hover_lift.dart';
+import '../components/desktop/page_header.dart';
+import '../core/breakpoints.dart';
+import '../components/desktop/desktop_columns.dart';
+import './dashboard/widgets/continue_reading_hero.dart';
+import './dashboard/widgets/desktop_stat_tile.dart';
+import './stats/widgets/level_info_card.dart';
+import './stats/widgets/level_metadata_sheet.dart';
 
 final hasDashboardAnimatedProvider = StateProvider<bool>((ref) => false);
 
@@ -44,6 +54,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final recentBooks =
         libraryState.allBooks.where((b) => b.lastReadAt != null).toList()
           ..sort((a, b) => b.lastReadAt!.compareTo(a.lastReadAt!));
+
+    if (Breakpoints.isWide(context)) {
+      return _buildWide(context, libraryState, recentBooks, hasAnimated);
+    }
 
     return Scaffold(
       backgroundColor: YomuConstants.background,
@@ -205,6 +219,269 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return animator(widget);
   }
 
+  /// Wide windows: a header across the top, then the current book, shelf and
+  /// activity on the left, and level, stats and quests on the right.
+  Widget _buildWide(
+    BuildContext context,
+    LibraryState state,
+    List<Book> recentBooks,
+    bool hasAnimated,
+  ) {
+    final now = DateTime.now();
+    final greeting = now.hour < 12
+        ? 'Good morning'
+        : now.hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
+    final shelf = recentBooks.skip(1).take(10).toList();
+
+    Widget reveal(Widget child, int delayMs) => _animateIf(
+      child,
+      hasAnimated,
+      (w) => w
+          .animate()
+          .fadeIn(delay: delayMs.ms, duration: 500.ms)
+          .slideY(begin: 0.05, end: 0),
+    );
+
+    final left = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        reveal(
+          recentBooks.isEmpty
+              ? ContinueReadingEmpty(onOpenLibrary: _openLibrary)
+              : ContinueReadingHero(
+                  book: recentBooks.first,
+                  onShowOptions: (pos) =>
+                      _showBookOptions(recentBooks.first, pos),
+                ),
+          100,
+        ),
+        if (shelf.isNotEmpty) ...[
+          const SizedBox(height: 36),
+          reveal(
+            _wideSectionTitle(
+              context,
+              'My Shelf',
+              action: TextButton(
+                onPressed: _openLibrary,
+                child: const Text(
+                  'See all',
+                  style: TextStyle(
+                    color: YomuConstants.accent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            300,
+          ),
+          const SizedBox(height: 12),
+          reveal(
+            Wrap(
+              spacing: 20,
+              runSpacing: 20,
+              children: [
+                for (final book in shelf)
+                  ShelfItem(
+                    book: book,
+                    onLongPress: (pos) => _showBookOptions(book, pos),
+                    onMenuPressed: (pos) => _showBookOptions(book, pos),
+                  ),
+              ],
+            ),
+            350,
+          ),
+        ],
+        const SizedBox(height: 36),
+        reveal(
+          _wideSectionTitle(
+            context,
+            'Reading Activity',
+            subtitle: DateFormat('MMMM yyyy').format(now),
+          ),
+          400,
+        ),
+        const SizedBox(height: 16),
+        reveal(
+          ActivityGraph(
+            dailyValues: state.dailyReadingValues,
+            selectedMonth: DateFormat('MMMM yyyy').format(now),
+            weeklyGoalType: state.weeklyGoalType,
+            weeklyGoalValue: state.weeklyGoalValue,
+            onDateTapped: (date, value) =>
+                _showDailyActivityDetail(context, state, date, value),
+          ),
+          450,
+        ),
+      ],
+    );
+
+    final right = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        reveal(
+          HoverLift(
+            lift: 2,
+            child: LevelInfoCard(
+              state: state,
+              onTap: () => _showLevelMetadata(context, state),
+            ),
+          ),
+          200,
+        ),
+        const SizedBox(height: 20),
+        reveal(_buildWideStatGrid(state), 300),
+        const SizedBox(height: 20),
+        reveal(DailyQuestsCard(quests: state.dailyQuests), 400),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: YomuConstants.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            Breakpoints.desktopGutter,
+            28,
+            Breakpoints.desktopGutter,
+            48,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              reveal(
+                DesktopPageHeader(
+                  eyebrow: DateFormat('EEEE, MMM d').format(now),
+                  title: '$greeting, ${state.rankName}',
+                  subtitle: _streakLine(state),
+                ),
+                0,
+              ),
+              const SizedBox(height: 32),
+              DesktopColumns(
+                start: left,
+                end: right,
+                startFlex: 3,
+                endFlex: 2,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _streakLine(LibraryState state) {
+    final streak = state.currentStreak;
+    if (streak == 0) return 'Read a few pages today to start a streak.';
+    final days = streak == 1 ? '1-day streak' : '$streak-day streak';
+    return state.isStreakActiveToday
+        ? 'You have read today. $days and counting.'
+        : 'Read a few pages today to keep your $days.';
+  }
+
+  Widget _wideSectionTitle(
+    BuildContext context,
+    String title, {
+    String? subtitle,
+    Widget? action,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: YomuConstants.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        ?action,
+      ],
+    );
+  }
+
+  Widget _buildWideStatGrid(LibraryState state) {
+    final tiles = [
+      DesktopStatTile(
+        label: 'Day streak',
+        value: '${state.currentStreak}',
+        icon: Icons.local_fire_department,
+        color: streakColor(
+          streak: state.currentStreak,
+          isActive: state.isStreakActiveToday,
+        ),
+      ),
+      DesktopStatTile(
+        label: 'Pages',
+        value: '${state.totalPagesRead}',
+        icon: Icons.auto_stories,
+        color: YomuConstants.accentGreen,
+      ),
+      DesktopStatTile(
+        label: 'Minutes',
+        value: '${state.totalMinutesRead}',
+        icon: Icons.timer,
+        color: Colors.orangeAccent,
+      ),
+      // The level card above already shows the level, so the fourth tile
+      // shows total XP instead.
+      DesktopStatTile(
+        label: 'Total XP',
+        value: '${state.totalXP}',
+        icon: Icons.stars_rounded,
+        color: Colors.purpleAccent,
+      ),
+    ];
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: tiles[0]),
+            const SizedBox(width: 16),
+            Expanded(child: tiles[1]),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: tiles[2]),
+            const SizedBox(width: 16),
+            Expanded(child: tiles[3]),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _openLibrary() {
+    ref.read(navigationStateProvider.notifier).state = NavigationState(
+      current: 1,
+      previous: 0,
+    );
+  }
+
+  void _showLevelMetadata(BuildContext context, LibraryState state) {
+    showAdaptiveSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => LevelMetadataSheet(state: state),
+    );
+  }
+
   Widget _buildQuickStats(BuildContext context, LibraryState state) {
     return Row(
       children: [
@@ -253,7 +530,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   ) {
     if (totalValue == 0) return;
 
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => DailyActivitySheet(

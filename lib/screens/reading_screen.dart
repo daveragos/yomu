@@ -40,6 +40,14 @@ import '../services/annotation_audio_service.dart';
 import '../services/annotation_share_service.dart';
 import './reading/widgets/share_annotations_dialog.dart';
 import 'package:share_plus/share_plus.dart';
+import '../components/desktop/adaptive_sheet.dart';
+import '../components/desktop/route_shortcuts.dart';
+import '../core/platform_caps.dart';
+import '../services/library_files.dart';
+import '../core/breakpoints.dart';
+import './reading/widgets/reader_column.dart';
+
+part 'reading/reader_desktop.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -620,7 +628,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   void _showTrackListSheet(Book book) {
     final settings = ref.read(readerSettingsProvider);
 
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: settings.backgroundColor,
       shape: const RoundedRectangleBorder(
@@ -888,6 +896,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   void _toggleControls() {
     _recordInteraction();
+    // On desktop the pointer brings the controls up and they hide on their
+    // own, so a click in the text never hides them.
+    if (Breakpoints.isWide(context)) return _revealControlsForPointer();
     _setControlsVisibility(!_showControlsNotifier.value);
   }
 
@@ -936,7 +947,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-            SnackBar(
+            Breakpoints.isWide(context)
+                ? _desktopToast(Icons.bookmark_remove_rounded, 'Bookmark removed')
+                : SnackBar(
               content: const Text('Bookmark removed'),
               backgroundColor: YomuConstants.accent,
               behavior: SnackBarBehavior.floating,
@@ -978,7 +991,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-            SnackBar(
+            Breakpoints.isWide(context)
+                ? _desktopToast(Icons.bookmark_added_rounded, 'Position bookmarked')
+                : SnackBar(
               content: const Text('Position bookmarked'),
               backgroundColor: YomuConstants.accent,
               behavior: SnackBarBehavior.floating,
@@ -1023,7 +1038,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
           for (int i = 0; i < lengths.length; i++) {
             final double length = lengths[i].toDouble();
-            if (accumulatedLength + length >= targetTotalProgress) {
+            // Strictly past this chapter: progress that ends exactly at a
+            // chapter boundary resumes at the start of the next chapter.
+            if (accumulatedLength + length > targetTotalProgress) {
               chapterIndex = i;
               break;
             }
@@ -1571,10 +1588,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       _loadAudio([], bookId: null);
     }
 
-    return Scaffold(
+    return _withReaderToastInset(Scaffold(
       backgroundColor: settings.backgroundColor,
       resizeToAvoidBottomInset: false,
-      body: PopScope(
+      body: _withReaderShortcuts(book: book, child: PopScope(
         canPop: true,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) {
@@ -1591,7 +1608,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                   child: Stack(
                     children: [
                       if (isEpub)
-                        Listener(
+                        _readerColumn(isEpub: true, settings: settings, child: Listener(
                           behavior: HitTestBehavior.translucent,
                           onPointerDown: (event) {
                             _epubPointerDownTime = DateTime.now();
@@ -1655,9 +1672,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               );
                             },
                           ),
-                        )
+                        ))
                       else
-                        ReadingPdfView(
+                        _readerColumn(isEpub: false, settings: settings, child: ReadingPdfView(
                           key: ValueKey('pdf_${book.id}'),
                           book: book,
                           settings: settings,
@@ -1715,7 +1732,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onHideControls: _toggleControls,
                           showControls: _showControlsNotifier.value,
                           scrollProgressNotifier: _scrollProgressNotifier,
-                        ),
+                        )),
                       _buildAnimatedControlsOverlay(context, book, settings),
                       if (_pdfErrorMessage.isNotEmpty)
                         Center(
@@ -1749,8 +1766,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             ],
           ),
         ),
-      ),
-    );
+      )),
+    ));
   }
 
   Widget _buildAnimatedControlsOverlay(
@@ -1809,10 +1826,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 searchResultsCount: _searchResults.length,
                 searchController: _searchController,
                 searchFocusNode: _searchFocusNode,
-                onBackPressed: () {
-                  _syncFinalProgress(book);
-                  Navigator.of(context).pop();
-                },
+                // Leaving the reader saves progress once, in PopScope below;
+                // saving here as well recorded every session twice.
+                onBackPressed: () => Navigator.of(context).pop(),
                 onToggleSearch: () {
                   _isSearching = true;
                   _setControlsVisibility(true);
@@ -2336,8 +2352,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     setState(() => _isNavigationSheetOpen = true);
 
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
+      side: SheetSide.left,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {

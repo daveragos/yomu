@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'desktop/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/reader_settings_model.dart';
@@ -391,7 +392,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
 
 /// Show the display settings as a bottom sheet
 void showDisplaySettingsSheet(BuildContext context) {
-  showModalBottomSheet(
+  showAdaptiveSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,

@@ -2,8 +2,10 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../core/breakpoints.dart';
 import '../core/constants.dart';
 import '../components/glass_container.dart';
+import 'desktop/hover_lift.dart';
 
 import '../models/book_model.dart';
 
@@ -12,6 +14,9 @@ class BookCard extends StatefulWidget {
   final VoidCallback? onTap;
   final Function(Offset)? onLongPress;
   final Function(Offset)? onMenuPressed;
+
+  /// Right-click, with the pointer's global position (for placing a menu).
+  final Function(Offset)? onSecondaryTap;
   final GlobalKey? menuKey;
   final bool isSelected;
   final bool selectionMode;
@@ -22,6 +27,7 @@ class BookCard extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.onMenuPressed,
+    this.onSecondaryTap,
     this.menuKey,
     this.isSelected = false,
     this.selectionMode = false,
@@ -36,7 +42,11 @@ class _BookCardState extends State<BookCard> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final isWide = Breakpoints.isWide(context);
+    // Phones never hover, so the lift only shows up with a pointer.
+    return HoverLift(
+      borderRadius: BorderRadius.circular(YomuConstants.borderRadius),
+      child: GestureDetector(
       onTapDown: (details) {
         setState(() {
           _tapPosition = details.globalPosition;
@@ -46,6 +56,9 @@ class _BookCardState extends State<BookCard> {
       onLongPress: () {
         if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
       },
+      onSecondaryTapDown: widget.onSecondaryTap == null
+          ? null
+          : (details) => widget.onSecondaryTap!(details.globalPosition),
       child: GlassContainer(
         padding: const EdgeInsets.all(8),
         borderRadius: YomuConstants.borderRadius,
@@ -300,7 +313,7 @@ class _BookCardState extends State<BookCard> {
                   ),
                 ),
                 if (widget.onMenuPressed != null && !widget.selectionMode)
-                  InkWell(
+                  _withTooltip(isWide ? 'More options' : null, InkWell(
                     key: widget.menuKey,
                     onTapDown: (details) {
                       setState(() {
@@ -319,14 +332,18 @@ class _BookCardState extends State<BookCard> {
                         ),
                       ),
                     ),
-                  ),
+                  )),
               ],
             ),
           ],
         ),
       ),
+      ),
     );
   }
+
+  Widget _withTooltip(String? message, Widget child) =>
+      message == null ? child : Tooltip(message: message, child: child);
 
   String _formatReadingTime(int minutes) {
     if (minutes < 60) {

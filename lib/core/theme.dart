@@ -3,6 +3,29 @@ import 'package:google_fonts/google_fonts.dart';
 import 'constants.dart';
 
 class YomuTheme {
+  /// Toasts in a wide window: a compact floating card above the bottom edge,
+  /// in the app's surface color, instead of a bar across the whole window.
+  static SnackBarThemeData desktopSnackBarTheme(ThemeData base) {
+    return SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      width: 440,
+      insetPadding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+      backgroundColor: const Color(0xFF1C1D24),
+      elevation: 12,
+      contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+        color: YomuConstants.textPrimary,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      actionTextColor: YomuConstants.accent,
+      closeIconColor: YomuConstants.textSecondary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+    );
+  }
+
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,

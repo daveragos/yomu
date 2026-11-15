@@ -1,7 +1,12 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
+
+import '../core/platform_caps.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -11,13 +16,19 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
+  /// Whether the plugin initialized. When it didn't (an unsupported platform,
+  /// or setup failed), every call below does nothing.
+  bool _ready = false;
+
   Future<void> init() async {
+    if (!PlatformCaps.hasLocalNotifications) return;
+
     tz.initializeTimeZones();
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const DarwinInitializationSettings iosSettings =
+    const DarwinInitializationSettings darwinSettings =
         DarwinInitializationSettings(
           requestAlertPermission: true,
           requestBadgePermission: true,
@@ -26,31 +37,57 @@ class NotificationService {
 
     const InitializationSettings settings = InitializationSettings(
       android: androidSettings,
-      iOS: iosSettings,
+      iOS: darwinSettings,
+      macOS: darwinSettings,
     );
 
-    await _notifications.initialize(
-      settings: settings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap
-      },
-    );
+    // This runs before runApp, so a failure here must not stop the app from
+    // starting: reminders are optional.
+    try {
+      await _notifications.initialize(
+        settings: settings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          // Handle notification tap
+        },
+      );
+      _ready = true;
 
-    // Request permissions for Android 13+ and exact alarms
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+      // Request permissions for Android 13+ and exact alarms
+      await _notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
 
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestExactAlarmsPermission();
+      await _notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestExactAlarmsPermission();
+    } catch (e) {
+      debugPrint('Notifications unavailable: $e');
+    }
+  }
+
+  /// Whether notifications are turned off in system settings, so asking again
+  /// won't show a prompt.
+  Future<bool> isBlockedBySystem() async {
+    if (!PlatformCaps.hasPermissionHandler) return false;
+    return (await Permission.notification.status).isPermanentlyDenied;
   }
 
   Future<bool> requestPermissions() async {
+    if (!_ready) return false;
+
+    if (Platform.isMacOS) {
+      final granted = await _notifications
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      return granted ?? false;
+    }
+
     // Request notification permission
     final status = await Permission.notification.request();
     
@@ -72,6 +109,7 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    if (!_ready) return;
     const NotificationDetails details = NotificationDetails(
       android: AndroidNotificationDetails(
         'yomu_engagement',
@@ -81,6 +119,7 @@ class NotificationService {
         priority: Priority.high,
       ),
       iOS: DarwinNotificationDetails(),
+      macOS: DarwinNotificationDetails(),
     );
 
     await _notifications.show(
@@ -99,6 +138,7 @@ class NotificationService {
     required int hour,
     required int minute,
   }) async {
+    if (!_ready) return;
     await _notifications.zonedSchedule(
       id: id,
       title: title,
@@ -113,6 +153,7 @@ class NotificationService {
           priority: Priority.low,
         ),
         iOS: DarwinNotificationDetails(),
+        macOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
@@ -120,6 +161,7 @@ class NotificationService {
   }
 
   Future<void> scheduleWeekendBoostNotifications() async {
+    if (!_ready) return;
     // Saturday 10:00 AM
     await _notifications.zonedSchedule(
       id: 1000,
@@ -137,6 +179,7 @@ class NotificationService {
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
+        macOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
@@ -159,6 +202,7 @@ class NotificationService {
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
+        macOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
@@ -190,10 +234,12 @@ class NotificationService {
   }
 
   Future<void> cancel({required int id}) async {
+    if (!_ready) return;
     await _notifications.cancel(id: id);
   }
 
   Future<void> cancelAll() async {
+    if (!_ready) return;
     await _notifications.cancelAll();
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/breakpoints.dart';
 import '../core/constants.dart';
 import '../components/book_card.dart';
 import '../components/glass_container.dart';
@@ -107,7 +108,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         alignSkip: Alignment.topLeft,
         title: "Add Books",
         description: "Tap the + button to add new books to your library.",
-        contentAlign: ContentAlign.top,
+        contentAlign: Breakpoints.isWide(context)
+            ? ContentAlign.bottom
+            : ContentAlign.top,
         crossAxisAlignment: CrossAxisAlignment.end,
         textAlign: TextAlign.right,
       ),
@@ -233,6 +236,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       }
     });
 
+    final isWide = Breakpoints.isWide(context);
+
     return Scaffold(
       backgroundColor: YomuConstants.background,
       appBar: AppBar(
@@ -250,6 +255,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   LibraryHeader(
                     searchController: _searchController,
                     filterKey: _filterKey,
+                    onAddBooks: _handleSelectiveImport,
+                    // The header button replaces the floating one in wide
+                    // windows, so the tutorial's key moves with it.
+                    addButtonKey: isWide ? _fabKey : null,
                   ),
                 Expanded(
                   child: state.allBooks.isEmpty
@@ -258,7 +267,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
               ],
             ),
-      floatingActionButton: Padding(
+      floatingActionButton: isWide
+          ? null
+          : Padding(
         padding: EdgeInsets.only(
           bottom: (MediaQuery.paddingOf(context).bottom - 30).clamp(
             0.0,
@@ -271,13 +282,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Widget _buildBookGrid(List<Book> books) {
+    final isWide = Breakpoints.isWide(context);
     return GridView.builder(
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.57,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+      padding: isWide
+          ? const EdgeInsets.fromLTRB(
+              Breakpoints.desktopGutter,
+              20,
+              Breakpoints.desktopGutter,
+              48,
+            )
+          : const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
+      // Two columns on phones; wider windows add columns so covers stay
+      // book-sized instead of growing with the window.
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: isWide ? 205 : 220,
+        // A touch taller on desktop: the narrower cell leaves the title and
+        // progress rows a fraction of a pixel short at 0.57.
+        childAspectRatio: isWide ? 0.55 : 0.57,
+        crossAxisSpacing: isWide ? 24 : 16,
+        mainAxisSpacing: isWide ? 28 : 16,
       ),
       itemCount: books.length,
       itemBuilder: (context, index) {
@@ -303,6 +326,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             }
           },
           onMenuPressed: (pos) => _showBookOptions(book, pos),
+          onSecondaryTap: (pos) => _showBookOptions(book, pos),
         );
       },
     );
@@ -310,7 +334,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Widget _buildSelectionHeader() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: Breakpoints.isWide(context)
+          ? const EdgeInsets.fromLTRB(
+              Breakpoints.desktopGutter,
+              24,
+              Breakpoints.desktopGutter,
+              8,
+            )
+          : const EdgeInsets.all(16),
       child: GlassContainer(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         borderRadius: 12,
