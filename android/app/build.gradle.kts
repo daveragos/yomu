@@ -44,9 +44,15 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("release")
+            // The upload key from android/key.properties when it's there (Play
+            // builds). Without it, the debug key, so a release APK can still be
+            // built for sideloading; Play rejects bundles signed that way.
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("android/key.properties not found: signing the release build with the debug key")
+                signingConfigs.getByName("debug")
+            }
 
             // Enable R8 optimizations
             isMinifyEnabled = true
