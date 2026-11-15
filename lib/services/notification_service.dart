@@ -32,11 +32,14 @@ class NotificationService {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
+    // No permission prompts here: this runs before the first frame, and the
+    // window would stay blank until the prompt was answered. The app asks
+    // once it is on screen (requestPermissionsAfterLaunch).
     const DarwinInitializationSettings darwinSettings =
         DarwinInitializationSettings(
-          requestAlertPermission: true,
-          requestBadgePermission: true,
-          requestSoundPermission: true,
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
         );
 
     const InitializationSettings settings = InitializationSettings(
@@ -55,13 +58,21 @@ class NotificationService {
         },
       );
       _ready = true;
-
-      // Request the notification permission on Android 13+. The exact-alarm
-      // permission is deliberately not requested: it opens a system settings
-      // page, and reminders fall back to inexact alarms without it.
-      await _android?.requestNotificationsPermission();
     } catch (e) {
       debugPrint('Notifications unavailable: $e');
+    }
+  }
+
+  /// Asks for permission to show reminders, once the app is on screen.
+  ///
+  /// Nothing is shown where the answer is already known. The exact-alarm
+  /// permission is deliberately not requested: it opens a system settings
+  /// page, and reminders fall back to inexact alarms without it.
+  Future<void> requestPermissionsAfterLaunch() async {
+    try {
+      await requestPermissions();
+    } catch (e) {
+      debugPrint('Could not request notification permission: $e');
     }
   }
 
