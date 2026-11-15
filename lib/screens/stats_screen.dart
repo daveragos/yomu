@@ -13,6 +13,12 @@ import './stats/widgets/achievements_grid.dart';
 import './stats/widgets/goal_settings_sheet.dart';
 import './stats/widgets/level_metadata_sheet.dart';
 import '../components/daily_quests_card.dart';
+import '../components/desktop/adaptive_sheet.dart';
+import '../components/desktop/hover_lift.dart';
+import '../components/desktop/page_header.dart';
+import '../core/breakpoints.dart';
+import '../components/desktop/desktop_columns.dart';
+import './dashboard/widgets/desktop_stat_tile.dart';
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -32,6 +38,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryProvider);
+
+    if (Breakpoints.isWide(context)) {
+      return _buildWide(context, libraryState);
+    }
 
     return Scaffold(
       backgroundColor: YomuConstants.background,
@@ -105,8 +115,137 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
   }
 
+  /// Wide windows: progress and goals on the left, the calendar and
+  /// achievements on the right.
+  Widget _buildWide(BuildContext context, LibraryState state) {
+    final left = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HoverLift(
+          lift: 2,
+          child: LevelInfoCard(
+            state: state,
+            onTap: () => _showLevelMetadata(context, state),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildWideQuickStats(state),
+        const SizedBox(height: 20),
+        WeeklyGoalCard(state: state, onEdit: () => _showGoalSettings(context)),
+        const SizedBox(height: 20),
+        DailyQuestsCard(quests: state.dailyQuests),
+      ],
+    );
+
+    final right = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Reading Activity',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => _showMonthPicker(context),
+              icon: const Icon(Icons.calendar_month, size: 18),
+              label: Text(_selectedMonth),
+              style: TextButton.styleFrom(
+                foregroundColor: YomuConstants.accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ActivityGraph(
+          dailyValues: state.dailyReadingValues,
+          selectedMonth: _selectedMonth,
+          weeklyGoalType: state.weeklyGoalType,
+          weeklyGoalValue: state.weeklyGoalValue,
+          onDateTapped: (date, value) =>
+              _showDailyActivityDetail(context, state, date, value),
+        ),
+        const SizedBox(height: 36),
+        AchievementsGrid(state: state),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: YomuConstants.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            Breakpoints.desktopGutter,
+            28,
+            Breakpoints.desktopGutter,
+            48,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DesktopPageHeader(
+                eyebrow: 'Your reading',
+                title: 'Stats',
+                subtitle:
+                    '${state.rankName} · Level ${state.level} · '
+                    '${state.unlockedAchievements.length} achievements',
+              ),
+              const SizedBox(height: 32),
+              DesktopColumns(
+                start: left,
+                end: right,
+                startFlex: 5,
+                endFlex: 6,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideQuickStats(LibraryState state) {
+    return Row(
+      children: [
+        Expanded(
+          child: DesktopStatTile(
+            label: 'Streak',
+            value: '${state.currentStreak}',
+            icon: Icons.local_fire_department,
+            color: streakColor(
+              streak: state.currentStreak,
+              isActive: state.isStreakActiveToday,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: DesktopStatTile(
+            label: 'Pages',
+            value: '${state.totalPagesRead}',
+            icon: Icons.auto_stories,
+            color: YomuConstants.accentGreen,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: DesktopStatTile(
+            label: 'Minutes',
+            value: '${state.totalMinutesRead}',
+            icon: Icons.timer,
+            color: Colors.orangeAccent,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showLevelMetadata(BuildContext context, LibraryState state) {
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -160,7 +299,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     int totalValue,
   ) {
     if (totalValue == 0) return;
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => DailyActivitySheet(
@@ -174,7 +313,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   void _showGoalSettings(BuildContext context) {
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -204,7 +343,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         return dateB.compareTo(dateA); // Descending
       });
 
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {

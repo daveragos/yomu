@@ -1,9 +1,13 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book_model.dart';
 import '../providers/library_provider.dart';
 import '../core/constants.dart';
+import '../core/breakpoints.dart';
+import '../components/desktop/route_shortcuts.dart';
+import 'package:flutter/services.dart';
 import 'google_image_search_screen.dart';
 import '../services/book_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -139,13 +143,32 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // In a wide window the form stays a readable column instead of
+    // stretching its fields across the whole window.
+    final width = MediaQuery.sizeOf(context).width;
+    final sidePadding = Breakpoints.isWide(context)
+        ? math.max(
+            YomuConstants.horizontalPadding,
+            (width - Breakpoints.formMaxWidth) / 2,
+          )
+        : YomuConstants.horizontalPadding;
+
+    // Escape closes the editor, as it would a desktop window or sheet.
+    return RouteShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Edit Book'),
         actions: [IconButton(icon: const Icon(Icons.check), onPressed: _save)],
       ),
       body: ReorderableListView.builder(
-        padding: const EdgeInsets.all(YomuConstants.horizontalPadding),
+        padding: EdgeInsets.symmetric(
+          horizontal: sidePadding,
+          vertical: YomuConstants.horizontalPadding,
+        ),
         onReorderItem: (oldIndex, newIndex) {
           setState(() {
             final track = _audioTracks.removeAt(oldIndex);
@@ -321,7 +344,7 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
           );
         },
       ),
-    );
+    ));
   }
 
   Widget _buildTextField(String label, TextEditingController controller) {

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../core/constants.dart';
@@ -20,6 +22,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
 import '../components/rank_up_dialog.dart';
+import '../core/platform_caps.dart';
+import '../core/breakpoints.dart';
+import 'desktop/desktop_sidebar.dart';
+import 'desktop/app_menu_bar.dart';
+import '../components/desktop/route_shortcuts.dart';
+import '../services/desktop_open_files.dart';
 
 class NavigationState {
   final int current;
@@ -41,6 +49,7 @@ class MainNavigation extends ConsumerStatefulWidget {
 class _MainNavigationState extends ConsumerState<MainNavigation> {
   StreamSubscription? _intentDataStreamSubscription;
 
+  final GlobalKey _contentKey = GlobalKey();
   final GlobalKey _homeKey = GlobalKey();
   final GlobalKey _libraryKey = GlobalKey();
   final GlobalKey _statsKey = GlobalKey();
@@ -49,6 +58,20 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   @override
   void initState() {
     super.initState();
+    _checkFirstLaunch();
+
+    // On a computer, books arrive from Finder instead of a share sheet.
+    if (PlatformCaps.isDesktop) {
+      DesktopOpenFiles.listen((paths) {
+        if (!mounted) return;
+        _handleSharedFiles([
+          for (final path in paths)
+            SharedMediaFile(path: path, type: SharedMediaType.file),
+        ]);
+      });
+    }
+
+    if (!PlatformCaps.hasShareIntents) return;
 
     // For sharing or opening while app is running
     _intentDataStreamSubscription = ReceiveSharingIntent.instance
@@ -72,8 +95,6 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         _handleSharedFiles(value);
       }
     });
-
-    _checkFirstLaunch();
   }
 
   @override
@@ -172,6 +193,10 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   }
 
   void _showTutorial() {
+    // The sidebar sits on the left in wide windows, so the tips go beside it.
+    final align = Breakpoints.isWide(context)
+        ? ContentAlign.right
+        : ContentAlign.top;
     final targets = [
       TutorialHelper.createTarget(
         identify: "home_target",
@@ -179,7 +204,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         title: "Home Dashboard",
         description:
             "Welcome to Yomu! Here you can quickly resume your current book and see your recent activity.",
-        contentAlign: ContentAlign.top,
+        contentAlign: align,
       ),
       TutorialHelper.createTarget(
         identify: "library_target",
@@ -187,7 +212,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         title: "Your Library",
         description:
             "Access all your imported books here. Tap the plus button to add new EPUB or PDF files.",
-        contentAlign: ContentAlign.top,
+        contentAlign: align,
       ),
       TutorialHelper.createTarget(
         identify: "stats_target",
@@ -195,7 +220,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         title: "Reading Stats",
         description:
             "Track your reading habits, view your level, and check your achievements as you read more books.",
-        contentAlign: ContentAlign.top,
+        contentAlign: align,
       ),
       TutorialHelper.createTarget(
         identify: "settings_target",
@@ -203,7 +228,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
         title: "App Settings",
         description:
             "Customize your reading experience, adjust your preferences, and access help or about sections.",
-        contentAlign: ContentAlign.top,
+        contentAlign: align,
       ),
     ];
 
@@ -271,24 +296,95 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
       const SettingsScreen(), // Settings
     ];
 
-    return Scaffold(
-      body: PageTransitionSwitcher(
-        duration: const Duration(milliseconds: 300),
-        reverse: isReverse,
-        transitionBuilder: (child, animation, secondaryAnimation) {
-          return SharedAxisTransition(
+    final isWide = Breakpoints.isWide(context);
+    Widget screen = screens[selectedIndex];
+    // In a wide window, screens stop growing at a width that suits them: the
+    // dashboards lay out in columns, settings stays a single readable
+    // column, and the library takes everything so its grid adds columns.
+    final maxWidth = switch (selectedIndex) {
+      1 => double.infinity,
+      3 => Breakpoints.formMaxWidth,
+      _ => Breakpoints.dashboardMaxWidth,
+    };
+    if (isWide && maxWidth.isFinite) {
+      screen = Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: screen,
+        ),
+      );
+    }
+
+    final content = PageTransitionSwitcher(
+      // The sidebar and phone layouts place this in different parents; the
+      // key carries the open screen's state across when the window resizes.
+      key: _contentKey,
+      duration: const Duration(milliseconds: 300),
+      reverse: isReverse,
+      transitionBuilder: (child, animation, secondaryAnimation) {
+        // Sliding sideways mirrors swiping between tabs on a phone; with a
+        // sidebar, a cross-fade reads better.
+        if (isWide) {
+          return FadeThroughTransition(
             animation: animation,
             secondaryAnimation: secondaryAnimation,
-            transitionType: SharedAxisTransitionType.horizontal,
             fillColor: Colors.transparent,
             child: child,
           );
-        },
-        child: Container(
-          key: ValueKey<int>(selectedIndex),
-          child: screens[selectedIndex],
-        ),
+        }
+        return SharedAxisTransition(
+          animation: animation,
+          secondaryAnimation: secondaryAnimation,
+          transitionType: SharedAxisTransitionType.horizontal,
+          fillColor: Colors.transparent,
+          child: child,
+        );
+      },
+      child: Container(
+        key: ValueKey<int>(selectedIndex),
+        child: screen,
       ),
+    );
+
+    if (isWide) {
+      // ⌘1–⌘4 (Ctrl elsewhere) switch screens, as the sidebar hints show.
+      final meta = Platform.isMacOS;
+      return YomuMenuBar(
+        destinations: _destinations,
+        onShowScreen: _showScreenFromMenu,
+        child: RouteShortcuts(
+          bindings: {
+            for (var i = 0; i < _destinations.length; i++)
+              SingleActivator(
+                LogicalKeyboardKey(LogicalKeyboardKey.digit1.keyId + i),
+                meta: meta,
+                control: !meta,
+              ): () => _selectTab(i),
+          },
+          child: Scaffold(
+            body: Row(
+              children: [
+                DesktopSidebar(
+                  destinations: _destinations,
+                  destinationKeys: _destinationKeys,
+                  selectedIndex: selectedIndex,
+                  onSelect: _selectTab,
+                  onOpenBook: _openBook,
+                ),
+                Expanded(child: content),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return YomuMenuBar(
+      destinations: _destinations,
+      onShowScreen: _showScreenFromMenu,
+      child: Scaffold(
+      body: content,
       extendBody: true,
       bottomNavigationBar: SafeArea(
         bottom: true,
@@ -302,40 +398,47 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildNavItem(
-                  ref,
-                  index: 0,
-                  icon: Icons.dashboard_rounded,
-                  label: 'Home',
-                  itemKey: _homeKey,
-                ),
-                _buildNavItem(
-                  ref,
-                  index: 1,
-                  icon: Icons.menu_book_rounded,
-                  label: 'Library',
-                  itemKey: _libraryKey,
-                ),
-                _buildNavItem(
-                  ref,
-                  index: 2,
-                  icon: Icons.bar_chart_rounded,
-                  label: 'Stats',
-                  itemKey: _statsKey,
-                ),
-                _buildNavItem(
-                  ref,
-                  index: 3,
-                  icon: Icons.settings_rounded,
-                  label: 'Settings',
-                  itemKey: _settingsKey,
-                ),
+                for (var i = 0; i < _destinations.length; i++)
+                  _buildNavItem(
+                    ref,
+                    index: i,
+                    icon: _destinations[i].icon,
+                    label: _destinations[i].label,
+                    itemKey: _destinationKeys[i],
+                  ),
               ],
             ),
           ),
         ),
       ),
-    );
+    ));
+  }
+
+  /// Menu bar screen commands also leave the reader if it's open.
+  void _showScreenFromMenu(int index) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _selectTab(index);
+  }
+
+  static const List<SidebarDestination> _destinations = [
+    (icon: Icons.dashboard_rounded, label: 'Home'),
+    (icon: Icons.menu_book_rounded, label: 'Library'),
+    (icon: Icons.bar_chart_rounded, label: 'Stats'),
+    (icon: Icons.settings_rounded, label: 'Settings'),
+  ];
+
+  /// The tutorial points at these, so the bottom bar and the sidebar attach
+  /// the same keys to their items (only one of the two is ever built).
+  late final _destinationKeys = [_homeKey, _libraryKey, _statsKey, _settingsKey];
+
+  void _selectTab(int index) {
+    final selectedIndex = ref.read(navigationStateProvider).current;
+    if (selectedIndex != index) {
+      ref.read(navigationStateProvider.notifier).state = NavigationState(
+        current: index,
+        previous: selectedIndex,
+      );
+    }
   }
 
   Widget _buildNavItem(
@@ -351,14 +454,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
 
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          if (selectedIndex != index) {
-            ref.read(navigationStateProvider.notifier).state = NavigationState(
-              current: index,
-              previous: selectedIndex,
-            );
-          }
-        },
+        onTap: () => _selectTab(index),
         behavior: HitTestBehavior.opaque,
         child: Column(
           key: itemKey,

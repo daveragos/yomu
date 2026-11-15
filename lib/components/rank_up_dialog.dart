@@ -13,6 +13,9 @@ class RankUpDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+      // A card, not a banner: on a wide window the full-width button would
+      // otherwise stretch it edge to edge. Phones are narrower than this.
+      constraints: const BoxConstraints(maxWidth: 420),
       child: Container(
         padding: const EdgeInsets.all(30),
         decoration: BoxDecoration(

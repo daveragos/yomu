@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../components/desktop/hover_lift.dart';
 import '../../../core/constants.dart';
 import '../../../models/book_model.dart';
 import '../../../providers/library_provider.dart';
@@ -44,10 +45,18 @@ class _ShelfItemState extends ConsumerState<ShelfItem> {
       onLongPress: () {
         if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
       },
+      // Right-click is the desktop long-press.
+      onSecondaryTapDown: (details) => _tapPosition = details.globalPosition,
+      onSecondaryTap: () {
+        if (widget.onLongPress != null) widget.onLongPress!(_tapPosition);
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
+          // Lifts on hover in wide windows; on phones it only sets the cursor.
+          HoverLift(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
             children: [
               Container(
                 width: 100,
@@ -115,6 +124,7 @@ class _ShelfItemState extends ConsumerState<ShelfItem> {
                   ),
                 ),
             ],
+          ),
           ),
           const SizedBox(height: 8),
           SizedBox(

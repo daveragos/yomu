@@ -47,6 +47,14 @@ import './reading/widgets/note_walkthrough.dart';
 import '../providers/shared_welcome_provider.dart';
 import './reading/widgets/share_with_notes.dart';
 import 'package:share_plus/share_plus.dart';
+import '../components/desktop/adaptive_sheet.dart';
+import '../components/desktop/route_shortcuts.dart';
+import '../core/platform_caps.dart';
+import '../services/library_files.dart';
+import '../core/breakpoints.dart';
+import './reading/widgets/reader_column.dart';
+
+part 'reading/reader_desktop.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   const ReadingScreen({super.key});
@@ -642,7 +650,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   void _showTrackListSheet(Book book) {
     final settings = ref.read(readerSettingsProvider);
 
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: settings.backgroundColor,
       shape: const RoundedRectangleBorder(
@@ -1287,6 +1295,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   void _toggleControls() {
     _recordInteraction();
+    // On desktop the pointer brings the controls up and they hide on their
+    // own, so a click in the text never hides them.
+    if (Breakpoints.isWide(context)) return _revealControlsForPointer();
     _setControlsVisibility(!_showControlsNotifier.value);
   }
 
@@ -1335,7 +1346,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-            SnackBar(
+            Breakpoints.isWide(context)
+                ? _desktopToast(Icons.bookmark_remove_rounded, 'Bookmark removed')
+                : SnackBar(
               content: const Text('Bookmark removed'),
               backgroundColor: YomuConstants.accent,
               behavior: SnackBarBehavior.floating,
@@ -1377,7 +1390,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-            SnackBar(
+            Breakpoints.isWide(context)
+                ? _desktopToast(Icons.bookmark_added_rounded, 'Position bookmarked')
+                : SnackBar(
               content: const Text('Position bookmarked'),
               backgroundColor: YomuConstants.accent,
               behavior: SnackBarBehavior.floating,
@@ -1938,10 +1953,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       _loadAudio([], bookId: null);
     }
 
-    return Scaffold(
+    return _withReaderToastInset(Scaffold(
       backgroundColor: settings.backgroundColor,
       resizeToAvoidBottomInset: false,
-      body: PopScope(
+      body: _withReaderShortcuts(book: book, child: PopScope(
         canPop: true,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) {
@@ -1958,7 +1973,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                   child: Stack(
                     children: [
                       if (isEpub)
-                        Listener(
+                        _readerColumn(isEpub: true, settings: settings, child: Listener(
                           behavior: HitTestBehavior.translucent,
                           onPointerDown: (event) {
                             _epubPointerDownTime = DateTime.now();
@@ -2025,9 +2040,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                               );
                             },
                           ),
-                        )
+                        ))
                       else
-                        ReadingPdfView(
+                        _readerColumn(isEpub: false, settings: settings, child: ReadingPdfView(
                           key: ValueKey('pdf_${book.id}'),
                           book: book,
                           settings: settings,
@@ -2089,7 +2104,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           onHideControls: _toggleControls,
                           showControls: _showControlsNotifier.value,
                           scrollProgressNotifier: _scrollProgressNotifier,
-                        ),
+                        )),
                       _buildAnimatedControlsOverlay(context, book, settings),
                       if (_walkNotes != null) _buildWalkthroughBar(),
                       if (_pdfErrorMessage.isNotEmpty)
@@ -2124,8 +2139,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             ],
           ),
         ),
-      ),
-    );
+      )),
+    ));
   }
 
   Widget _buildAnimatedControlsOverlay(
@@ -2184,10 +2199,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                 searchResultsCount: _searchResults.length,
                 searchController: _searchController,
                 searchFocusNode: _searchFocusNode,
-                onBackPressed: () {
-                  _syncFinalProgress(book);
-                  Navigator.of(context).pop();
-                },
+                // Leaving the reader saves progress once, in PopScope below;
+                // saving here as well recorded every session twice.
+                onBackPressed: () => Navigator.of(context).pop(),
                 onToggleSearch: () {
                   _isSearching = true;
                   _setControlsVisibility(true);
@@ -2666,27 +2680,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     setState(() => _isNavigationSheetOpen = true);
 
     final sheetController = DraggableScrollableController();
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
+      side: SheetSide.left,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
-        // The sheet follows the finger: scrolling a list up grows it to full
-        // height before the list itself scrolls; pulling down shrinks it and,
-        // past the smallest size, closes it.
-        final media = MediaQuery.of(context);
-        final maxSize =
-            ((media.size.height - media.padding.top - 8) / media.size.height)
-                .clamp(NavigationSheet.initialSize, 1.0);
-        return DraggableScrollableSheet(
-          controller: sheetController,
-          expand: false,
-          initialChildSize: NavigationSheet.initialSize,
-          minChildSize: NavigationSheet.minSize,
-          maxChildSize: maxSize,
-          builder: (context, scrollController) => NavigationSheet(
+        Widget sheet(ScrollController? scrollController) => NavigationSheet(
           scrollController: scrollController,
-          sheetController: sheetController,
+          sheetController: scrollController == null ? null : sheetController,
           readerSettings: settings,
           book: book,
           chapters: _chapters,
@@ -2836,7 +2838,25 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             }
           },
           formatDate: _formatDate,
-        ),
+        );
+
+        // In a wide window the sheet is a side panel with nothing to drag.
+        if (Breakpoints.isWide(context)) return sheet(null);
+
+        // The sheet follows the finger: scrolling a list up grows it to full
+        // height before the list itself scrolls; pulling down shrinks it and,
+        // past the smallest size, closes it.
+        final media = MediaQuery.of(context);
+        final maxSize =
+            ((media.size.height - media.padding.top - 8) / media.size.height)
+                .clamp(NavigationSheet.initialSize, 1.0);
+        return DraggableScrollableSheet(
+          controller: sheetController,
+          expand: false,
+          initialChildSize: NavigationSheet.initialSize,
+          minChildSize: NavigationSheet.minSize,
+          maxChildSize: maxSize,
+          builder: (context, scrollController) => sheet(scrollController),
         );
       },
     ).then((_) {
