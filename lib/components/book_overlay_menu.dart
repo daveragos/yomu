@@ -78,7 +78,7 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
     double left = widget.position.dx;
     double top = widget.position.dy;
     const menuWidth = 200.0;
-    const menuHeight = 180.0;
+    const menuHeight = 230.0;
 
     if (left + menuWidth > size.width - 16) {
       left = size.width - menuWidth - 16;
@@ -122,6 +122,11 @@ class _BookOverlayMenuState extends ConsumerState<BookOverlayMenu>
                           icon: Icons.edit_outlined,
                           label: 'Edit Info',
                           onTap: () => widget.onAction('edit'),
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.group_add_outlined,
+                          label: 'Share with notes',
+                          onTap: () => widget.onAction('share_notes'),
                         ),
                         const Divider(
                           color: Colors.white10,

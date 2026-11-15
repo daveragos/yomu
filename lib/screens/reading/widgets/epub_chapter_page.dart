@@ -12,14 +12,18 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
-import '../../../core/constants.dart';
 import 'share_quote_sheet.dart';
-import 'note_editor.dart';
-import 'voice_note_player.dart';
+import 'highlight_toolbar.dart';
+import 'note_marker.dart';
+import '../../../utils/epub_text_match.dart';
 
 class EpubChapterPage extends StatefulWidget {
   final int index;
   final bool isCurrentPage;
+
+  /// Whether this chapter sits above the current one in the vertical pager,
+  /// so it should open scrolled to its end (it slides in from the top).
+  final bool opensAtEnd;
   final EpubChapter chapter;
   final ReaderSettings settings;
   final bool shouldJumpToBottom;
@@ -47,10 +51,17 @@ class EpubChapterPage extends StatefulWidget {
   final Function(int) onDeleteHighlight;
   final Function(String)? onLookup;
 
+  /// Opens a highlight's note card, from the marker after it in the text.
+  final void Function(Highlight highlight)? onOpenNote;
+
+  /// Replies per highlight uid, for the markers.
+  final Map<String, int> replyCounts;
+
   const EpubChapterPage({
     super.key,
     required this.index,
     required this.isCurrentPage,
+    this.opensAtEnd = false,
     required this.chapter,
     required this.settings,
     required this.shouldJumpToBottom,
@@ -73,6 +84,8 @@ class EpubChapterPage extends StatefulWidget {
     required this.onHighlight,
     required this.onDeleteHighlight,
     this.onLookup,
+    this.onOpenNote,
+    this.replyCounts = const {},
     this.searchQuery,
     this.epubBook,
     this.bookTitle,
@@ -88,8 +101,17 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   late ScrollController _scrollController;
   bool _isNavigating = false;
   bool _isInitialPositionRestored = false;
-  double _currentPeakOverscroll = 0.0;
-  bool? _isPullingDown;
+
+  /// Overscroll produced by the finger while it is still on the screen:
+  /// positive past the end (next chapter), negative past the start
+  /// (previous chapter). Momentum overscroll from a fling never counts.
+  final ValueNotifier<double> _pullOffset = ValueNotifier(0.0);
+  bool _pullArmed = false;
+  int _activePointers = 0;
+
+  /// Keeps the chapter pinned to its end while late content (decoded images)
+  /// grows it, until the reader scrolls it themselves.
+  bool _pinnedToEnd = false;
   Ticker? _ticker;
   Duration _lastElapsed = Duration.zero;
   String _processedHtml = '';
@@ -101,10 +123,15 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    if (widget.shouldJumpToBottom) {
-      _checkAndJump();
+    // Only the current chapter consumes the screen's one-shot position
+    // requests; a chapter that is merely passing through the pager must not
+    // jump (or acknowledge the request on the current chapter's behalf).
+    final bool jumpRequested =
+        widget.isCurrentPage && widget.shouldJumpToBottom;
+    if (widget.opensAtEnd || jumpRequested) {
+      _jumpToEnd(acknowledge: jumpRequested);
       _isInitialPositionRestored = true;
-    } else if (widget.initialScrollProgress > 0) {
+    } else if (widget.isCurrentPage && widget.initialScrollProgress > 0) {
       _checkAndJumpToPosition();
     } else {
       _isInitialPositionRestored = true;
@@ -149,12 +176,20 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   @override
   void didUpdateWidget(EpubChapterPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.shouldJumpToBottom && !oldWidget.shouldJumpToBottom) {
-      _checkAndJump();
-    } else if (widget.initialScrollProgress !=
-            oldWidget.initialScrollProgress &&
+    // The chapter being left stays mounted until the page animation ends, so
+    // position requests must only move the chapter that is now current.
+    if (widget.isCurrentPage &&
+        widget.shouldJumpToBottom &&
+        !oldWidget.shouldJumpToBottom) {
+      _jumpToEnd(acknowledge: true);
+    } else if (widget.isCurrentPage &&
+        widget.initialScrollProgress != oldWidget.initialScrollProgress &&
         widget.initialScrollProgress > 0) {
       _checkAndJumpToPosition();
+    } else if (widget.isCurrentPage && !oldWidget.isCurrentPage) {
+      // The screen resets progress to 0 on a chapter change; report where
+      // this chapter actually is (its end, when it was entered from below).
+      WidgetsBinding.instance.addPostFrameCallback((_) => _publishProgress());
     }
 
     final bool bookChanged = !identical(widget.epubBook, oldWidget.epubBook);
@@ -164,6 +199,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
             oldWidget.settings.usePublisherDefaults ||
         widget.searchQuery != oldWidget.searchQuery ||
         widget.highlights != oldWidget.highlights ||
+        widget.replyCounts != oldWidget.replyCounts ||
         bookChanged) {
       _updateProcessedHtml();
     }
@@ -182,13 +218,8 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         .toList();
     chapterHighlights.sort((a, b) => b.text.length.compareTo(a.text.length));
     for (final highlight in chapterHighlights) {
-      // Create a regex that is extremely lenient with HTML whitespace and nested tags
-      final normalizedText = highlight.text.replaceAll(RegExp(r'\s+'), ' ');
-      final wsPattern = r'(?:\s|&nbsp;|&zwj;|&#160;|&#xa0;|&#x20;|<[^>]+>)+';
-      final escapedText = RegExp.escape(normalizedText).replaceAll(' ', wsPattern);
-      
-      // Lookahead ensures we don't start matching inside an HTML tag
-      final regex = RegExp('(?![^<]*>)$escapedText', caseSensitive: false);
+      // Lenient with HTML whitespace and nested tags, never starting in a tag.
+      final regex = highlightPattern(highlight.text);
       final rgba = _hexToRgba(highlight.color, 0.35);
       
       final matches = regex.allMatches(content).toList();
@@ -214,10 +245,20 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         }
       }
 
+      // A marker after the highlight opens its note card.
+      final marker =
+          widget.onOpenNote != null &&
+              highlight.id != null &&
+              NoteMarker.shows(
+                highlight,
+                widget.replyCounts[highlight.uid] ?? 0,
+              )
+          ? '<yomu-note data-id="${highlight.id}"></yomu-note>'
+          : '';
       int currentMatchIndex = 0;
       content = content.replaceAllMapped(regex, (match) {
         final result = currentMatchIndex == targetMatchIndex
-            ? '<span style="background-color: $rgba; border-bottom: 2px solid ${highlight.color};">${match.group(0)}</span>'
+            ? '<span style="background-color: $rgba; border-bottom: 2px solid ${highlight.color};">${match.group(0)}</span>$marker'
             : match.group(0)!;
         currentMatchIndex++;
         return result;
@@ -254,27 +295,49 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     });
   }
 
-  void _checkAndJump() {
+  /// Scrolls to the end of the chapter after the first layout, and keeps it
+  /// there while the content is still growing (see [_handleMetricsChange]).
+  /// [acknowledge] tells the screen its jump-to-bottom request was handled.
+  void _jumpToEnd({required bool acknowledge}) {
+    _pinnedToEnd = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scrollController.hasClients) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
         final double maxScroll = _scrollController.position.maxScrollExtent;
-        if (maxScroll > 0) {
+        if (_scrollController.offset != maxScroll) {
           _scrollController.jumpTo(maxScroll);
-          widget.onJumpedToBottom();
-        } else {
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted && _scrollController.hasClients) {
-              final double newMaxScroll =
-                  _scrollController.position.maxScrollExtent;
-              if (newMaxScroll > 0) {
-                _scrollController.jumpTo(newMaxScroll);
-              }
-              widget.onJumpedToBottom();
-            }
-          });
         }
       }
+      if (acknowledge) widget.onJumpedToBottom();
+      _publishProgress();
     });
+  }
+
+  bool _handleMetricsChange(ScrollMetricsNotification notification) {
+    if (notification.depth == 0 &&
+        _pinnedToEnd &&
+        _activePointers == 0 &&
+        _scrollController.hasClients) {
+      final double maxScroll = _scrollController.position.maxScrollExtent;
+      if (_scrollController.offset < maxScroll) {
+        _scrollController.jumpTo(maxScroll);
+      }
+    }
+    return false;
+  }
+
+  void _publishProgress() {
+    if (!mounted ||
+        !widget.isCurrentPage ||
+        !_isInitialPositionRestored ||
+        !_scrollController.hasClients) {
+      return;
+    }
+    final position = _scrollController.position;
+    final double progress = position.maxScrollExtent > 0
+        ? (position.pixels / position.maxScrollExtent).clamp(0.0, 1.0)
+        : 1.0;
+    widget.scrollProgressNotifier.value = progress;
   }
 
   void _checkAndJumpToPosition() {
@@ -309,95 +372,193 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     widget.autoScrollSpeedNotifier.removeListener(_handleSpeedChange);
     _ticker?.dispose();
     _scrollController.dispose();
+    _pullOffset.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollStartNotification) {
-          _currentPeakOverscroll = 0.0;
-        }
+    return Listener(
+      onPointerDown: (_) => _activePointers++,
+      onPointerUp: (_) => _handlePointerRelease(canNavigate: true),
+      onPointerCancel: (_) => _handlePointerRelease(canNavigate: false),
+      onPointerPanZoomStart: (_) => _activePointers++,
+      onPointerPanZoomEnd: (_) => _handlePointerRelease(canNavigate: true),
+      child: NotificationListener<ScrollMetricsNotification>(
+        onNotification: _handleMetricsChange,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [_buildScrollView(), _buildPullIndicator()],
+          ),
+        ),
+      ),
+    );
+  }
 
-        if (notification is UserScrollNotification) {
-          if (notification.direction != ScrollDirection.idle &&
-              widget.showControls) {
-            widget.onHideControls();
-          }
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final metrics = notification.metrics;
 
-          if (notification.direction == ScrollDirection.idle &&
-              !_isNavigating) {
-            if (_currentPeakOverscroll > 40) {
-              if (_isPullingDown == false &&
-                  widget.index < widget.chapters.length - 1) {
-                _isNavigating = true;
-                HapticFeedback.mediumImpact();
-                widget.pageController
-                    ?.nextPage(
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOutQuart,
-                    )
-                    .then((_) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        if (mounted) _isNavigating = false;
-                      });
-                    });
-                _resetPullState();
-              } else if (_isPullingDown == true && widget.index > 0) {
-                _isNavigating = true;
-                HapticFeedback.mediumImpact();
-                widget.pageController
-                    ?.previousPage(
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOutQuart,
-                    )
-                    .then((_) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                        if (mounted) _isNavigating = false;
-                      });
-                    });
-                _resetPullState();
-              }
-            }
-            _currentPeakOverscroll = 0.0;
-          }
-        }
+    if (notification is UserScrollNotification &&
+        notification.direction != ScrollDirection.idle) {
+      _pinnedToEnd = false;
+      if (widget.showControls) widget.onHideControls();
+    }
 
-        if (notification.metrics.axis == Axis.vertical) {
-          final metrics = notification.metrics;
-          final double progressValue = metrics.maxScrollExtent > 0
-              ? (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0)
-              : 1.0;
+    if (notification is ScrollUpdateNotification) {
+      // dragDetails is only set while the finger moves the content; bounce
+      // and fling frames leave it null, so momentum can't change chapter.
+      _setPull(notification.dragDetails != null ? _overscrollOf(metrics) : 0);
+    }
 
-          if (widget.isCurrentPage && _isInitialPositionRestored) {
-            if (progressValue != widget.scrollProgressNotifier.value) {
-              widget.scrollProgressNotifier.value = progressValue;
-              widget.onInteraction();
-            }
-          }
+    final double progressValue = metrics.maxScrollExtent > 0
+        ? (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0)
+        : 1.0;
 
-          if (metrics.pixels > metrics.maxScrollExtent) {
-            final overscroll = metrics.pixels - metrics.maxScrollExtent;
-            if (overscroll > _currentPeakOverscroll) {
-              _currentPeakOverscroll = overscroll;
-              _isPullingDown = false;
-            }
-          } else if (metrics.pixels < 0) {
-            final overscroll = -metrics.pixels;
-            if (overscroll > _currentPeakOverscroll) {
-              _currentPeakOverscroll = overscroll;
-              _isPullingDown = true;
-            }
-          }
+    if (widget.isCurrentPage && _isInitialPositionRestored) {
+      if (progressValue != widget.scrollProgressNotifier.value) {
+        widget.scrollProgressNotifier.value = progressValue;
+        widget.onInteraction();
+      }
+    }
 
-          if (metrics.pixels != 0) {
-            widget.onInteraction();
-          }
-        }
-        return false;
+    if (metrics.pixels != 0) {
+      widget.onInteraction();
+    }
+    return false;
+  }
+
+  static double _overscrollOf(ScrollMetrics metrics) {
+    if (metrics.pixels > metrics.maxScrollExtent) {
+      return metrics.pixels - metrics.maxScrollExtent;
+    }
+    if (metrics.pixels < metrics.minScrollExtent) {
+      return metrics.pixels - metrics.minScrollExtent;
+    }
+    return 0;
+  }
+
+  bool _hasChapterInDirection(bool forward) => forward
+      ? widget.index < widget.chapters.length - 1
+      : widget.index > 0;
+
+  void _setPull(double overscroll) {
+    if (overscroll != 0 && !_hasChapterInDirection(overscroll > 0)) {
+      overscroll = 0;
+    }
+    _pullOffset.value = overscroll;
+    final bool armed = overscroll.abs() >= widget.pullTriggerDistance;
+    if (armed && !_pullArmed) HapticFeedback.selectionClick();
+    _pullArmed = armed;
+  }
+
+  /// Changes chapter the moment the finger lifts past the threshold, instead
+  /// of waiting for the bounce-back to settle.
+  void _handlePointerRelease({required bool canNavigate}) {
+    if (_activePointers > 0) _activePointers--;
+    if (_activePointers > 0) return;
+
+    final double pull = _pullOffset.value;
+    _setPull(0);
+    if (canNavigate && pull.abs() >= widget.pullTriggerDistance) {
+      _navigateToAdjacentChapter(forward: pull > 0);
+    }
+  }
+
+  void _navigateToAdjacentChapter({required bool forward}) {
+    final controller = widget.pageController;
+    if (_isNavigating ||
+        controller == null ||
+        !controller.hasClients ||
+        !_hasChapterInDirection(forward)) {
+      return;
+    }
+    _isNavigating = true;
+    HapticFeedback.mediumImpact();
+    const duration = Duration(milliseconds: 450);
+    const curve = Curves.easeOutCubic;
+    final Future<void> animation = forward
+        ? controller.nextPage(duration: duration, curve: curve)
+        : controller.previousPage(duration: duration, curve: curve);
+    animation.whenComplete(() {
+      if (mounted) _isNavigating = false;
+    });
+  }
+
+  Widget _buildPullIndicator() {
+    return ValueListenableBuilder<double>(
+      valueListenable: _pullOffset,
+      builder: (context, pull, _) {
+        final double distance = pull.abs();
+        if (distance <= widget.pullDeadzone) return const SizedBox.shrink();
+
+        final bool forward = pull > 0;
+        final bool armed = distance >= widget.pullTriggerDistance;
+        final double reveal = ((distance - widget.pullDeadzone) /
+                (widget.pullTriggerDistance - widget.pullDeadzone))
+            .clamp(0.0, 1.0);
+        final EpubChapter target =
+            widget.chapters[forward ? widget.index + 1 : widget.index - 1];
+        final String direction = forward ? 'next' : 'previous';
+        final Color color = armed
+            ? widget.settings.textColor
+            : widget.settings.secondaryTextColor;
+
+        final indicator = Opacity(
+          opacity: reveal,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                forward ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                size: 18,
+                color: color,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                armed
+                    ? 'Release for $direction chapter'
+                    : 'Pull for $direction chapter',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (target.Title != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  target.Title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: widget.settings.secondaryTextColor,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+
+        return Positioned(
+          left: 32,
+          right: 32,
+          top: forward ? null : 24,
+          bottom: forward ? 24 : null,
+          child: IgnorePointer(child: Center(child: indicator)),
+        );
       },
-      child: LayoutBuilder(
+    );
+  }
+
+  Widget _buildScrollView() {
+    return LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
             controller: _scrollController,
@@ -502,6 +663,29 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                             }
                           },
                           extensions: [
+                            TagExtension(
+                              tagsToExtend: {'yomu-note'},
+                              builder: (extensionContext) {
+                                final id = int.tryParse(
+                                  extensionContext.attributes['data-id'] ?? '',
+                                );
+                                final highlight = widget.highlights
+                                    .where((h) => h.id == id)
+                                    .firstOrNull;
+                                if (highlight == null ||
+                                    widget.onOpenNote == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                return NoteMarker(
+                                  highlight: highlight,
+                                  replyCount:
+                                      widget.replyCounts[highlight.uid] ?? 0,
+                                  size: (widget.settings.textSize * 0.85)
+                                      .clamp(14.0, 22.0),
+                                  onTap: () => widget.onOpenNote!(highlight),
+                                );
+                              },
+                            ),
                             TagExtension(
                               tagsToExtend: {"img", "image"},
                               builder: (extensionContext) {
@@ -661,18 +845,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
             ),
           );
         },
-      ),
-    );
-  }
-
-  void _resetPullState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.pullDistanceNotifier.value = 0.0;
-        widget.isPullingDownNotifier.value = false;
-        widget.scrollProgressNotifier.value = 0.0;
-      }
-    });
+      );
   }
 
   int? _findOccurrenceIndex(String selectedText, Offset primaryAnchor) {
@@ -763,7 +936,6 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       );
     }
 
-    final highlightColors = YomuConstants.highlightColors;
 
     final anchors = selectableRegionState.contextMenuAnchors;
     final primaryAnchor = anchors.primaryAnchor;
@@ -802,143 +974,65 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       }
     }
 
-    final textColor = widget.settings.menuIconColor;
-    const btnSize = 36.0;
-    const iconSize = 20.0;
+    final existing = existingHighlight;
     final screenWidth = MediaQuery.of(context).size.width;
-    const toolbarWidth = 188.0;
-    const toolbarHeight = 80.0;
+    const toolbarWidth = HighlightToolbar.width;
+    const toolbarHeight = HighlightToolbar.height;
     final left = (primaryAnchor.dx - toolbarWidth / 2).clamp(8.0, screenWidth - toolbarWidth - 8.0);
     final top = (primaryAnchor.dy - toolbarHeight - 8).clamp(8.0, double.infinity);
+
+    void close() {
+      selectableRegionState.hideToolbar();
+      selectableRegionState.clearSelection();
+    }
 
     return Stack(
       children: [
         Positioned(
           left: left,
           top: top,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              decoration: BoxDecoration(
-                color: widget.settings.menuBackgroundColor,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 12, offset: Offset(0, 4))],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ...highlightColors.map((color) => SizedBox(
-                        width: btnSize,
-                        height: btnSize,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.circle, color: color, size: 22),
-                          onPressed: () {
-                            final hexColor = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
-                            final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
-                            widget.onHighlight(Highlight(
-                              bookId: 0,
-                              chapterIndex: widget.index,
-                              text: selectedText,
-                              color: hexColor,
-                              createdAt: DateTime.now(),
-                              position: '${widget.index}:${occurrenceIndex != null ? 'exact:$occurrenceIndex' : 'ratio'}:$ratio',
-                            ));
-                            selectableRegionState.hideToolbar();
-                            selectableRegionState.clearSelection();
-                          },
-                        ),
-                      )),
-                      if (existingHighlight != null)
-                        SizedBox(
-                          width: btnSize,
-                          height: btnSize,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: Icon(Icons.highlight_remove, color: textColor, size: iconSize),
-                            onPressed: () {
-                              widget.onDeleteHighlight(existingHighlight!.id!);
-                              selectableRegionState.hideToolbar();
-                              selectableRegionState.clearSelection();
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: btnSize,
-                        height: btnSize,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.sticky_note_2_rounded, color: YomuConstants.accent, size: iconSize),
-                          onPressed: () {
-                            selectableRegionState.hideToolbar();
-                            _showNoteSheet(context, selectedText, existingHighlight);
-                          },
-                        ),
-                      ),
-                      if (existingHighlight?.hasAudio ?? false)
-                        SizedBox(
-                          width: btnSize,
-                          height: btnSize,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            tooltip: 'Play voice note',
-                            icon: Icon(Icons.graphic_eq_rounded, color: YomuConstants.accent, size: iconSize),
-                            onPressed: () {
-                              selectableRegionState.hideToolbar();
-                              _showVoiceNoteSheet(context, existingHighlight!);
-                            },
-                          ),
-                        ),
-                      SizedBox(
-                        width: btnSize,
-                        height: btnSize,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.copy_rounded, color: textColor, size: iconSize),
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: selectedText));
-                            selectableRegionState.hideToolbar();
-                          },
-                        ),
-                      ),
-                      SizedBox(
-                        width: btnSize,
-                        height: btnSize,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.menu_book_rounded, color: textColor, size: iconSize),
-                          onPressed: () {
-                            _lookupDictionary(selectedText);
-                            selectableRegionState.hideToolbar();
-                          },
-                        ),
-                      ),
-                      SizedBox(
-                        width: btnSize,
-                        height: btnSize,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.share_rounded, color: textColor, size: iconSize),
-                          onPressed: () {
-                            selectableRegionState.hideToolbar();
-                            ShareQuoteSheet.show(context, text: selectedText, bookTitle: widget.bookTitle, bookAuthor: widget.bookAuthor);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          child: HighlightToolbar(
+            settings: widget.settings,
+            onColor: (hexColor) {
+              final ratio = _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0 ? (_scrollController.offset / _scrollController.position.maxScrollExtent) : 0.0;
+              widget.onHighlight(Highlight(
+                bookId: 0,
+                chapterIndex: widget.index,
+                text: selectedText,
+                color: hexColor,
+                createdAt: DateTime.now(),
+                position: '${widget.index}:${occurrenceIndex != null ? 'exact:$occurrenceIndex' : 'ratio'}:$ratio',
+              ));
+              close();
+            },
+            onRemove: existing == null
+                ? null
+                : () {
+                    widget.onDeleteHighlight(existing.id!);
+                    close();
+                  },
+            onNote: () {
+              selectableRegionState.hideToolbar();
+              _showNoteSheet(context, selectedText, existing);
+            },
+            onPlayVoiceNote: existing != null && existing.hasAudio
+                ? () {
+                    selectableRegionState.hideToolbar();
+                    showVoiceNoteSheet(context, settings: widget.settings, highlight: existing);
+                  }
+                : null,
+            onCopy: () {
+              Clipboard.setData(ClipboardData(text: selectedText));
+              selectableRegionState.hideToolbar();
+            },
+            onLookup: () {
+              _lookupDictionary(selectedText);
+              selectableRegionState.hideToolbar();
+            },
+            onShare: () {
+              selectableRegionState.hideToolbar();
+              ShareQuoteSheet.show(context, text: selectedText, bookTitle: widget.bookTitle, bookAuthor: widget.bookAuthor);
+            },
           ),
         ),
       ],
@@ -951,110 +1045,39 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         ? (_scrollController.offset /
               _scrollController.position.maxScrollExtent)
         : 0.0;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return NoteEditor(
-          initialMarkdown: existing?.note ?? '',
-          initialColor: existing?.color ?? '#F1C40F',
-          initialAudioFile: existing?.audioFile,
-          initialAudioDurationMs: existing?.audioDurationMs,
-          settings: widget.settings,
-          title: existing != null ? 'Edit Note' : 'Add Note',
-          subtitle: existing?.sharedBy != null
-              ? 'Shared by ${existing!.sharedBy}'
-              : null,
-          onSave: (result) {
-            final color = result.color ?? existing?.color ?? '#F1C40F';
-            if (existing != null) {
-              widget.onHighlight(
-                existing.copyWith(
-                  note: result.markdown,
-                  color: color,
-                  audioFile: result.audioFile,
-                  audioDurationMs: result.audioDurationMs,
-                ),
-              );
-              return;
-            }
-            widget.onHighlight(
-              Highlight(
-                bookId: 0,
-                chapterIndex: widget.index,
-                text: text,
-                note: result.markdown,
-                color: color,
-                createdAt: DateTime.now(),
-                position: '${widget.index}:ratio:$ratio',
-                audioFile: result.audioFile,
-                audioDurationMs: result.audioDurationMs,
-              ),
-            );
-          },
+    showHighlightNoteSheet(
+      context,
+      settings: widget.settings,
+      existing: existing,
+      onSave: (result) {
+        final color = result.color ?? existing?.color ?? defaultHighlightColor;
+        if (existing != null) {
+          widget.onHighlight(
+            existing.copyWith(
+              note: result.markdown,
+              color: color,
+              audioFile: result.audioFile,
+              audioDurationMs: result.audioDurationMs,
+              audioWaveform: result.audioWaveform,
+            ),
+          );
+          return;
+        }
+        widget.onHighlight(
+          Highlight(
+            bookId: 0,
+            chapterIndex: widget.index,
+            text: text,
+            note: result.markdown,
+            color: color,
+            createdAt: DateTime.now(),
+            position: '${widget.index}:ratio:$ratio',
+            audioFile: result.audioFile,
+            audioDurationMs: result.audioDurationMs,
+            audioWaveform: result.audioWaveform,
+          ),
         );
       },
-    );
-  }
-
-  void _showVoiceNoteSheet(BuildContext context, Highlight highlight) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        decoration: BoxDecoration(
-          color: widget.settings.menuBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                highlight.sharedBy != null
-                    ? 'VOICE NOTE FROM ${highlight.sharedBy!.toUpperCase()}'
-                    : 'VOICE NOTE',
-                style: const TextStyle(
-                  color: YomuConstants.accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                highlight.text,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 16),
-              VoiceNotePlayer(
-                fileName: highlight.audioFile!,
-                durationMs: highlight.audioDurationMs,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1097,18 +1120,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     }
   }
 
-  String _cleanHtml(String html) {
-    if (html.isEmpty) return html;
-    html = html.replaceAll(RegExp(r'<\?xml[^>]*\?>'), '');
-    html = html.replaceAll(RegExp(r'<!DOCTYPE[^>]*>'), '');
-    html = html.replaceAll(RegExp(r'<svg', caseSensitive: false), '<div');
-    html = html.replaceAll(RegExp(r'</svg>', caseSensitive: false), '</div>');
-    final bodyRegex = RegExp(r'(<body[^>]*>.*?</body>)', caseSensitive: false, dotAll: true);
-    final bodyMatch = bodyRegex.firstMatch(html);
-    if (bodyMatch != null) return bodyMatch.group(1) ?? html;
-    if (!html.toLowerCase().contains('<body')) return '<body>$html</body>';
-    return html;
-  }
+  String _cleanHtml(String html) => cleanChapterHtml(html);
 
   TextAlign _convertTextAlign(TextAlign? textAlign) {
     switch (textAlign) {

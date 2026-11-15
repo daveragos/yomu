@@ -35,10 +35,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../utils/tutorial_helper.dart';
 import '../models/highlight_model.dart';
+import '../utils/pdf_highlight_anchor.dart';
 import '../services/database_service.dart';
 import '../services/annotation_audio_service.dart';
-import '../services/annotation_share_service.dart';
-import './reading/widgets/share_annotations_dialog.dart';
+import '../services/voice_note_playback.dart';
+import '../utils/annotation_order.dart';
+import '../utils/epub_text_match.dart';
+import './reading/widgets/note_card_sheet.dart';
+import './reading/widgets/note_walkthrough.dart';
+import '../providers/shared_welcome_provider.dart';
+import './reading/widgets/share_with_notes.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
@@ -200,6 +206,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
   @override
   void initState() {
     super.initState();
+    VoiceNotePlayback.instance.onStart.add(_onVoiceNoteStart);
+    VoiceNotePlayback.instance.onFinish.add(_onVoiceNoteFinish);
     Future.microtask(() {
       if (mounted) ref.read(libraryProvider.notifier).setReadingActive(true);
     });
@@ -249,12 +257,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           .getBookmarks(book.id!);
       final dbService = DatabaseService();
       final highlights = await dbService.getHighlightsForBook(book.id!);
+      final hidden = await _loadHiddenAuthors(book.id!);
       if (mounted) {
         setState(() {
           _bookmarks = bookmarks;
           _highlights = highlights;
+          _hiddenAuthors = hidden;
+          _hiddenVersion++;
         });
       }
+      await _refreshReplyCounts(book.id!);
+      await _placeNotesByText();
+      await _maybeWelcomeSharedNotes(book);
     }
   }
 
@@ -387,6 +401,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     });
     _audioPlayer.playerStateStream.listen((state) {
       _isAudioPlayingNotifier.value = state.playing;
+      // The audiobook and a voice note never play at once.
+      if (state.playing && VoiceNotePlayback.instance.playing) {
+        _resumeAudiobookAfterVoiceNote = false;
+        VoiceNotePlayback.instance.pause();
+      }
     });
     _audioPlayer.currentIndexStream.listen((index) {
       if (index != null) {
@@ -763,6 +782,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   @override
   void dispose() {
+    VoiceNotePlayback.instance.onStart.remove(_onVoiceNoteStart);
+    VoiceNotePlayback.instance.onFinish.remove(_onVoiceNoteFinish);
+    VoiceNotePlayback.instance.stop();
     _audioPlayer.dispose();
     _epubController?.dispose();
     _pageController?.dispose();
@@ -833,6 +855,380 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       anchor: PdfPageAnchor.top,
     );
     _recordInteraction();
+  }
+
+  /// Scrolls a PDF to a highlight: to its first line when its position holds
+  /// character offsets, otherwise to the top of its page.
+  Future<void> _jumpToPdfHighlight(Highlight h) async {
+    final controller = _pdfController;
+    final anchor = PdfHighlightAnchor.tryParse(h.position);
+    if (controller == null ||
+        !_isPdfReady ||
+        anchor == null ||
+        anchor.startPage >= _pdfPages) {
+      _jumpToPdfPage(h.chapterIndex + 1);
+      return;
+    }
+    final pageNumber = anchor.startPage + 1;
+    try {
+      final pageText = await controller.pages[anchor.startPage]
+          .loadStructuredText(ensureLoaded: true);
+      final range = anchor.rangeOnPage(
+        anchor.startPage,
+        pageText.fullText,
+        h.text,
+      );
+      if (!mounted) return;
+      if (range == null) {
+        _jumpToPdfPage(pageNumber);
+        return;
+      }
+      if (anchor.startPage != _pdfCurrentPage) {
+        setState(() {
+          _isJumpingFromToc = true;
+          _setPdfPage(anchor.startPage);
+        });
+      }
+      final bounds = PdfPageTextRange(
+        pageText: pageText,
+        start: range.start,
+        end: range.end,
+      ).bounds;
+      await controller.ensureVisible(
+        controller.calcRectForRectInsidePage(
+          pageNumber: pageNumber,
+          rect: bounds,
+        ),
+        margin: 50,
+      );
+      // Report the highlight's page as current even if a neighbouring page
+      // fills more of the screen, so the jump above completes.
+      controller.setCurrentPageNumber(pageNumber);
+      _recordInteraction();
+    } catch (e) {
+      debugPrint('Could not jump to PDF highlight: $e');
+      if (mounted) _jumpToPdfPage(pageNumber);
+    }
+  }
+
+  // --- Notes from different readers --------------------------------------
+
+  /// Readers whose notes are hidden in the text; '' stands for your own.
+  Set<String> _hiddenAuthors = {};
+  int _hiddenVersion = 0;
+  List<Highlight>? _visibleCache;
+  List<Highlight>? _visibleCacheSource;
+  int _visibleCacheVersion = -1;
+
+  /// Replies per highlight uid, for the markers in the text.
+  Map<String, int> _replyCounts = const {};
+
+  static String _authorKey(String? sharedBy) => sharedBy ?? '';
+  static String _hiddenAuthorsKey(int bookId) => 'hidden_note_authors_$bookId';
+
+  /// Highlights shown in the text: all but those of hidden readers. Kept
+  /// as the same list between rebuilds so the views don't redo their work.
+  List<Highlight> get _visibleHighlights {
+    if (_hiddenAuthors.isEmpty) return _highlights;
+    if (!identical(_visibleCacheSource, _highlights) ||
+        _visibleCacheVersion != _hiddenVersion) {
+      _visibleCacheSource = _highlights;
+      _visibleCacheVersion = _hiddenVersion;
+      _visibleCache = _highlights
+          .where((h) => !_hiddenAuthors.contains(_authorKey(h.sharedBy)))
+          .toList();
+    }
+    return _visibleCache!;
+  }
+
+  Future<Set<String>> _loadHiddenAuthors(int bookId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_hiddenAuthorsKey(bookId)) ?? const [])
+        .toSet();
+  }
+
+  Future<void> _setAuthorHidden(String? sharedBy, bool hidden) async {
+    final book = ref.read(currentlyReadingProvider);
+    if (book?.id == null) return;
+    final key = _authorKey(sharedBy);
+    setState(() {
+      _hiddenAuthors = {..._hiddenAuthors};
+      hidden ? _hiddenAuthors.add(key) : _hiddenAuthors.remove(key);
+      _hiddenVersion++;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _hiddenAuthorsKey(book!.id!),
+      _hiddenAuthors.toList(),
+    );
+  }
+
+  Future<void> _refreshReplyCounts(int bookId) async {
+    final replies = await DatabaseService().getRepliesForBook(bookId);
+    final counts = <String, int>{};
+    for (final r in replies) {
+      counts[r.highlightUid] = (counts[r.highlightUid] ?? 0) + 1;
+    }
+    if (mounted) setState(() => _replyCounts = counts);
+  }
+
+  bool get _isPdfBook =>
+      ref.read(currentlyReadingProvider)?.filePath.toLowerCase().endsWith(
+        '.pdf',
+      ) ??
+      false;
+
+  List<String?> get _chapterTitles => [for (final c in _chapters) c.Title];
+
+  /// Opens the card with a highlight's note, voice note and replies.
+  Future<void> _openNoteCard(Highlight highlight, {VoidCallback? onGoTo}) async {
+    final book = ref.read(currentlyReadingProvider);
+    if (book?.id == null) return;
+    await showNoteCard(
+      context,
+      highlight: highlight,
+      settings: ref.read(readerSettingsProvider),
+      onUpdate: _addHighlight,
+      onDelete: _deleteHighlight,
+      location: AnnotationOrder.location(
+        highlight,
+        isPdf: _isPdfBook,
+        chapterTitles: _chapterTitles,
+      ),
+      onGoTo: onGoTo,
+    );
+    await _refreshReplyCounts(book!.id!);
+  }
+
+  /// Scrolls the text to a highlight.
+  void _jumpToHighlight(Highlight h) {
+    final book = ref.read(currentlyReadingProvider);
+    if (book == null) return;
+    if (book.filePath.toLowerCase().endsWith('.epub')) {
+      if (h.position.contains(':')) {
+        final parts = h.position.split(':');
+        final index = int.tryParse(parts[0]) ?? h.chapterIndex;
+        // Position format is now 'index:ratio' or 'index:exact:occurrenceIndex:ratio'
+        // In both cases, the ratio for navigation is the last part.
+        final progress = double.tryParse(parts.last) ?? 0.0;
+        
+        if (index >= 0 && index < _chapters.length) {
+          final bool isSameChapter = index == _currentChapterIndex;
+          setState(() {
+            _currentChapterIndex = index;
+            _initialScrollProgress = progress;
+            _currentChapter =
+                _chapters[index].Title ?? 'Chapter ${index + 1}';
+          });
+          
+          // If same chapter, jumpToPage(index) might not trigger a rebuild/didUpdateWidget 
+          // in some PageView implementations if the index is identical,
+          // but our state update above will propagate through the widget tree.
+          _pageController?.jumpToPage(index);
+          
+          if (isSameChapter) {
+            _recordInteraction();
+          }
+        }
+      }
+    } else {
+      _jumpToPdfHighlight(h);
+    }
+  }
+
+  // --- Walking through notes ----------------------------------------------
+
+  List<Highlight>? _walkNotes;
+  int _walkIndex = 0;
+
+  void _startWalkThrough(List<Highlight> notes) {
+    if (notes.isEmpty) return;
+    _setControlsVisibility(false);
+    setState(() {
+      _walkNotes = notes;
+      _walkIndex = 0;
+    });
+    _showWalkNote();
+  }
+
+  void _stepWalkThrough(int delta) {
+    final notes = _walkNotes;
+    if (notes == null) return;
+    final next = _walkIndex + delta;
+    if (next < 0 || next >= notes.length) return;
+    setState(() => _walkIndex = next);
+    _showWalkNote();
+  }
+
+  /// Jumps to the current note and plays its voice note.
+  void _showWalkNote() {
+    final note = _walkNotes![_walkIndex];
+    _jumpToHighlight(note);
+    if (note.hasAudio) {
+      VoiceNotePlayback.instance.play(note.audioFile!);
+    } else {
+      VoiceNotePlayback.instance.pause();
+    }
+  }
+
+  void _endWalkThrough() {
+    VoiceNotePlayback.instance.pause();
+    setState(() => _walkNotes = null);
+  }
+
+  Widget _buildWalkthroughBar() {
+    final notes = _walkNotes!;
+    // The note may have been edited or deleted since the walk started.
+    final current = notes[_walkIndex];
+    final note =
+        _highlights.where((h) => h.id == current.id).firstOrNull ?? current;
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: MediaQuery.of(context).padding.bottom + 12,
+      child: NoteWalkthroughBar(
+        note: note,
+        index: _walkIndex,
+        count: notes.length,
+        replyCount: _replyCounts[note.uid] ?? 0,
+        onPrevious: _walkIndex > 0 ? () => _stepWalkThrough(-1) : null,
+        onNext: _walkIndex < notes.length - 1
+            ? () => _stepWalkThrough(1)
+            : null,
+        onOpen: () => _openNoteCard(note),
+        onClose: _endWalkThrough,
+      ),
+    );
+  }
+
+  /// Greets a book that just arrived with someone's notes.
+  Future<void> _maybeWelcomeSharedNotes(Book book) async {
+    final welcome = ref.read(sharedWelcomeProvider);
+    if (welcome == null || welcome.bookId != book.id) return;
+    ref.read(sharedWelcomeProvider.notifier).state = null;
+    final theirs = AnnotationOrder.sorted(
+      _highlights.where((h) => h.sharedBy == welcome.sharedBy),
+      isPdf: _isPdfBook,
+    );
+    if (theirs.isEmpty || !mounted) return;
+    final withNotes = theirs.where((h) => h.hasNote || h.hasAudio).toList();
+    final walk = await showSharedWelcomeSheet(
+      context,
+      bookTitle: book.title,
+      sharedBy: welcome.sharedBy,
+      noteCount: theirs.length,
+      voiceCount: theirs.where((h) => h.hasAudio).length,
+      replyCount: welcome.newReplies,
+    );
+    if (walk == true && mounted) {
+      // Let the book finish opening before jumping around in it.
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) _startWalkThrough(withNotes.isEmpty ? theirs : withNotes);
+    }
+  }
+
+  // --- Notes from another copy of the book ---------------------------------
+
+  bool _placingNotes = false;
+
+  /// Finds where notes shared from another copy of this book belong, by
+  /// their text. Notes that can't be found stay listed, marked unplaced.
+  Future<void> _placeNotesByText() async {
+    final toPlace = _highlights.where((h) => h.needsPlacing).toList();
+    if (toPlace.isEmpty || _placingNotes) return;
+    final isPdf = _isPdfBook;
+    if (isPdf && (_pdfController == null || !_isPdfReady)) return;
+    if (!isPdf && _chapters.isEmpty) return;
+    _placingNotes = true;
+    final db = DatabaseService();
+    try {
+      if (isPdf) {
+        await _placePdfNotes(toPlace, db);
+      } else {
+        final html = [for (final c in _chapters) c.HtmlContent ?? ''];
+        for (final h in toPlace) {
+          final found = findInChapters(
+            html,
+            h.text,
+            near: h.chapterIndex,
+            nearRatio: AnnotationOrder.epubRatio(h),
+          );
+          await db.updateHighlight(
+            found == null
+                ? h.copyWith(anchorState: Highlight.anchorUnplaced)
+                : h.copyWith(
+                    chapterIndex: found.chapter,
+                    position: found.position,
+                    anchorState: null,
+                  ),
+          );
+        }
+      }
+      final book = ref.read(currentlyReadingProvider);
+      if (book?.id == null) return;
+      final highlights = await db.getHighlightsForBook(book!.id!);
+      if (mounted) setState(() => _highlights = highlights);
+    } catch (e) {
+      debugPrint('Could not place shared notes: $e');
+    } finally {
+      _placingNotes = false;
+    }
+  }
+
+  Future<void> _placePdfNotes(List<Highlight> notes, DatabaseService db) async {
+    final pages = _pdfController!.pages;
+    final texts = <int, String>{};
+    Future<String> textOf(int index) async =>
+        texts[index] ??= (await pages[index].loadStructuredText(
+          ensureLoaded: true,
+        )).fullText;
+
+    for (final h in notes) {
+      final hint = h.chapterIndex.clamp(0, pages.length - 1);
+      final anchorHint = PdfHighlightAnchor.tryParse(h.position);
+      Highlight? placed;
+      for (var step = 0; step < pages.length * 2 && placed == null; step++) {
+        final offset = (step + 1) ~/ 2 * (step.isOdd ? 1 : -1);
+        final page = hint + offset;
+        if (page < 0 || page >= pages.length) continue;
+        final range = PdfHighlightAnchor.find(
+          await textOf(page),
+          h.text,
+          near: page == hint ? anchorHint?.startIndex ?? 0 : 0,
+        );
+        if (range == null) continue;
+        placed = h.copyWith(
+          chapterIndex: page,
+          position: PdfHighlightAnchor(
+            startPage: page,
+            startIndex: range.start,
+            endPage: page,
+            endIndex: range.end,
+          ).format(),
+          anchorState: null,
+        );
+      }
+      await db.updateHighlight(
+        placed ?? h.copyWith(anchorState: Highlight.anchorUnplaced),
+      );
+    }
+  }
+
+  /// Set when a voice note paused the audiobook, so it resumes afterwards.
+  bool _resumeAudiobookAfterVoiceNote = false;
+
+  void _onVoiceNoteStart() {
+    if (_audioPlayer.playing) {
+      _resumeAudiobookAfterVoiceNote = true;
+      _audioPlayer.pause();
+    }
+  }
+
+  void _onVoiceNoteFinish() {
+    if (_resumeAudiobookAfterVoiceNote && mounted) {
+      _resumeAudiobookAfterVoiceNote = false;
+      _audioPlayer.play();
+    }
   }
 
   void _jumpToPercent(double percent, Book book) {
@@ -1054,6 +1450,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         _epubPageEntryTime = DateTime.now();
         _initialized = true;
       });
+      // Notes from another copy of the book can be placed now.
+      _placeNotesByText();
     });
 
     _startHeartbeat(book);
@@ -1452,6 +1850,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         updated = updated.copyWith(
           audioFile: highlight.audioFile,
           audioDurationMs: highlight.audioDurationMs,
+          audioWaveform: highlight.audioWaveform,
         );
       }
       await dbService.updateHighlight(updated);
@@ -1646,10 +2045,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 },
                                 onToggleControls: _toggleControls,
                                 onInteraction: _recordInteraction,
-                                highlights: _highlights,
+                                highlights: _visibleHighlights,
                                 onHighlight: _addHighlight,
                                 onDeleteHighlight: _deleteHighlight,
                                 onLookup: _lookupDictionary,
+                                onOpenNote: _openNoteCard,
+                                replyCounts: _replyCounts,
                                 searchQuery: _activeSearchQuery,
                                 epubBook: _epubBook,
                               );
@@ -1664,9 +2065,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
                           controller: _pdfController ??= PdfViewerController(),
                           searcher: _pdfSearcher,
-                          highlights: _highlights,
+                          highlights: _visibleHighlights,
                           onHighlight: _addHighlight,
                           onDeleteHighlight: _deleteHighlight,
+                          onLookup: _lookupDictionary,
+                          onOpenNote: _openNoteCard,
+                          replyCounts: _replyCounts,
                           onViewerReady: (document, controller) async {
                             _pdfSearcher = PdfTextSearcher(controller);
                             _pdfSearcher!.addListener(() => setState(() {}));
@@ -1679,6 +2083,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                                 _isPdfReady = true;
                                 _updatePdfCurrentChapter();
                               });
+                              _placeNotesByText();
                             }
                             if (!_initialized) {
                               _pageEntryTime = DateTime.now();
@@ -1717,6 +2122,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
                           scrollProgressNotifier: _scrollProgressNotifier,
                         ),
                       _buildAnimatedControlsOverlay(context, book, settings),
+                      if (_walkNotes != null) _buildWalkthroughBar(),
                       if (_pdfErrorMessage.isNotEmpty)
                         Center(
                           child: Text(
@@ -2226,8 +2632,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         buffer.writeln('**Note:** ${h.note}');
         buffer.writeln();
       }
-      final pos = h.position.contains(':')
-          ? 'Chapter ${int.parse(h.position.split(':')[0]) + 1}'
+      final isPdf = book.filePath.toLowerCase().endsWith('.pdf');
+      final pos = !isPdf && h.position.contains(':')
+          ? 'Chapter ${(int.tryParse(h.position.split(':')[0]) ?? h.chapterIndex) + 1}'
           : 'Page ${h.chapterIndex + 1}';
       buffer.writeln('*Position: $pos — ${_formatDate(h.createdAt)}*');
       buffer.writeln('---');
@@ -2272,55 +2679,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   /// Shares the book as a `.yomu` file carrying its highlights, notes and
   /// voice notes, so whoever opens it in Yomu sees them on the same book.
-  Future<void> _shareWithAnnotations(Book book) async {
-    final highlights = await DatabaseService().getHighlightsForBook(book.id!);
-    final savedName = await AnnotationShareService.savedSharerName();
-    if (!mounted) return;
-
-    final options = await ShareAnnotationsDialog.show(
-      context,
-      bookTitle: book.title,
-      annotationCount: highlights.length,
-      voiceNoteCount: highlights.where((h) => h.hasAudio).length,
-      initialName: savedName,
-    );
-    if (options == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    await AnnotationShareService.saveSharerName(options.name);
-
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Preparing book to share…'),
-          duration: Duration(minutes: 1),
-        ),
-      );
-
-    try {
-      final file = await AnnotationShareService().buildPackage(
-        book: book,
-        sharerName: options.name,
-        includeBook: options.includeBook,
-      );
-      messenger.hideCurrentSnackBar();
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path, mimeType: 'application/octet-stream')],
-          subject: '${book.title} (with notes from ${options.name})',
-          text:
-              'Open this file with Yomu to read "${book.title}" with my notes.',
-        ),
-      );
-    } catch (e) {
-      debugPrint('Failed to share annotated book: $e');
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Could not prepare the book to share.')),
-        );
-    }
-  }
+  Future<void> _shareWithAnnotations(Book book) =>
+      shareBookWithNotes(context, book);
 
   void _showNavigationSheet({
     required Book book,
@@ -2336,12 +2696,28 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
     setState(() => _isNavigationSheetOpen = true);
 
+    final sheetController = DraggableScrollableController();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
-        return NavigationSheet(
+        // The sheet follows the finger: scrolling a list up grows it to full
+        // height before the list itself scrolls; pulling down shrinks it and,
+        // past the smallest size, closes it.
+        final media = MediaQuery.of(context);
+        final maxSize =
+            ((media.size.height - media.padding.top - 8) / media.size.height)
+                .clamp(NavigationSheet.initialSize, 1.0);
+        return DraggableScrollableSheet(
+          controller: sheetController,
+          expand: false,
+          initialChildSize: NavigationSheet.initialSize,
+          minChildSize: NavigationSheet.minSize,
+          maxChildSize: maxSize,
+          builder: (context, scrollController) => NavigationSheet(
+          scrollController: scrollController,
+          sheetController: sheetController,
           readerSettings: settings,
           book: book,
           chapters: _chapters,
@@ -2407,40 +2783,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
           highlights: _highlights,
           onHighlightTap: (h) {
             Navigator.pop(context);
-            if (book.filePath.toLowerCase().endsWith('.epub')) {
-              if (h.position.contains(':')) {
-                final parts = h.position.split(':');
-                final index = int.tryParse(parts[0]) ?? h.chapterIndex;
-                // Position format is now 'index:ratio' or 'index:exact:occurrenceIndex:ratio'
-                // In both cases, the ratio for navigation is the last part.
-                final progress = double.tryParse(parts.last) ?? 0.0;
-                
-                if (index >= 0 && index < _chapters.length) {
-                  final bool isSameChapter = index == _currentChapterIndex;
-                  setState(() {
-                    _currentChapterIndex = index;
-                    _initialScrollProgress = progress;
-                    _currentChapter =
-                        _chapters[index].Title ?? 'Chapter ${index + 1}';
-                  });
-                  
-                  // If same chapter, jumpToPage(index) might not trigger a rebuild/didUpdateWidget 
-                  // in some PageView implementations if the index is identical,
-                  // but our state update above will propagate through the widget tree.
-                  _pageController?.jumpToPage(index);
-                  
-                  if (isSameChapter) {
-                    _recordInteraction();
-                  }
-                }
-              }
-            } else {
-              // PDF
-              if (h.chapterIndex != _pdfCurrentPage) {
-                _jumpToPdfPage(h.chapterIndex + 1);
-              }
-              // TODO: If PDF highlights gain granular position, handle it here
-            }
+            _jumpToHighlight(h);
+          },
+          hiddenAuthors: _hiddenAuthors,
+          onSetAuthorHidden: _setAuthorHidden,
+          onWalkThrough: (notes) {
+            Navigator.pop(context);
+            _startWalkThrough(notes);
           },
           onLookup: _lookupDictionary,
           onDeleteHighlight: (id) async {
@@ -2518,9 +2867,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
             }
           },
           formatDate: _formatDate,
+        ),
         );
       },
     ).then((_) {
+      sheetController.dispose();
       if (mounted) setState(() => _isNavigationSheetOpen = false);
     });
   }

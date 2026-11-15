@@ -18,8 +18,22 @@ class Highlight {
   final String? audioFile;
   final int? audioDurationMs;
 
+  /// Loudness bars of the voice note (see VoiceWaveform), when recorded.
+  final String? audioWaveform;
+
   /// Name of the reader who shared this annotation. Null for the user's own.
   final String? sharedBy;
+
+  /// Left out when the book is shared.
+  final bool isPrivate;
+
+  /// How the highlight is tied to the text. Null: its position is exact.
+  /// [anchorByText]: shared from another copy of the book, still to be found
+  /// by its text. [anchorUnplaced]: its text wasn't found in this copy.
+  final String? anchorState;
+
+  static const anchorByText = 'text';
+  static const anchorUnplaced = 'unplaced';
 
   const Highlight({
     this.id,
@@ -33,8 +47,14 @@ class Highlight {
     this.uid,
     this.audioFile,
     this.audioDurationMs,
+    this.audioWaveform,
     this.sharedBy,
+    this.isPrivate = false,
+    this.anchorState,
   });
+
+  bool get needsPlacing => anchorState == anchorByText;
+  bool get isUnplaced => anchorState == anchorUnplaced;
 
   bool get hasAudio => audioFile != null && audioFile!.isNotEmpty;
   bool get hasNote => note != null && note!.trim().isNotEmpty;
@@ -61,7 +81,10 @@ class Highlight {
       'uid': uid,
       'audioFile': audioFile,
       'audioDurationMs': audioDurationMs,
+      'audioWaveform': audioWaveform,
       'sharedBy': sharedBy,
+      'isPrivate': isPrivate ? 1 : 0,
+      'anchorState': anchorState,
     };
   }
 
@@ -78,7 +101,10 @@ class Highlight {
       uid: map['uid'] as String?,
       audioFile: map['audioFile'] as String?,
       audioDurationMs: map['audioDurationMs'] as int?,
+      audioWaveform: map['audioWaveform'] as String?,
       sharedBy: map['sharedBy'] as String?,
+      isPrivate: (map['isPrivate'] as int? ?? 0) == 1,
+      anchorState: map['anchorState'] as String?,
     );
   }
 
@@ -96,7 +122,10 @@ class Highlight {
     String? uid,
     Object? audioFile = _unset,
     Object? audioDurationMs = _unset,
+    Object? audioWaveform = _unset,
     Object? sharedBy = _unset,
+    bool? isPrivate,
+    Object? anchorState = _unset,
   }) {
     return Highlight(
       id: id ?? this.id,
@@ -112,7 +141,14 @@ class Highlight {
       audioDurationMs: audioDurationMs == _unset
           ? this.audioDurationMs
           : audioDurationMs as int?,
+      audioWaveform: audioWaveform == _unset
+          ? this.audioWaveform
+          : audioWaveform as String?,
       sharedBy: sharedBy == _unset ? this.sharedBy : sharedBy as String?,
+      isPrivate: isPrivate ?? this.isPrivate,
+      anchorState: anchorState == _unset
+          ? this.anchorState
+          : anchorState as String?,
     );
   }
 }

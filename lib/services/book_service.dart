@@ -6,14 +6,10 @@ import 'package:epubx/epubx.dart';
 import 'package:image/image.dart' as img;
 import 'package:file_picker/file_picker.dart';
 import '../models/book_model.dart';
-import 'database_service.dart';
-import 'annotation_share_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 
 class BookService {
-  final DatabaseService _dbService = DatabaseService();
-
   Future<Book?> processFile(File file) async {
     final extension = p.extension(file.path).toLowerCase();
     if (extension == '.epub') {
@@ -30,70 +26,23 @@ class BookService {
     return true;
   }
 
-  /// Consistently use a multi-file picker for all devices.
-  /// This bypasses OS restrictions on folder access (like Downloads) 
-  /// and provides a unified "Add Books" experience.
-  Future<List<Book>> scanDirectory() async {
-    return await pickBooks();
-  }
-
-  Future<List<Book>> pickBooks() async {
+  /// Lets the reader pick books (EPUB, PDF) and books shared with
+  /// annotations (`.yomu`).
+  ///
+  /// A multi-file picker works around OS limits on folder access (like
+  /// Downloads). Android's picker can't filter by an extension it doesn't
+  /// know, such as `.yomu`, so every file is listed and
+  /// `LibraryNotifier.importIncoming` sorts out what can be opened.
+  Future<List<String>> pickImportPaths() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['epub', 'pdf'],
+      type: FileType.any,
       allowMultiple: true,
     );
-
-    if (result == null || result.files.isEmpty) {
-      debugPrint('No files picked');
-      return [];
-    }
-
-    final List<Book> importedBooks = [];
-    final existingBooks = await _dbService.getBooks();
-
-    for (var pickedFile in result.files) {
-      if (pickedFile.path == null) continue;
-      final file = File(pickedFile.path!);
-
-      // Check if already in DB
-      if (existingBooks.any((b) => b.filePath == file.path)) {
-        debugPrint('Already in library: ${file.path}');
-        continue;
-      }
-
-      final extension = p.extension(file.path).toLowerCase();
-      Book? book;
-      if (extension == '.epub') {
-        book = await _processEpub(file);
-      } else if (extension == '.pdf') {
-        book = await _processPdf(file);
-      }
-
-      if (book != null) {
-        final isDuplicate = existingBooks.any(
-          (b) =>
-              b.filePath == book!.filePath ||
-              (book.contentHash != null && b.contentHash == book.contentHash),
-        );
-
-        if (!isDuplicate) {
-          final id = await _dbService.insertBook(book);
-          final inserted = book.copyWith(id: id);
-          try {
-            await AnnotationShareService().applyPendingFor(inserted);
-          } catch (e) {
-            debugPrint('Failed to attach pending annotations: $e');
-          }
-          importedBooks.add(inserted);
-          debugPrint('Imported: ${book.title}');
-        } else {
-          debugPrint('Duplicate book found, skipping: ${book.title}');
-        }
-      }
-    }
-
-    return importedBooks;
+    if (result == null) return [];
+    return [
+      for (final file in result.files)
+        if (file.path != null) file.path!,
+    ];
   }
 
 

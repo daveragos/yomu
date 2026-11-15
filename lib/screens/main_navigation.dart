@@ -7,7 +7,10 @@ import '../core/constants.dart';
 import '../components/glass_container.dart';
 import '../providers/library_provider.dart';
 import '../models/book_model.dart';
+import '../providers/shared_welcome_provider.dart';
 import '../services/annotation_share_service.dart';
+import '../services/incoming_files.dart';
+import 'reading/widgets/shared_notes_prompts.dart';
 import 'dashboard_screen.dart';
 import 'library_screen.dart';
 import 'stats_screen.dart';
@@ -82,65 +85,55 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   Future<void> _handleSharedFiles(List<SharedMediaFile> files) async {
     if (files.isEmpty) return;
 
-    final bookPaths = <String>[];
-    final packagePaths = <String>[];
-    for (final f in files) {
-      if (await AnnotationShareService.looksLikePackage(f.path)) {
-        packagePaths.add(f.path);
-      } else {
-        bookPaths.add(f.path);
-      }
-    }
-
-    if (packagePaths.isNotEmpty) {
-      await _importAnnotatedPackages(packagePaths);
-      return;
-    }
-
-    // Import files and get the list of imported/matching books
-    final books = await ref
-        .read(libraryProvider.notifier)
-        .importFiles(bookPaths);
-
-    // After import, try to open the first one
-    if (books.isNotEmpty) _openBook(books.first);
-  }
-
-  Future<void> _importAnnotatedPackages(List<String> paths) async {
     final notifier = ref.read(libraryProvider.notifier);
-    SharedImportResult? toOpen;
-    final messages = <String>[];
+    final summary = await notifier.importIncoming(
+      files.map((f) => f.path).toList(),
+    );
 
-    for (final path in paths) {
-      try {
-        final result = await notifier.importAnnotatedPackage(path);
-        final from = result.manifest.sharedBy ?? 'another reader';
-        if (result.isPending) {
-          messages.add(
-            'Saved notes from $from for "${result.manifest.title}". '
-            'They will appear when you add that exact book.',
-          );
-        } else {
-          final count = result.added + result.updated;
-          messages.add(
-            count == 0
-                ? 'Opened "${result.manifest.title}" from $from.'
-                : 'Added $count ${count == 1 ? 'annotation' : 'annotations'} '
-                      'from $from to "${result.manifest.title}".',
-          );
-          toOpen ??= result;
+    var messages = summary.messages();
+    var book = summary.bookToOpen;
+    SharedImportResult? newNotes = summary.packages
+        .where(
+          (r) =>
+              r.book != null &&
+              r.book!.id == book?.id &&
+              r.added + r.repliesAdded > 0,
+        )
+        .firstOrNull;
+
+    // Notes made in another copy of a book that's in the library.
+    if (book == null && mounted) {
+      for (final r in summary.packages) {
+        if (!r.isPending || r.similarBook == null || r.pendingPath == null) {
+          continue;
         }
-      } catch (e) {
-        debugPrint('Failed to import annotated book: $e');
-        messages.add(
-          e is FormatException
-              ? e.message
-              : 'Could not open the shared book.',
+        final placed = await offerToPlaceNotes(
+          context,
+          pendingPath: r.pendingPath!,
+          manifest: r.manifest,
+          book: r.similarBook!,
         );
+        if (placed != null) {
+          book = placed.book;
+          newNotes = placed;
+          messages = [describeImport(placed)];
+          await notifier.loadBooks();
+          break;
+        }
+        if (!mounted) return;
       }
     }
 
-    if (toOpen?.book != null) _openBook(toOpen!.book!);
+    if (book != null && newNotes != null) {
+      ref.read(sharedWelcomeProvider.notifier).state = SharedWelcome(
+        bookId: book.id!,
+        sharedBy: newNotes.manifest.sharedBy,
+        newNotes: newNotes.added,
+        newReplies: newNotes.repliesAdded,
+      );
+    }
+    if (book != null) _openBook(book);
+
     if (mounted && messages.isNotEmpty) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
