@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:epubx/epubx.dart';
 
+import 'epub_text_match.dart';
+
 /// Visible characters that count as one printed page of an EPUB.
 ///
 /// A paperback page holds about 250–300 words, and EPUB prose measures about
@@ -44,7 +46,14 @@ int visibleTextLength(String? html) {
 /// Sub-chapters that point into the same file by anchor all render that whole
 /// file, so the file's text is split evenly between them instead of being
 /// counted once per entry.
+///
+/// Only what the reader renders counts: the first `<body>`, as
+/// [cleanChapterHtml] picks it. epubx appends every other `*_split_*` file
+/// of a Calibre-split book to each chapter's `HtmlContent`, which would
+/// otherwise make every chapter weigh as much as the whole book.
 List<int> epubChapterTextLengths(List<EpubChapter> chapters) {
+  int measure(EpubChapter c) =>
+      visibleTextLength(cleanChapterHtml(c.HtmlContent ?? ''));
   final entriesPerFile = <String, int>{};
   for (final c in chapters) {
     final file = c.ContentFileName;
@@ -54,10 +63,9 @@ List<int> epubChapterTextLengths(List<EpubChapter> chapters) {
   return [
     for (final c in chapters)
       if (c.ContentFileName case final file?)
-        (lengthPerFile[file] ??= visibleTextLength(c.HtmlContent)) ~/
-            entriesPerFile[file]!
+        (lengthPerFile[file] ??= measure(c)) ~/ entriesPerFile[file]!
       else
-        visibleTextLength(c.HtmlContent),
+        measure(c),
   ];
 }
 
