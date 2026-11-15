@@ -4,46 +4,52 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/platform_caps.dart';
+import 'file_storage_service.dart';
 
 /// Where book files live once they're in the library.
 ///
-/// On a desktop, Yomu keeps its own copy of every book. The macOS sandbox
-/// only lets the app read a file the user picked (or opened from Finder)
-/// until the app quits, so a library entry pointing at the original file
-/// would stop opening after a relaunch.
+/// Yomu keeps its own copy of a book whenever the picked file can't be
+/// relied on:
+/// - On a desktop, the macOS sandbox only lets the app read a file the user
+///   picked (or opened from Finder) until the app quits, so a library entry
+///   pointing at the original file would stop opening after a relaunch.
+/// - On Android, file_picker hands back a copy in the app's cache dir,
+///   which the OS or "Clear cache" may wipe at any time.
 abstract final class LibraryFiles {
-  static Future<Directory> _booksDir() async {
-    final dir = Directory(
-      p.join((await getApplicationDocumentsDirectory()).path, 'books'),
-    );
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
-
   /// Whether [path] is already in Yomu's own storage.
   static Future<bool> isStored(String path) async {
     final appDir = (await getApplicationDocumentsDirectory()).path;
     return p.isWithin(appDir, path);
   }
 
-  /// The path to record for a book imported from [path]: on a desktop, a
-  /// copy in the app's `books` folder (reusing an identical earlier copy);
-  /// elsewhere, [path] itself.
+  /// The path to record for a book imported from [path]: a copy in the
+  /// app's `books` folder (reusing an identical earlier copy) on a desktop
+  /// or when [path] is in the cache dir; elsewhere, [path] itself.
   static Future<String> keep(String path) async {
-    if (!PlatformCaps.isDesktop || await isStored(path)) return path;
+    if (await isStored(path)) return path;
+    if (!PlatformCaps.isDesktop && !await FileStorageService.isInCache(path)) {
+      return path;
+    }
 
     final source = File(path);
-    final dir = await _booksDir();
+    final dir = await FileStorageService.booksDir();
+    final earlier = await _identicalCopy(source, dir);
+    if (earlier != null) return earlier;
+    return (await FileStorageService.copyInto(source, dir)).path;
+  }
+
+  /// An earlier copy of [source] in [dir] under its name or a numbered
+  /// variant of it, judged by size.
+  static Future<String?> _identicalCopy(File source, Directory dir) async {
     final size = await source.length();
-    final base = p.basenameWithoutExtension(path);
-    final ext = p.extension(path);
-    var dest = p.join(dir.path, '$base$ext');
-    for (var n = 1; await File(dest).exists(); n++) {
-      if (await File(dest).length() == size) return dest;
-      dest = p.join(dir.path, '$base ($n)$ext');
+    final base = p.basenameWithoutExtension(source.path);
+    final ext = p.extension(source.path);
+    var candidate = p.join(dir.path, '$base$ext');
+    for (var n = 1; await File(candidate).exists(); n++) {
+      if (await File(candidate).length() == size) return candidate;
+      candidate = p.join(dir.path, '$base ($n)$ext');
     }
-    await source.copy(dest);
-    return dest;
+    return null;
   }
 
   /// Whether an entry stored at [storedPath] should be pointed at a fresh

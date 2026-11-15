@@ -46,6 +46,7 @@ import './reading/widgets/note_card_sheet.dart';
 import './reading/widgets/note_walkthrough.dart';
 import '../providers/shared_welcome_provider.dart';
 import './reading/widgets/share_with_notes.dart';
+import '../services/file_storage_service.dart';
 import 'package:share_plus/share_plus.dart';
 import '../components/desktop/adaptive_sheet.dart';
 import '../components/desktop/route_shortcuts.dart';
@@ -511,17 +512,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     );
 
     if (result != null && result.paths.isNotEmpty) {
-      final List<AudioTrack> newTracks = List.from(book.audioTracks);
-      int duplicatesCount = 0;
-      for (final path in result.paths) {
-        if (path != null) {
-          if (!newTracks.any((t) => t.path == path)) {
-            newTracks.add(AudioTrack(path: path, title: p.basename(path)));
-          } else {
-            duplicatesCount++;
-          }
-        }
-      }
+      // Copies the picked files out of the cache dir and skips duplicates.
+      final imported = await FileStorageService.importAudioTracks(
+        result.paths,
+        book.id,
+        book.audioTracks,
+      );
+      final List<AudioTrack> newTracks = [
+        ...book.audioTracks,
+        ...imported.added,
+      ];
+      final duplicatesCount = imported.duplicates;
 
       if (duplicatesCount > 0 && mounted) {
         ScaffoldMessenger.of(context)
