@@ -46,6 +46,9 @@ class EpubChapterPage extends StatefulWidget {
   final Function(int) onDeleteHighlight;
   final Function(String)? onLookup;
 
+  /// Called with the part of the chapter now on screen, as 0–1 fractions.
+  final void Function(int chapter, double from, double to)? onContentSeen;
+
   const EpubChapterPage({
     super.key,
     required this.index,
@@ -72,6 +75,7 @@ class EpubChapterPage extends StatefulWidget {
     required this.onHighlight,
     required this.onDeleteHighlight,
     this.onLookup,
+    this.onContentSeen,
     this.searchQuery,
     this.epubBook,
     this.bookTitle,
@@ -148,6 +152,13 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   @override
   void didUpdateWidget(EpubChapterPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.isCurrentPage && !oldWidget.isCurrentPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollController.hasClients) {
+          _reportSeen(_scrollController.position);
+        }
+      });
+    }
     if (widget.shouldJumpToBottom && !oldWidget.shouldJumpToBottom) {
       _checkAndJump();
     } else if (widget.initialScrollProgress !=
@@ -283,6 +294,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
         if (maxScroll > 0) {
           _scrollController.jumpTo(maxScroll * widget.initialScrollProgress);
           setState(() => _isInitialPositionRestored = true);
+          _reportSeen(_scrollController.position);
           widget.onJumpedToPosition();
         } else {
           Future.delayed(const Duration(milliseconds: 50), () {
@@ -295,12 +307,37 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                 );
               }
               setState(() => _isInitialPositionRestored = true);
+              _reportSeen(_scrollController.position);
               widget.onJumpedToPosition();
             }
           });
         }
       }
     });
+  }
+
+  /// Reports the part of the chapter on screen, so only what was actually
+  /// scrolled through counts as read. Skips positions the reader did not
+  /// choose: before a saved position is restored or a jump to the bottom.
+  void _reportSeen(ScrollMetrics metrics) {
+    final onContentSeen = widget.onContentSeen;
+    if (onContentSeen == null ||
+        metrics.axis != Axis.vertical ||
+        !metrics.hasContentDimensions ||
+        !metrics.hasPixels ||
+        !metrics.hasViewportDimension ||
+        !widget.isCurrentPage ||
+        !_isInitialPositionRestored ||
+        widget.shouldJumpToBottom) {
+      return;
+    }
+    final total = metrics.extentTotal;
+    if (total <= 0) return;
+    onContentSeen(
+      widget.index,
+      metrics.extentBefore / total,
+      (metrics.extentBefore + metrics.extentInside) / total,
+    );
   }
 
   @override
@@ -313,6 +350,18 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
   @override
   Widget build(BuildContext context) {
+    // Metrics change without scrolling on first layout and when a short
+    // chapter fits on screen, so listen for those too.
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (notification) {
+        if (notification.depth == 0) _reportSeen(notification.metrics);
+        return false;
+      },
+      child: _buildChapter(context),
+    );
+  }
+
+  Widget _buildChapter(BuildContext context) {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollStartNotification) {
@@ -365,6 +414,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
 
         if (notification.metrics.axis == Axis.vertical) {
           final metrics = notification.metrics;
+          if (notification.depth == 0) _reportSeen(metrics);
           final double progressValue = metrics.maxScrollExtent > 0
               ? (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0)
               : 1.0;
