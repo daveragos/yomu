@@ -67,6 +67,7 @@ class IncomingImportSummary {
     required this.packages,
     required this.failures,
     required this.skipped,
+    this.unreadable = const [],
   });
 
   /// Books from plain EPUB/PDF files, new or already in the library.
@@ -78,8 +79,11 @@ class IncomingImportSummary {
   /// Why shared packages could not be opened.
   final List<String> failures;
 
-  /// Files Yomu can't open: not a book or package, or unreadable.
+  /// Files that aren't a book or a package.
   final int skipped;
+
+  /// Names of EPUB/PDF files that could not be read, such as damaged ones.
+  final List<String> unreadable;
 
   /// The book to open: the first shared one, else the first plain one.
   Book? get bookToOpen =>
@@ -101,6 +105,18 @@ class IncomingImportSummary {
       lines.add(describeImport(result));
     }
     lines.addAll(failures);
+    if (unreadable.length == 1) {
+      lines.add(
+        "Couldn't open \"${unreadable.single}\". The file may be damaged, "
+        "or use something Yomu can't read yet.",
+      );
+    } else if (unreadable.length > 1) {
+      lines.add(
+        "Couldn't open ${unreadable.length} books "
+        "(${unreadable.join(', ')}). The files may be damaged, "
+        "or use something Yomu can't read yet.",
+      );
+    }
     if (skipped == 1) {
       lines.add("Yomu can't open that file. It isn't a book or a Yomu file.");
     } else if (skipped > 1) {

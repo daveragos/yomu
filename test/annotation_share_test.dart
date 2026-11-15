@@ -566,6 +566,19 @@ void main() {
       );
       expect(skippedOnly.bookToOpen, isNull);
       expect(skippedOnly.messages().single, startsWith('Skipped 2 files'));
+
+      // A book that fails to read is named, not called "not a book".
+      const unreadable = IncomingImportSummary(
+        books: [],
+        packages: [],
+        failures: [],
+        skipped: 1,
+        unreadable: ['History.epub'],
+      );
+      expect(unreadable.messages(), [
+        startsWith("Couldn't open \"History.epub\""),
+        startsWith("Yomu can't open that file"),
+      ]);
     });
 
     test('plain books are not mistaken for packages', () async {
