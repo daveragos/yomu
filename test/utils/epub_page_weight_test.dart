@@ -96,6 +96,20 @@ void main() {
       expect(lengths, [100, 300, 300, 300]);
     });
 
+    test('counts only the rendered body of a Calibre-split chapter', () {
+      // epubx appends every other index_split_* file to each chapter.
+      String doc(String text) =>
+          '<?xml version="1.0"?><html><head><title>t</title></head>'
+          '<body><p>$text</p></body></html>';
+      final a = doc('a' * 400), b = doc('b' * 600), c = doc('c' * 800);
+      final lengths = epubChapterTextLengths([
+        chapter('index_split_001.html', a + b + c),
+        chapter('index_split_002.html', b + a + c),
+        chapter('index_split_003.html', c + a + b),
+      ]);
+      expect(lengths, [400, 600, 800]);
+    });
+
     test('does not merge chapters without a file name', () {
       final lengths = epubChapterTextLengths([
         chapter(null, '<p>abc</p>'),
