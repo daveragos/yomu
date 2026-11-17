@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:record/record.dart';
 import '../../../core/yomu_colors.dart';
 import '../../../services/annotation_audio_service.dart';
 import '../../../services/voice_note_playback.dart';
+import '../../../services/voice_capture.dart';
 import '../../../utils/voice_waveform.dart';
 import 'voice_note_player.dart';
 
@@ -51,10 +51,11 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
   static const _cancelDistance = 110.0;
   static const _lockDistance = 70.0;
 
-  final AudioRecorder _recorder = AudioRecorder();
+  /// Cleans the sound while recording (see [VoiceCapture]).
+  final VoiceCapture _recorder = VoiceCapture();
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _ticker;
-  StreamSubscription<Amplitude>? _levelSub;
+  StreamSubscription<double>? _levelSub;
   String? _recordingFile;
   bool _starting = false;
   _Mode _mode = _Mode.idle;
@@ -123,23 +124,18 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
       await VoiceNotePlayback.instance.pause();
       final fileName = AnnotationAudioService.newFileName();
       final path = await AnnotationAudioService.resolve(fileName);
-      await _recorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 64000,
-          sampleRate: 44100,
-          numChannels: 1,
-        ),
-        path: path,
-      );
+      await _recorder.start(path);
       HapticFeedback.mediumImpact();
       _levels.clear();
       _levelSub = _recorder
-          .onAmplitudeChanged(VoiceNoteRecorder.levelInterval)
-          .listen((amplitude) {
-            _levels.add(VoiceWaveform.level(amplitude.current));
-            if (mounted) setState(() {});
-          });
+          .levels(VoiceNoteRecorder.levelInterval)
+          .listen(
+            (dbfs) {
+              _levels.add(VoiceWaveform.level(dbfs));
+              if (mounted) setState(() {});
+            },
+            onError: (Object e) => debugPrint('Level reading failed: $e'),
+          );
       _stopwatch
         ..reset()
         ..start();
