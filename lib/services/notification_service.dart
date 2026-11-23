@@ -1,3 +1,4 @@
+import 'dart:io' as io;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -55,6 +56,8 @@ class NotificationService {
   }
 
   Future<bool> requestPermissions() async {
+    if (io.Platform.isLinux) return true;
+
     // Request notification permission
     final status = await Permission.notification.request();
     
@@ -67,6 +70,7 @@ class NotificationService {
   }
 
   Future<PermissionStatus> getNotificationStatus() async {
+    if (io.Platform.isLinux) return PermissionStatus.granted;
     return await Permission.notification.status;
   }
 
@@ -104,6 +108,8 @@ class NotificationService {
     required int hour,
     required int minute,
   }) async {
+    if (io.Platform.isLinux) return;
+
     await _notifications.zonedSchedule(
       id: id,
       title: title,
@@ -118,7 +124,6 @@ class NotificationService {
           priority: Priority.low,
         ),
         iOS: DarwinNotificationDetails(),
-        linux: LinuxNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
@@ -126,6 +131,8 @@ class NotificationService {
   }
 
   Future<void> scheduleWeekendBoostNotifications() async {
+    if (io.Platform.isLinux) return;
+
     // Saturday 10:00 AM
     await _notifications.zonedSchedule(
       id: 1000,
@@ -143,7 +150,6 @@ class NotificationService {
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
-        linux: LinuxNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
@@ -166,7 +172,6 @@ class NotificationService {
           priority: Priority.high,
         ),
         iOS: DarwinNotificationDetails(),
-        linux: LinuxNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,

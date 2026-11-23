@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/theme.dart';
 import 'screens/main_navigation.dart';
@@ -12,9 +13,11 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (io.Platform.isLinux || io.Platform.isWindows || io.Platform.isMacOS) {
+  if (io.Platform.isLinux) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    final supportDir = await getApplicationSupportDirectory();
+    await databaseFactory.setDatabasesPath(supportDir.path);
   }
 
   await NotificationService().init();

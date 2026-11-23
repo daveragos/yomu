@@ -252,34 +252,36 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                     label: const Text('Pick from file'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final selectedUrl = await Navigator.push<String>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => GoogleImageSearchScreen(
-                            query:
-                                '${_titleController.text} ${_authorController.text}',
+                if (!Platform.isLinux) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final selectedUrl = await Navigator.push<String>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GoogleImageSearchScreen(
+                              query:
+                                  '${_titleController.text} ${_authorController.text}',
+                            ),
                           ),
-                        ),
-                      );
-                      if (selectedUrl != null && mounted) {
-                        final newPath = await BookService().downloadCover(
-                          selectedUrl,
                         );
-                        if (newPath.isNotEmpty && mounted) {
-                          setState(() {
-                            _newCoverPath = newPath;
-                          });
+                        if (selectedUrl != null && mounted) {
+                          final newPath = await BookService().downloadCover(
+                            selectedUrl,
+                          );
+                          if (newPath.isNotEmpty && mounted) {
+                            setState(() {
+                              _newCoverPath = newPath;
+                            });
+                          }
                         }
-                      }
-                    },
-                    icon: const Icon(Icons.image_search),
-                    label: const Text('Search online'),
+                      },
+                      icon: const Icon(Icons.image_search),
+                      label: const Text('Search online'),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 40),

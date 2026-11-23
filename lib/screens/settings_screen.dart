@@ -1,3 +1,4 @@
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -152,78 +153,80 @@ class SettingsScreen extends ConsumerWidget {
       child: GlassContainer(
         child: Column(
           children: [
-            SwitchListTile(
-              value: state.notificationsEnabled,
-              onChanged: (val) =>
-                  notifier.updateNotificationSettings(enabled: val),
-              title: const Text(
-                'Daily Reminders',
-                style: TextStyle(color: Colors.white),
-              ),
-              subtitle: Text(
-                'Keep your reading streak alive',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-              ),
-              activeThumbColor: YomuConstants.accent,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-            ),
-            if (state.notificationsEnabled)
-              ListTile(
+            if (!io.Platform.isLinux) ...[
+              SwitchListTile(
+                value: state.notificationsEnabled,
+                onChanged: (val) =>
+                    notifier.updateNotificationSettings(enabled: val),
                 title: const Text(
-                  'Reminder Time',
+                  'Daily Reminders',
                   style: TextStyle(color: Colors.white),
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${state.reminderHour.toString().padLeft(2, '0')}:${state.reminderMinute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        color: YomuConstants.accent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.white24,
-                    ),
-                  ],
+                subtitle: Text(
+                  'Keep your reading streak alive',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                 ),
-                onTap: () async {
-                  final time = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay(
-                      hour: state.reminderHour,
-                      minute: state.reminderMinute,
-                    ),
-                    builder: (context, child) {
-                      return Theme(
-                        data: Theme.of(context).copyWith(
-                          colorScheme: const ColorScheme.dark(
-                            primary: YomuConstants.accent,
-                            onPrimary: Colors.black,
-                            surface: YomuConstants.surface,
-                            onSurface: Colors.white,
-                          ),
-                        ),
-                        child: child!,
-                      );
-                    },
-                  );
-                  if (time != null) {
-                    notifier.updateNotificationSettings(
-                      hour: time.hour,
-                      minute: time.minute,
-                    );
-                  }
-                },
+                activeThumbColor: YomuConstants.accent,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
               ),
-            Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+              if (state.notificationsEnabled)
+                ListTile(
+                  title: const Text(
+                    'Reminder Time',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${state.reminderHour.toString().padLeft(2, '0')}:${state.reminderMinute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          color: YomuConstants.accent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white24,
+                      ),
+                    ],
+                  ),
+                  onTap: () async {
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay(
+                        hour: state.reminderHour,
+                        minute: state.reminderMinute,
+                      ),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: YomuConstants.accent,
+                              onPrimary: Colors.black,
+                              surface: YomuConstants.surface,
+                              onSurface: Colors.white,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+                    if (time != null) {
+                      notifier.updateNotificationSettings(
+                        hour: time.hour,
+                        minute: time.minute,
+                      );
+                    }
+                  },
+                ),
+              Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+            ],
             ListTile(
               leading: const Icon(Icons.notification_important_rounded, color: YomuConstants.accent),
               title: const Text(
@@ -236,6 +239,15 @@ class SettingsScreen extends ConsumerWidget {
               ),
               trailing: const Icon(Icons.send_rounded, color: YomuConstants.accent, size: 20),
               onTap: () async {
+                if (io.Platform.isLinux) {
+                  await NotificationService().showNotification(
+                    id: 888,
+                    title: 'Test Notification 📖',
+                    body: "Notifications are working correctly! Happy reading.",
+                  );
+                  return;
+                }
+
                 final status = await Permission.notification.status;
 
                 if (status.isPermanentlyDenied) {
