@@ -90,6 +90,7 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
 
   Future<void> _pickCoverFromFile() async {
     final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Choose a cover image',
       type: FileType.image,
       allowMultiple: false,
     );
@@ -107,6 +108,7 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
 
   Future<void> _pickAudioTracks() async {
     final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Choose audiobook files',
       type: FileType.audio,
       allowMultiple: true,
     );
@@ -273,14 +275,9 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      final selectedUrl = await Navigator.push<String>(
+                      final selectedUrl = await GoogleImageSearchScreen.pick(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => GoogleImageSearchScreen(
-                            query:
-                                '${_titleController.text} ${_authorController.text}',
-                          ),
-                        ),
+                        '${_titleController.text} ${_authorController.text}',
                       );
                       if (selectedUrl != null && mounted) {
                         final newPath = await BookService().downloadCover(

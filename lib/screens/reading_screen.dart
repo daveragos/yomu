@@ -48,6 +48,7 @@ import '../providers/shared_welcome_provider.dart';
 import './reading/widgets/share_with_notes.dart';
 import '../services/file_storage_service.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/share_files.dart';
 import '../components/desktop/adaptive_sheet.dart';
 import '../components/desktop/route_shortcuts.dart';
 import '../core/platform_caps.dart';
@@ -223,8 +224,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
     Future.microtask(() {
       if (mounted) ref.read(libraryProvider.notifier).setReadingActive(true);
     });
-    _getInitialBattery();
-    _startBatterySubscription();
+    // Only phones show the battery (see ReadingFooter); on a computer the
+    // query can fail outright, e.g. Linux without UPower.
+    if (!PlatformCaps.isDesktop) {
+      _getInitialBattery();
+      _startBatterySubscription();
+    }
     _updateTime();
     _currentTimeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _updateTime();
@@ -506,6 +511,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
 
   Future<void> _pickAudio(Book book) async {
     final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Choose audiobook files',
       type: FileType.audio,
       allowMultiple: true,
     );
@@ -2647,7 +2653,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
       final file = io.File(p.join(directory.path, fileName));
       await file.writeAsString(buffer.toString());
 
-      await SharePlus.instance.share(
+      if (!mounted) return;
+      await shareFiles(context,
         ShareParams(
           files: [XFile(file.path)],
           subject: '${book.title} - Annotations',
@@ -2921,5 +2928,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen>
         return;
       }
     }
+    // No system dictionary to hand the word to (Linux, Windows, or the above
+    // failed): look it up on the web, as the EPUB page does.
+    await launchUrl(
+      Uri.parse('https://www.google.com/search?q=define+$encoded'),
+      mode: LaunchMode.externalApplication,
+    );
   }
 }

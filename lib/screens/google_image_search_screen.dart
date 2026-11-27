@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../core/constants.dart';
 
@@ -6,6 +9,69 @@ class GoogleImageSearchScreen extends StatefulWidget {
   final String query;
 
   const GoogleImageSearchScreen({super.key, required this.query});
+
+  static Uri _searchUrl(String query) => Uri.parse(
+    'https://www.google.com/search?tbm=isch&q=${Uri.encodeComponent("$query book cover")}',
+  );
+
+  /// Lets the reader find a cover online; returns the chosen image's URL.
+  ///
+  /// Linux has no embedded web view, so the search opens in the browser and
+  /// the reader pastes the address of the image they picked.
+  static Future<String?> pick(BuildContext context, String query) async {
+    if (!Platform.isLinux) {
+      return Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => GoogleImageSearchScreen(query: query),
+        ),
+      );
+    }
+
+    await launchUrl(_searchUrl(query), mode: LaunchMode.externalApplication);
+    if (!context.mounted) return null;
+    final controller = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Paste the image address'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The search opened in your browser. Right-click the cover you '
+              'like, choose "Copy Image Address", and paste it here.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'https://…'),
+              onSubmitted: (value) => Navigator.pop(context, value),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: YomuConstants.accent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Use image'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final trimmed = url?.trim();
+    return trimmed != null && trimmed.startsWith('http') ? trimmed : null;
+  }
 
   @override
   State<GoogleImageSearchScreen> createState() =>
@@ -19,9 +85,6 @@ class _GoogleImageSearchScreenState extends State<GoogleImageSearchScreen> {
   @override
   void initState() {
     super.initState();
-
-    final String searchUrl =
-        'https://www.google.com/search?tbm=isch&q=${Uri.encodeComponent("${widget.query} book cover")}';
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -60,7 +123,7 @@ class _GoogleImageSearchScreenState extends State<GoogleImageSearchScreen> {
           }
         },
       )
-      ..loadRequest(Uri.parse(searchUrl));
+      ..loadRequest(GoogleImageSearchScreen._searchUrl(widget.query));
   }
 
   void _injectSelectionScript() {
