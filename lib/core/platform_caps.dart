@@ -18,10 +18,13 @@ abstract final class PlatformCaps {
   /// (`permission_handler`).
   static bool get hasPermissionHandler => isMobile;
 
-  /// Local notifications are set up for this platform. Windows and Linux
-  /// need their own initialization settings before they can be enabled.
+  /// Local notifications are set up for this platform. Windows needs its
+  /// own initialization settings before it can be enabled.
   static bool get hasLocalNotifications =>
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      Platform.isMacOS ||
+      Platform.isLinux;
 
   /// Height of the macOS title bar that the app draws underneath. The window
   /// has a transparent title bar (see `MainFlutterWindow.swift`), so content

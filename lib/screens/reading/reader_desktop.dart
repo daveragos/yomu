@@ -28,7 +28,14 @@ final _readableChecks = Expando<Map<String, Future<bool>>>('readableChecks');
 /// Per-screen state the extension can't hold in fields.
 final _controlsHideTimers = Expando<Timer>('controlsHideTimer');
 final _lastPointerY = Expando<double>('lastPointerY');
-final _pinchStartTextSize = Expando<double>('pinchStartTextSize');
+final _pinchStartZoom = Expando<double>('pinchStartZoom');
+
+/// How much a pinch has magnified the EPUB page (1 = the normal column).
+final _epubZoom = Expando<double>('epubZoom');
+
+/// Most a pinch magnifies an EPUB page: past filling the window, it keeps
+/// enlarging the text within it up to this.
+const double _maxEpubZoom = 2.5;
 
 extension _DesktopReader on _ReadingScreenState {
   GlobalKey get _epubColumnKey => _epubColumnKeys[this] ??= GlobalKey();
@@ -115,17 +122,21 @@ extension _DesktopReader on _ReadingScreenState {
         child: child,
       );
     }
+    // A pinch magnifies the page into the margins, like zooming a page in
+    // Preview or a browser. +/− change the text size instead.
     return ReaderColumn(
       maxWidth: _epubColumnMaxWidth,
+      zoom: _epubZoom[this] ?? 1,
       color: settings.textColor,
       onPrevious: () => _turnPage(-1),
       onNext: () => _turnPage(1),
       child: PinchListener(
-        onStart: () => _pinchStartTextSize[this] =
-            ref.read(readerSettingsProvider).textSize,
+        onStart: () => _pinchStartZoom[this] = _epubZoom[this] ?? 1,
         onScale: (scale) {
-          final start = _pinchStartTextSize[this];
-          if (start != null) _setTextSize((start * scale).roundToDouble());
+          final start = _pinchStartZoom[this];
+          if (start == null) return;
+          _epubZoom[this] = (start * scale).clamp(1.0, _maxEpubZoom);
+          _refresh();
         },
         child: DesktopSelectionMenu(
           child: KeyedSubtree(key: _epubColumnKey, child: child),
@@ -146,10 +157,13 @@ extension _DesktopReader on _ReadingScreenState {
     direction > 0 ? controller.zoomUp() : controller.zoomDown();
   }
 
-  /// Back to the default text size, or a PDF's opening page width.
+  /// Back to actual size: the default text size and no pinch zoom, or a
+  /// PDF's opening page width.
   void _resetZoom() {
     if (_isEpubOpen) {
+      _epubZoom[this] = 1;
       _setTextSize(_defaultTextSize);
+      _refresh();
       return;
     }
     final controller = _pdfController;

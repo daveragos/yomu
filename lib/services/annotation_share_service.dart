@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'file_storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/book_model.dart';
 import '../models/annotation_reply_model.dart';
@@ -725,7 +726,7 @@ class AnnotationShareService {
     if (ext != '.epub' && ext != '.pdf') {
       throw const FormatException('The shared book is not an EPUB or PDF.');
     }
-    final docs = await getApplicationDocumentsDirectory();
+    final docs = await FileStorageService.appDataDir();
     final dir = Directory(
       p.join(docs.path, 'shared_books', manifest.contentHash),
     );
@@ -819,7 +820,7 @@ class AnnotationShareService {
 
   /// Notes shared without their book, waiting for that exact book.
   Future<List<PendingNotes>> listPending() async {
-    final docs = await getApplicationDocumentsDirectory();
+    final docs = await FileStorageService.appDataDir();
     final root = Directory(p.join(docs.path, 'pending_annotations'));
     if (!await root.exists()) return const [];
     final books = await _db.getBooks();
@@ -866,7 +867,7 @@ class AnnotationShareService {
   }
 
   Future<Directory> _pendingDir(String hash) async {
-    final docs = await getApplicationDocumentsDirectory();
+    final docs = await FileStorageService.appDataDir();
     return Directory(p.join(docs.path, 'pending_annotations', hash));
   }
 

@@ -213,6 +213,10 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () async {
                   final time = await showTimePicker(
                     context: context,
+                    // Typing the time suits a keyboard; phones get the dial.
+                    initialEntryMode: Breakpoints.isWide(context)
+                        ? TimePickerEntryMode.input
+                        : TimePickerEntryMode.dial,
                     initialTime: TimeOfDay(
                       hour: state.reminderHour,
                       minute: state.reminderMinute,

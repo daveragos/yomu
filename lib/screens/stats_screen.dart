@@ -347,14 +347,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              SheetHandle(),
               const SizedBox(height: 20),
               const Text(
                 'Select Month',

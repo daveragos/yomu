@@ -10,6 +10,7 @@ import 'note_author_avatar.dart';
 import 'note_view.dart';
 import 'voice_note_player.dart';
 import 'voice_note_recorder.dart';
+import '../../../components/desktop/adaptive_sheet.dart';
 
 /// Shows a highlight with everything attached to it: who wrote it, the
 /// passage, the note, the voice note and the replies, with a box to reply.
@@ -26,10 +27,11 @@ Future<void> showNoteCard(
   String? location,
   VoidCallback? onGoTo,
 }) {
-  return showModalBottomSheet(
+  return showAdaptiveSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    maxPanelWidth: 460,
     builder: (context) => NoteCardSheet(
       highlight: highlight,
       settings: settings,
@@ -230,15 +232,7 @@ class _NoteCardSheetState extends State<NoteCardSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+                child: SheetHandle(margin: const EdgeInsets.only(top: 12, bottom: 8)),
               ),
               Flexible(
                 child: ListView(
