@@ -1,12 +1,15 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
+
+import '../core/platform_caps.dart';
 
 /// Books the desktop hands to Yomu: Finder's or the Linux file manager's
 /// Open With, double-clicking a file Yomu is set to open, dropping files on
 /// the Dock icon, or `yomu book.epub` on Linux. The desktop counterpart of
 /// the phone's share sheet. The native side is `macos/Runner/AppDelegate.swift`
 /// and `linux/runner/my_application.cc`.
+///
+/// iOS answers the same channel for "Open in Yomu" from other apps (see
+/// `ios/Runner/OpenFilesPlugin.swift`).
 abstract final class DesktopOpenFiles {
   static const _channel = MethodChannel('yomu/open_files');
 
@@ -14,7 +17,7 @@ abstract final class DesktopOpenFiles {
   /// any that arrived while the app was launching. The library copies each
   /// book into its own storage as it imports it (see `LibraryFiles`).
   static Future<void> listen(void Function(List<String> paths) onFiles) async {
-    if (!Platform.isMacOS && !Platform.isLinux) return;
+    if (!PlatformCaps.hasOpenFilesChannel) return;
 
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'open') {

@@ -110,7 +110,8 @@ class _EditBookScreenState extends ConsumerState<EditBookScreen> {
   Future<void> _pickAudioTracks() async {
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Choose audiobook files',
-      type: FileType.audio,
+      type: FileStorageService.audioPickerType,
+      allowedExtensions: FileStorageService.audioPickerExtensions,
       allowMultiple: true,
     );
 

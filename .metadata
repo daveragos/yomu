@@ -16,8 +16,8 @@ migration:
       create_revision: ab2912035e160d9cad6306df307576da6128ebdb
       base_revision: ab2912035e160d9cad6306df307576da6128ebdb
     - platform: ios
-      create_revision: 67323de285b00232883f53b84095eb72be97d35c
-      base_revision: 67323de285b00232883f53b84095eb72be97d35c
+      create_revision: ab2912035e160d9cad6306df307576da6128ebdb
+      base_revision: ab2912035e160d9cad6306df307576da6128ebdb
     - platform: macos
       create_revision: ab2912035e160d9cad6306df307576da6128ebdb
       base_revision: ab2912035e160d9cad6306df307576da6128ebdb

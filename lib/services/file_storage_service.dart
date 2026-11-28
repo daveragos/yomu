@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -32,18 +33,28 @@ class FileStorageService {
     return dir;
   }
 
-  static String? _cacheRoot;
+  static List<String>? _cacheRoots;
 
-  /// Whether [path] lives inside the app's cache directory.
+  /// Whether [path] lives inside the app's cache directory, or on iOS its
+  /// `tmp` folder, where file_picker puts the files it hands back.
   ///
   /// Linux and Windows have no app cache of their own: the temporary
   /// directory is the shared /tmp (or %TEMP%), where a book the user opens
   /// is their original, which must never be deleted as a "cached copy".
   static Future<bool> isInCache(String path) async {
     if (Platform.isLinux || Platform.isWindows) return false;
-    _cacheRoot ??= (await getTemporaryDirectory()).path;
-    return p.isWithin(_cacheRoot!, path);
+    _cacheRoots ??= [
+      (await getTemporaryDirectory()).path,
+      if (Platform.isIOS) Directory.systemTemp.path,
+    ].map(_withoutPrivatePrefix).toList();
+    final target = _withoutPrivatePrefix(path);
+    return _cacheRoots!.any((root) => p.isWithin(root, target));
   }
+
+  /// iOS reports some app folders as `/private/var/...` and others as
+  /// `/var/...`; both are the same place.
+  static String _withoutPrivatePrefix(String path) =>
+      path.startsWith('/private/var/') ? path.substring('/private'.length) : path;
 
   /// Copies [source] into [dir] under its own file name, adding a " (n)"
   /// suffix when that name is already taken.
@@ -87,6 +98,17 @@ class FileStorageService {
       debugPrint('Could not remove cached copy $path: $e');
     }
   }
+
+  /// What file_picker should list when picking a book's audio. On iOS,
+  /// [FileType.audio] opens the Music library, which can't see the
+  /// audiobook files people keep in Files, so Files is shown instead,
+  /// filtered to [audioPickerExtensions].
+  static FileType get audioPickerType =>
+      Platform.isIOS ? FileType.custom : FileType.audio;
+
+  static List<String>? get audioPickerExtensions => Platform.isIOS
+      ? const ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'aiff', 'flac', 'caf']
+      : null;
 
   /// Copies audio files picked for [bookId] into durable storage.
   ///
