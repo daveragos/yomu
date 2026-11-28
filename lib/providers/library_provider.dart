@@ -1057,6 +1057,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         failures.add(
           e is FormatException ? e.message : 'Could not open the shared book.',
         );
+      } finally {
+        // Notes waiting for their book keep a copy of their own, so a cache
+        // copy (from "Open in Yomu" on an iPhone, or a picker or share sheet
+        // on Android) isn't needed any more.
+        await FileStorageService.deleteCachedCopy(path);
       }
     }
     final unreadable = <String>[];

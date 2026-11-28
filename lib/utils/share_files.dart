@@ -14,6 +14,21 @@ import 'package:url_launcher/url_launcher.dart';
 Future<void> shareFiles(BuildContext context, ShareParams params) async {
   final files = params.files ?? const <XFile>[];
   if (!Platform.isLinux || files.isEmpty) {
+    if (Platform.isIOS && params.sharePositionOrigin == null) {
+      params = ShareParams(
+        text: params.text,
+        subject: params.subject,
+        title: params.title,
+        previewThumbnail: params.previewThumbnail,
+        sharePositionOrigin: sharePopoverOrigin(context),
+        uri: params.uri,
+        files: params.files,
+        fileNameOverrides: params.fileNameOverrides,
+        downloadFallbackEnabled: params.downloadFallbackEnabled,
+        mailToFallbackEnabled: params.mailToFallbackEnabled,
+        excludedCupertinoActivities: params.excludedCupertinoActivities,
+      );
+    }
     await SharePlus.instance.share(params);
     return;
   }
@@ -40,4 +55,20 @@ Future<void> shareFiles(BuildContext context, ShareParams params) async {
         ),
       );
   }
+}
+
+/// Where the share sheet points on an iPad, which shows it as a popover:
+/// [context]'s widget, clipped to the screen, or the middle of the screen
+/// when that widget is gone or off screen. share_plus refuses to share on
+/// an iPad without a non-empty spot inside the screen.
+@visibleForTesting
+Rect sharePopoverOrigin(BuildContext context) {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final screen = Offset.zero & (view.physicalSize / view.devicePixelRatio);
+  final box = context.mounted ? context.findRenderObject() : null;
+  if (box is RenderBox && box.attached && box.hasSize) {
+    final rect = (box.localToGlobal(Offset.zero) & box.size).intersect(screen);
+    if (!rect.isEmpty) return rect;
+  }
+  return Rect.fromCenter(center: screen.center, width: 1, height: 1);
 }
