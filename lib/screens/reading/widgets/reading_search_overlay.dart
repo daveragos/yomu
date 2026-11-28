@@ -116,8 +116,12 @@ class ReadingSearchOverlay extends StatelessWidget {
   /// [snippet] with every case-insensitive occurrence of [query] marked.
   TextSpan _highlighted(String snippet, String query) {
     final needle = query.trim().toLowerCase();
-    if (needle.isEmpty) return TextSpan(text: snippet);
     final haystack = snippet.toLowerCase();
+    // Lowercasing can change a string's length (İ becomes i + a dot), and
+    // then positions in it don't match the snippet's.
+    if (needle.isEmpty || haystack.length != snippet.length) {
+      return TextSpan(text: snippet);
+    }
     final spans = <TextSpan>[];
     var start = 0;
     for (
@@ -137,8 +141,9 @@ class ReadingSearchOverlay extends StatelessWidget {
       );
       start = i + needle.length;
     }
-    if (start < snippet.length)
+    if (start < snippet.length) {
       spans.add(TextSpan(text: snippet.substring(start)));
+    }
     return TextSpan(children: spans);
   }
 }
