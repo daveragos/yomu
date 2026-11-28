@@ -381,6 +381,19 @@ class _NoteEditorState extends State<NoteEditor> {
                   focusNode: _focusNode,
                   scrollController: ScrollController(),
                   config: QuillEditorConfig(
+                    // Escape closes the editor, like any panel. Quill would
+                    // otherwise take it to hide its selection toolbar, so
+                    // the editor never closed while it had the cursor. This
+                    // is the one hook that runs before Quill's shortcuts.
+                    // ignore: experimental_member_use
+                    onKeyPressed: (event, node) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.escape) {
+                        Navigator.maybePop(context);
+                        return KeyEventResult.handled;
+                      }
+                      return null;
+                    },
                     padding: EdgeInsets.zero,
                     autoFocus: true,
                     expands: false,
