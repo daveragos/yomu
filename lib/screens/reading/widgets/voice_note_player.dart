@@ -183,7 +183,8 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        playing || position > Duration.zero ||
+                        playing ||
+                                position > Duration.zero ||
                                 _dragProgress != null
                             ? formatVoiceNoteDuration(shownTime)
                             : formatVoiceNoteDuration(total),
@@ -213,6 +214,9 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
     );
   }
 
+  static Duration _clampTime(Duration time, Duration total) =>
+      time < Duration.zero ? Duration.zero : (time > total ? total : time);
+
   Widget _buildWaveform(
     double shown,
     Duration total,
@@ -230,6 +234,13 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
           label: 'Voice note position',
           value:
               '${formatVoiceNoteDuration(shownTime)} of '
+              '${formatVoiceNoteDuration(total)}',
+          // A slider that can step must say what it steps to.
+          increasedValue:
+              '${formatVoiceNoteDuration(_clampTime(shownTime + const Duration(seconds: 5), total))} of '
+              '${formatVoiceNoteDuration(total)}',
+          decreasedValue:
+              '${formatVoiceNoteDuration(_clampTime(shownTime - const Duration(seconds: 5), total))} of '
               '${formatVoiceNoteDuration(total)}',
           onIncrease: () => _seekTo(shown + step),
           onDecrease: () => _seekTo(shown - step),
@@ -293,10 +304,7 @@ class _SpeedChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: dense ? 5 : 6,
-            vertical: 2,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: dense ? 5 : 6, vertical: 2),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8),

@@ -1,3 +1,4 @@
+import 'dart:io' show ProcessException;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,6 +151,14 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder> {
       }
       // Let go while the recorder was still starting.
       if (!_pressing) await _stop();
+    } on ProcessException catch (e) {
+      // Linux records through the parecord and ffmpeg programs; the .deb
+      // installs them, a bare copy of the app may not have them.
+      debugPrint('Failed to start recording: $e');
+      _snack(
+        'Voice notes need ${e.executable} installed '
+        '(e.g. sudo apt install ffmpeg pulseaudio-utils).',
+      );
     } catch (e) {
       debugPrint('Failed to start recording: $e');
       _snack('Could not start recording.');

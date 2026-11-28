@@ -5,6 +5,7 @@ import '../../../models/highlight_model.dart';
 import '../../../models/reader_settings_model.dart';
 import 'note_editor.dart';
 import 'voice_note_player.dart';
+import '../../../components/desktop/adaptive_sheet.dart';
 
 /// `#RRGGBB` for a highlight colour, as stored in [Highlight.color].
 String highlightHex(Color color) =>
@@ -134,10 +135,11 @@ void showHighlightNoteSheet(
   required Highlight? existing,
   required ValueChanged<NoteEditorResult> onSave,
 }) {
-  showModalBottomSheet(
+  showAdaptiveSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    maxPanelWidth: 560,
     builder: (context) => NoteEditor(
       initialMarkdown: existing?.note ?? '',
       initialColor: existing?.color ?? defaultHighlightColor,
@@ -160,7 +162,7 @@ void showVoiceNoteSheet(
   required ReaderSettings settings,
   required Highlight highlight,
 }) {
-  showModalBottomSheet(
+  showAdaptiveSheet(
     context: context,
     backgroundColor: Colors.transparent,
     builder: (context) {
@@ -179,16 +181,7 @@ void showVoiceNoteSheet(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.tint(0.24),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              const Center(child: SheetHandle()),
               const SizedBox(height: 16),
               Text(
                 highlight.sharedBy != null

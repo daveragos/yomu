@@ -15,8 +15,18 @@ class FileStorageService {
   static Future<Directory> audioDir(int? bookId) =>
       _appSubDir(['audio', '${bookId ?? 'unassigned'}']);
 
+  /// The folder Yomu keeps its own files in (books, covers, voice notes).
+  ///
+  /// On Linux and Windows "documents" is the user's own Documents folder,
+  /// so Yomu uses its private data folder there instead
+  /// (`~/.local/share/com.ragoose.yomu` on Linux).
+  static Future<Directory> appDataDir() =>
+      Platform.isLinux || Platform.isWindows
+      ? getApplicationSupportDirectory()
+      : getApplicationDocumentsDirectory();
+
   static Future<Directory> _appSubDir(List<String> parts) async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await appDataDir();
     final dir = Directory(p.joinAll([appDir.path, ...parts]));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;

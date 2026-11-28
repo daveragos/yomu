@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Yomu
+GenericName=Book Reader
+Comment=Read EPUBs and PDFs, keep notes and voice notes, build a reading habit
+Exec=yomu %F
+Icon=com.ragoose.yomu
+Terminal=false
+Categories=Education;Literature;
+Keywords=ebook;epub;pdf;reader;books;notes;
+MimeType=application/epub+zip;application/pdf;application/x-yomu;
+StartupWMClass=com.ragoose.yomu
+SingleMainWindow=true

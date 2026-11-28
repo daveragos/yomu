@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:markdown_quill/markdown_quill.dart';
 import 'package:markdown/markdown.dart' as md;
+import '../../../core/breakpoints.dart';
 import '../../../core/constants.dart';
 import '../../../core/yomu_colors.dart';
 import '../../../models/reader_settings_model.dart';
 import '../../../services/annotation_audio_service.dart';
 import 'voice_note_recorder.dart';
+import '../../../components/desktop/adaptive_sheet.dart';
 
 class NoteEditorResult {
   final String markdown;
@@ -177,8 +180,32 @@ class _NoteEditorState extends State<NoteEditor> {
     );
   }
 
+  void _saveAndClose() {
+    _onSave();
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isWide = Breakpoints.isWide(context);
+    // Desktop: Ctrl+Enter or Ctrl+S (⌘ on a Mac) saves; Escape cancels, as
+    // it closes any panel.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, control: true):
+            _saveAndClose,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+            _saveAndClose,
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+            _saveAndClose,
+        const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+            _saveAndClose,
+      },
+      child: _buildPanel(context, isWide),
+    );
+  }
+
+  Widget _buildPanel(BuildContext context, bool isWide) {
     final colors = context.yomu;
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -197,14 +224,7 @@ class _NoteEditorState extends State<NoteEditor> {
           children: [
             const SizedBox(height: 12),
             Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.tint(0.24),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              child: SheetHandle(),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 8, 8),
@@ -235,13 +255,18 @@ class _NoteEditorState extends State<NoteEditor> {
                       ],
                     ),
                   ),
+                  if (isWide)
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: colors.tint(0.54)),
+                      ),
+                    ),
                   TextButton(
-                    onPressed: () {
-                      _onSave();
-                      Navigator.pop(context);
-                    },
+                    onPressed: _saveAndClose,
                     child: Text(
-                      'SAVE',
+                      isWide ? 'Save' : 'SAVE',
                       style: TextStyle(
                         color: colors.accent,
                         fontWeight: FontWeight.bold,
@@ -308,7 +333,8 @@ class _NoteEditorState extends State<NoteEditor> {
             QuillSimpleToolbar(
               controller: _controller,
               config: QuillSimpleToolbarConfig(
-                multiRowsDisplay: false,
+                // A window has room for every tool; a phone scrolls them.
+                multiRowsDisplay: isWide,
                 showAlignmentButtons: false,
                 showDirection: false,
                 showFontFamily: false,
@@ -361,6 +387,19 @@ class _NoteEditorState extends State<NoteEditor> {
                   focusNode: _focusNode,
                   scrollController: ScrollController(),
                   config: QuillEditorConfig(
+                    // Escape closes the editor, like any panel. Quill would
+                    // otherwise take it to hide its selection toolbar, so
+                    // the editor never closed while it had the cursor. This
+                    // is the one hook that runs before Quill's shortcuts.
+                    // ignore: experimental_member_use
+                    onKeyPressed: (event, node) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.escape) {
+                        Navigator.maybePop(context);
+                        return KeyEventResult.handled;
+                      }
+                      return null;
+                    },
                     padding: EdgeInsets.zero,
                     autoFocus: true,
                     expands: false,

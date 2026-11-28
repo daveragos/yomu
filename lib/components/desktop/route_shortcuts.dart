@@ -68,7 +68,12 @@ class _RouteShortcutsState extends State<RouteShortcuts> {
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is KeyUpEvent || _isEditingText) return KeyEventResult.ignored;
+    // A panel or dialog over this route owns the keyboard, even when focus
+    // was left behind on this route: Escape must close the panel, not leave
+    // the screen under it.
+    if (event is KeyUpEvent || !_isOnTop || _isEditingText) {
+      return KeyEventResult.ignored;
+    }
     for (final entry in widget.bindings.entries) {
       if (entry.key.accepts(event, HardwareKeyboard.instance)) {
         entry.value();

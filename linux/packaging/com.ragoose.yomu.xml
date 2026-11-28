@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Books shared from Yomu with highlights, notes and voice notes. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-yomu">
+    <comment>Yomu shared book</comment>
+    <glob pattern="*.yomu"/>
+    <icon name="com.ragoose.yomu"/>
+  </mime-type>
+</mime-info>

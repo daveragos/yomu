@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'file_storage_service.dart';
 import '../models/highlight_model.dart';
 
 /// Stores voice notes attached to annotations.
@@ -16,7 +16,7 @@ class AnnotationAudioService {
 
   static Future<Directory> directory() async {
     if (_cachedDir != null) return _cachedDir!;
-    final docs = await getApplicationDocumentsDirectory();
+    final docs = await FileStorageService.appDataDir();
     final dir = Directory(p.join(docs.path, folderName));
     if (!await dir.exists()) await dir.create(recursive: true);
     _cachedDir = dir;
