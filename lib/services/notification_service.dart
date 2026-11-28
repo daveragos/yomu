@@ -357,9 +357,13 @@ class NotificationService {
       final dir = _systemdUserDir;
       await dir.create(recursive: true);
       final unit = _reminderUnit(id);
+      // The units outlive the app: uninstalling it can't remove files in
+      // the user's home. The condition keeps them quiet once it's gone.
+      final app = Platform.resolvedExecutable.replaceAll('%', '%%');
       await File('${dir.path}/$unit.service').writeAsString('''
 [Unit]
 Description=Yomu reading reminder
+ConditionPathExists=$app
 
 [Service]
 Type=oneshot

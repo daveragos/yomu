@@ -35,7 +35,12 @@ class FileStorageService {
   static String? _cacheRoot;
 
   /// Whether [path] lives inside the app's cache directory.
+  ///
+  /// Linux and Windows have no app cache of their own: the temporary
+  /// directory is the shared /tmp (or %TEMP%), where a book the user opens
+  /// is their original, which must never be deleted as a "cached copy".
   static Future<bool> isInCache(String path) async {
+    if (Platform.isLinux || Platform.isWindows) return false;
     _cacheRoot ??= (await getTemporaryDirectory()).path;
     return p.isWithin(_cacheRoot!, path);
   }

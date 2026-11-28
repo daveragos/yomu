@@ -1188,9 +1188,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     for (final p in paragraphs) {
       final text = p.text.toPlainText().toLowerCase();
       if (text.contains(selectedText)) {
-        final bounds = p.paintBounds;
-        final globalOffset = p.localToGlobal(Offset.zero);
-        final globalBounds = globalOffset & bounds.size;
+        // Where the paragraph is drawn, including a pinch zoom.
+        final globalBounds = MatrixUtils.transformRect(
+          p.getTransformTo(null),
+          p.paintBounds,
+        );
         
         double distance = 0.0;
         if (globalBounds.contains(primaryAnchor)) {
@@ -1215,25 +1217,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       if (p == targetParagraph) {
         final localOffset = p.globalToLocal(primaryAnchor);
         final textPos = p.getPositionForOffset(localOffset).offset;
-        
-        int bestMatchIndex = 0;
-        int closestTextDistance = 999999;
-        int searchIndex = 0;
-        int localCount = 0;
-        
-        while (true) {
-          searchIndex = text.indexOf(selectedText, searchIndex);
-          if (searchIndex == -1) break;
-          final dist = (searchIndex - textPos).abs();
-          if (dist < closestTextDistance) {
-            closestTextDistance = dist;
-            bestMatchIndex = localCount;
-          }
-          localCount++;
-          searchIndex += selectedText.length;
-        }
-        
-        occurrenceIndex += bestMatchIndex;
+        occurrenceIndex += nearestOccurrence(text, selectedText, textPos);
         break;
       } else {
         int searchIndex = 0;

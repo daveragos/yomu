@@ -91,4 +91,54 @@ void main() {
     await tester.pump();
     expect(zoom.value, 1);
   });
+
+  testWidgets('selecting text anywhere on a zoomed page opens the menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = window;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReaderColumn(
+          maxWidth: columnWidth,
+          zoom: 2,
+          color: Colors.black,
+          onPrevious: () {},
+          onNext: () {},
+          child: DesktopSelectionMenu(
+            child: SelectionArea(
+              contextMenuBuilder: (context, state) => const Text('MENU'),
+              child: SizedBox.expand(
+                child: Text(
+                  'word ' * 4000,
+                  style: const TextStyle(fontSize: 10),
+                  overflow: TextOverflow.clip,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // The lower right of the window: at zoom 2 this is the bottom-right
+    // quarter of the page as laid out.
+    final gesture = await tester.startGesture(
+      const Offset(900, 600),
+      kind: PointerDeviceKind.mouse,
+      buttons: kPrimaryMouseButton,
+    );
+    await tester.pump();
+    await gesture.moveTo(const Offset(1000, 640));
+    await tester.pump();
+    await gesture.moveTo(const Offset(1150, 680));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('MENU'), findsOneWidget);
+    DesktopSelectionMenu.dismiss();
+  });
 }

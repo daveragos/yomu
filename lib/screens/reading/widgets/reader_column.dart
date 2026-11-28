@@ -320,7 +320,12 @@ class _DesktopSelectionMenuState extends State<DesktopSelectionMenu> {
       if (element is StatefulElement && element.state is SelectionAreaState) {
         final box = element.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
-          final rect = box.localToGlobal(Offset.zero) & box.size;
+          // Where the area is drawn, which a pinch zoom makes larger than
+          // its laid-out size.
+          final rect = MatrixUtils.transformRect(
+            box.getTransformTo(null),
+            Offset.zero & box.size,
+          );
           if (rect.contains(position)) {
             found = (
               element.widget as SelectionArea,
