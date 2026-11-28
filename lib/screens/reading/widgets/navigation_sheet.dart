@@ -2,6 +2,7 @@ import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../utils/share_files.dart';
 import 'package:epub_view/epub_view.dart' show EpubChapter;
 import 'package:pdfrx/pdfrx.dart' show PdfOutlineNode;
 
@@ -20,6 +21,7 @@ import './note_card_sheet.dart';
 import './note_view.dart';
 import './voice_note_player.dart';
 import './share_quote_sheet.dart';
+import '../../../components/desktop/adaptive_sheet.dart';
 
 class NavigationSheet extends StatefulWidget {
   final Book book;
@@ -322,14 +324,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colors.tint(0.24),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                  child: SheetHandle(),
                 ),
               ),
             ),
@@ -566,7 +561,9 @@ class _NavigationSheetState extends State<NavigationSheet> {
       final file = io.File('${directory.path}/$fileName');
       await file.writeAsString(buffer.toString());
 
-      await SharePlus.instance.share(
+      if (!mounted) return;
+      await shareFiles(
+        context,
         ShareParams(
           files: [XFile(file.path)],
           subject: '${widget.book.title} - Selections',

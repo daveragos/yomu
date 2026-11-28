@@ -80,3 +80,33 @@ EpubTextLocation? findInChapters(
   }
   return null;
 }
+
+/// Which occurrence of [selected] in [text] (both lowercased) the reader
+/// selected, given a character position [textPos] taken from where the
+/// selection's menu points.
+///
+/// That position can be anywhere in the selection, including its end (the
+/// mouse release after a forward drag), so the occurrence it falls in or
+/// is nearest to wins, not the one whose start is nearest.
+int nearestOccurrence(String text, String selected, int textPos) {
+  if (selected.isEmpty) return 0;
+  var best = 0;
+  var bestDistance = -1;
+  var count = 0;
+  for (
+    var start = text.indexOf(selected);
+    start != -1;
+    start = text.indexOf(selected, start + selected.length)
+  ) {
+    final end = start + selected.length;
+    final distance = textPos < start
+        ? start - textPos
+        : (textPos > end ? textPos - end : 0);
+    if (bestDistance == -1 || distance < bestDistance) {
+      bestDistance = distance;
+      best = count;
+    }
+    count++;
+  }
+  return best;
+}

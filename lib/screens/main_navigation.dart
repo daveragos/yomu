@@ -61,7 +61,8 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     super.initState();
     _checkFirstLaunch();
 
-    // On a Mac, books arrive from Finder; on an iPhone, from "Open in Yomu".
+    // On a computer, books arrive from the file manager's Open With; on an
+    // iPhone, from "Open in Yomu".
     if (PlatformCaps.hasOpenFilesChannel) {
       DesktopOpenFiles.listen((paths) {
         if (!mounted) return;

@@ -18,8 +18,10 @@ abstract final class PlatformCaps {
   static bool get hasShareIntents => Platform.isAndroid;
 
   /// Books the system asks Yomu to open, through the `yomu/open_files`
-  /// channel: Finder's Open With on macOS, "Open in Yomu" on iOS.
-  static bool get hasOpenFilesChannel => Platform.isMacOS || Platform.isIOS;
+  /// channel: Finder's or the file manager's Open With on macOS and Linux,
+  /// "Open in Yomu" on iOS.
+  static bool get hasOpenFilesChannel =>
+      Platform.isMacOS || Platform.isLinux || Platform.isIOS;
 
   /// The app keeps its own copy of every book it imports, instead of
   /// pointing at the picked file. Desktops need this for the sandbox (see
@@ -31,10 +33,13 @@ abstract final class PlatformCaps {
   /// (`permission_handler`).
   static bool get hasPermissionHandler => isMobile;
 
-  /// Local notifications are set up for this platform. Windows and Linux
-  /// need their own initialization settings before they can be enabled.
+  /// Local notifications are set up for this platform. Windows needs its
+  /// own initialization settings before it can be enabled.
   static bool get hasLocalNotifications =>
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      Platform.isMacOS ||
+      Platform.isLinux;
 
   /// Height of the macOS title bar that the app draws underneath. The window
   /// has a transparent title bar (see `MainFlutterWindow.swift`), so content

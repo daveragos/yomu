@@ -1,9 +1,12 @@
 import 'dart:io' as io;
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'core/breakpoints.dart';
 import 'core/platform_caps.dart';
 import 'core/theme.dart';
@@ -15,6 +18,23 @@ import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    final license = await rootBundle.loadString('assets/google_fonts/OFL.txt');
+    yield LicenseEntryWithLineBreaks(['google_fonts'], license);
+    for (final font in ['merriweather', 'lexend', 'gelasio']) {
+      final text = await rootBundle.loadString('assets/fonts/OFL-$font.txt');
+      yield LicenseEntryWithLineBreaks([font], text);
+    }
+  });
+  // just_audio has no Linux player of its own; voice notes and audiobooks
+  // play through libmpv there. Other platforms keep their native players.
+  JustAudioMediaKit.title = 'Yomu';
+  try {
+    JustAudioMediaKit.ensureInitialized(linux: true, windows: false);
+  } catch (e) {
+    // libmpv isn't installed: the app still runs, only audio won't play.
+    debugPrint('Audio playback unavailable: $e');
+  }
   await NotificationService().init();
   if (PlatformCaps.isMobile) {
     await SystemChrome.setPreferredOrientations([
@@ -27,6 +47,26 @@ void main() async {
     // Bar icon colours follow the app's appearance (see YomuApp).
     // This ensures that the system navigation bar doesn't have an opaque background
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  if (io.Platform.isLinux) {
+    // F11 toggles full screen and Ctrl+Q quits, as in other Linux apps (the
+    // macOS menu bar has both). The window lives in
+    // linux/runner/my_application.cc.
+    const window = MethodChannel('yomu/window');
+    HardwareKeyboard.instance.addHandler((event) {
+      if (event is! KeyDownEvent) return false;
+      if (event.logicalKey == LogicalKeyboardKey.f11) {
+        window.invokeMethod<void>('toggleFullScreen');
+        return true;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyQ &&
+          HardwareKeyboard.instance.isControlPressed) {
+        window.invokeMethod<void>('close');
+        return true;
+      }
+      return false;
+    });
   }
 
   final appearance = await AppearanceNotifier.load();
@@ -105,9 +145,7 @@ class _TitleBarInset extends StatelessWidget {
     return MediaQuery(
       data: mq.copyWith(
         padding: mq.padding.copyWith(top: mq.padding.top + inset),
-        viewPadding: mq.viewPadding.copyWith(
-          top: mq.viewPadding.top + inset,
-        ),
+        viewPadding: mq.viewPadding.copyWith(top: mq.viewPadding.top + inset),
       ),
       child: result,
     );

@@ -51,3 +51,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# Linux tester packages (linux/packaging/package.sh)
+/dist/

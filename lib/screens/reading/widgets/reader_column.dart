@@ -16,10 +16,15 @@ import '../../../models/reader_settings_model.dart';
 /// measures `MediaQuery` (images, tables, selection toolbars) stays inside
 /// the column. In narrow windows the column is the full width.
 ///
+/// [zoom] magnifies the page, as a pinch does: the column is laid out at
+/// its normal width and drawn [zoom] times larger, growing into the gutters
+/// until it fills the window, then enlarging within it.
+///
 /// The widget tree has the same shape at every width. Swapping shapes when
 /// the window crosses a breakpoint would rebuild the book from scratch.
 class ReaderColumn extends StatelessWidget {
   final double maxWidth;
+  final double zoom;
   final Color color;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -31,6 +36,7 @@ class ReaderColumn extends StatelessWidget {
   const ReaderColumn({
     super.key,
     required this.maxWidth,
+    this.zoom = 1,
     required this.color,
     required this.onPrevious,
     required this.onNext,
@@ -43,15 +49,40 @@ class ReaderColumn extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columnWidth = isWide
+        final baseWidth = isWide
             ? math.min(maxWidth, constraints.maxWidth)
             : constraints.maxWidth;
+        final columnWidth = math.min(baseWidth * zoom, constraints.maxWidth);
         final gutter = (constraints.maxWidth - columnWidth) / 2;
         final mq = MediaQuery.of(context);
-        final column = MediaQuery(
-          data: mq.copyWith(size: Size(columnWidth, mq.size.height)),
+        final height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : mq.size.height;
+        // The size the book is laid out at; drawn zoom times larger it
+        // covers the column.
+        final layout = Size(columnWidth / zoom, height / zoom);
+        Widget column = MediaQuery(
+          data: mq.copyWith(
+            size: zoom == 1 ? Size(columnWidth, mq.size.height) : layout,
+          ),
           child: child,
         );
+        if (zoom != 1) {
+          column = ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: layout.width,
+              maxWidth: layout.width,
+              minHeight: layout.height,
+              maxHeight: layout.height,
+              child: Transform.scale(
+                scale: zoom,
+                alignment: Alignment.topLeft,
+                child: column,
+              ),
+            ),
+          );
+        }
         final showArrows = isWide && gutter >= _minGutterForArrows;
 
         return Row(
@@ -157,6 +188,26 @@ class DesktopSelectionMenu extends StatefulWidget {
 
   static ContextMenuController? _shown;
 
+  /// Where the open menu points: the spot the mouse was released, which is
+  /// always on the selection. The selection's own geometry can't be used:
+  /// while the reader rebuilds around a drag (its controls come back as the
+  /// pointer moves) the page's text re-registers and the geometry briefly
+  /// points at the top of the chapter.
+  static Offset? _anchor;
+
+  /// Whether the open menu is this one (opened after a mouse selection),
+  /// rather than Flutter's own right-click or touch menu.
+  static bool get isOpening => _anchor != null;
+
+  /// Anchors for the page's menu builder: the release point while this menu
+  /// is open, otherwise the selection's own anchors (right-click, touch).
+  static TextSelectionToolbarAnchors anchorsFor(SelectableRegionState region) {
+    final anchor = _anchor;
+    return anchor != null
+        ? TextSelectionToolbarAnchors(primaryAnchor: anchor)
+        : region.contextMenuAnchors;
+  }
+
   /// Whether the menu is open.
   static bool get isShown => _shown?.isShown ?? false;
 
@@ -164,6 +215,7 @@ class DesktopSelectionMenu extends StatefulWidget {
   static bool dismiss() {
     final shown = _shown;
     _shown = null;
+    _anchor = null;
     if (shown == null || !shown.isShown) return false;
     shown.remove();
     return true;
@@ -211,10 +263,11 @@ class _DesktopSelectionMenuState extends State<DesktopSelectionMenu> {
         _lastClickUp = dragged ? null : now;
         if (!dragged && !multiClick) return;
 
-        // Let the selection settle before reading its geometry.
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _showMenu(event.position),
-        );
+        // Let the selection settle, in a frame of its own: an idle window
+        // may not draw another one until the pointer moves again.
+        WidgetsBinding.instance
+          ..addPostFrameCallback((_) => _showMenu(event.position))
+          ..scheduleFrame();
       },
       onPointerSignal: (_) => DesktopSelectionMenu.dismiss(),
       child: widget.child,
@@ -240,6 +293,7 @@ class _DesktopSelectionMenuState extends State<DesktopSelectionMenu> {
     final controller = ContextMenuController();
     DesktopSelectionMenu.dismiss();
     DesktopSelectionMenu._shown = controller;
+    DesktopSelectionMenu._anchor = position;
     controller.show(
       context: region.context,
       contextMenuBuilder: (menuContext) => TapRegion(
@@ -266,7 +320,12 @@ class _DesktopSelectionMenuState extends State<DesktopSelectionMenu> {
       if (element is StatefulElement && element.state is SelectionAreaState) {
         final box = element.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
-          final rect = box.localToGlobal(Offset.zero) & box.size;
+          // Where the area is drawn, which a pinch zoom makes larger than
+          // its laid-out size.
+          final rect = MatrixUtils.transformRect(
+            box.getTransformTo(null),
+            Offset.zero & box.size,
+          );
           if (rect.contains(position)) {
             found = (
               element.widget as SelectionArea,
@@ -414,7 +473,7 @@ class _PdfDesktopFitState extends State<PdfDesktopFit> {
   }
 }
 
-/// Turns a trackpad pinch into steps of a value, such as text size.
+/// Turns a trackpad pinch into a scale, such as the page zoom.
 ///
 /// A pinch over text is otherwise lost: the text scrolls, it doesn't zoom.
 /// The [onScale] callback receives the pinch's scale relative to where it

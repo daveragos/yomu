@@ -11,6 +11,7 @@ import 'package:epub_view/epub_view.dart'
 import 'package:flutter_html/flutter_html.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:android_intent_plus/android_intent.dart';
+import 'reader_column.dart' show DesktopSelectionMenu;
 import '../../../models/reader_settings_model.dart';
 import '../../../models/highlight_model.dart';
 import 'share_quote_sheet.dart';
@@ -131,6 +132,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
   Duration _lastElapsed = Duration.zero;
   String _processedHtml = '';
   SelectedContent? _selectedContent;
+
+  /// [_selectedContent] for the desktop highlight menu, which can open a frame
+  /// before the selection's text arrives and must rebuild when it does.
+  final ValueNotifier<SelectedContent?> _selectedContentNotifier =
+      ValueNotifier(null);
   final Map<String, Uint8List> _imageCache = {};
   final GlobalKey _contentKey = GlobalKey();
 
@@ -483,6 +489,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     _ticker?.dispose();
     _scrollController.dispose();
     _pullOffset.dispose();
+    _selectedContentNotifier.dispose();
     _paged.dispose();
     super.dispose();
   }
@@ -834,9 +841,43 @@ class _EpubChapterPageState extends State<EpubChapterPage>
                 key: _contentKey,
                 onSelectionChanged: (content) {
                   _selectedContent = content;
+                  // Selection changes can arrive mid-frame; rebuild after it.
+                  if (SchedulerBinding.instance.schedulerPhase ==
+                      SchedulerPhase.idle) {
+                    _selectedContentNotifier.value = content;
+                  } else {
+                    SchedulerBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _selectedContentNotifier.value = content;
+                    });
+                  }
                 },
                 contextMenuBuilder: (context, selectableRegionState) {
-                  return _buildHighlightMenu(context, selectableRegionState);
+                  if (!DesktopSelectionMenu.isOpening) {
+                    return _buildHighlightMenu(context, selectableRegionState);
+                  }
+                  // The desktop menu after a mouse selection: shown once the
+                  // selected text is known, and not at all for an empty drag.
+                  return ValueListenableBuilder<SelectedContent?>(
+                    valueListenable: _selectedContentNotifier,
+                    builder: (context, content, _) {
+                      if (content?.plainText.trim().isNotEmpty ?? false) {
+                        return _buildHighlightMenu(
+                          context,
+                          selectableRegionState,
+                        );
+                      }
+                      // Still nothing selected a moment later: an empty
+                      // drag. Close the invisible menu so it doesn't take
+                      // the next Escape.
+                      Timer(const Duration(milliseconds: 300), () {
+                        final text = _selectedContentNotifier.value?.plainText;
+                        if (text == null || text.trim().isEmpty) {
+                          DesktopSelectionMenu.dismiss();
+                        }
+                      });
+                      return const SizedBox.shrink();
+                    },
+                  );
                 },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1072,7 +1113,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
               lineHeight: LineHeight(widget.settings.lineHeight, units: ""),
               color: widget.settings.textColor,
               textAlign: _convertTextAlign(widget.settings.textAlign),
-              fontFamily: widget.settings.typeface == 'System' ? null : widget.settings.typeface,
+              fontFamily: widget.settings.fontFamily,
             ),
             "p": Style(
               margin: Margins.only(bottom: 16),
@@ -1147,9 +1188,11 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     for (final p in paragraphs) {
       final text = p.text.toPlainText().toLowerCase();
       if (text.contains(selectedText)) {
-        final bounds = p.paintBounds;
-        final globalOffset = p.localToGlobal(Offset.zero);
-        final globalBounds = globalOffset & bounds.size;
+        // Where the paragraph is drawn, including a pinch zoom.
+        final globalBounds = MatrixUtils.transformRect(
+          p.getTransformTo(null),
+          p.paintBounds,
+        );
         
         double distance = 0.0;
         if (globalBounds.contains(primaryAnchor)) {
@@ -1174,25 +1217,7 @@ class _EpubChapterPageState extends State<EpubChapterPage>
       if (p == targetParagraph) {
         final localOffset = p.globalToLocal(primaryAnchor);
         final textPos = p.getPositionForOffset(localOffset).offset;
-        
-        int bestMatchIndex = 0;
-        int closestTextDistance = 999999;
-        int searchIndex = 0;
-        int localCount = 0;
-        
-        while (true) {
-          searchIndex = text.indexOf(selectedText, searchIndex);
-          if (searchIndex == -1) break;
-          final dist = (searchIndex - textPos).abs();
-          if (dist < closestTextDistance) {
-            closestTextDistance = dist;
-            bestMatchIndex = localCount;
-          }
-          localCount++;
-          searchIndex += selectedText.length;
-        }
-        
-        occurrenceIndex += bestMatchIndex;
+        occurrenceIndex += nearestOccurrence(text, selectedText, textPos);
         break;
       } else {
         int searchIndex = 0;
@@ -1211,13 +1236,13 @@ class _EpubChapterPageState extends State<EpubChapterPage>
     final selectedText = _selectedContent?.plainText;
     if (selectedText == null || selectedText.isEmpty) {
       return AdaptiveTextSelectionToolbar.buttonItems(
-        anchors: selectableRegionState.contextMenuAnchors,
+        anchors: DesktopSelectionMenu.anchorsFor(selectableRegionState),
         buttonItems: selectableRegionState.contextMenuButtonItems,
       );
     }
 
 
-    final anchors = selectableRegionState.contextMenuAnchors;
+    final anchors = DesktopSelectionMenu.anchorsFor(selectableRegionState);
     final primaryAnchor = anchors.primaryAnchor;
     final occurrenceIndex = _findOccurrenceIndex(selectedText, primaryAnchor);
 

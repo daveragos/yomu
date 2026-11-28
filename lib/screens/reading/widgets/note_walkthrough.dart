@@ -3,6 +3,7 @@ import '../../../core/yomu_colors.dart';
 import '../../../models/highlight_model.dart';
 import 'note_author_avatar.dart';
 import 'voice_note_player.dart';
+import '../../../components/desktop/adaptive_sheet.dart';
 
 /// Plain text of a note's markdown, for one-line previews.
 String notePreview(String? markdown) {
@@ -187,7 +188,7 @@ Future<bool?> showSharedWelcomeSheet(
     if (voiceCount > 0) '$voiceCount ${voiceCount == 1 ? 'voice note' : 'voice notes'}',
     if (replyCount > 0) '$replyCount ${replyCount == 1 ? 'reply' : 'replies'}',
   ].join(' · ');
-  return showModalBottomSheet<bool>(
+  return showAdaptiveSheet<bool>(
     context: context,
     backgroundColor: Colors.transparent,
     builder: (context) {
@@ -203,14 +204,7 @@ Future<bool?> showSharedWelcomeSheet(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.tint(0.24),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              const SheetHandle(),
               const SizedBox(height: 24),
               NoteAuthorAvatar(name: sharedBy ?? '?', size: 56),
               const SizedBox(height: 16),

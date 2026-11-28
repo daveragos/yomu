@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 
 /// Theme options for the reader
@@ -226,6 +228,21 @@ class ReaderSettings {
 
   /// Default settings
   static const ReaderSettings defaults = ReaderSettings();
+
+  /// The font family that draws [typeface], or null for the system font.
+  ///
+  /// Merriweather and Lexend ship with the app (pubspec `fonts:`). Georgia
+  /// comes with macOS, Windows and iOS but not Linux or Android, where
+  /// Gelasio, an open font made to Georgia's metrics, stands in for it.
+  static String? fontFamilyFor(String typeface) {
+    if (typeface == 'System') return null;
+    if (typeface == 'Georgia' && (Platform.isLinux || Platform.isAndroid)) {
+      return 'Gelasio';
+    }
+    return typeface;
+  }
+
+  String? get fontFamily => fontFamilyFor(typeface);
 
   /// Available typefaces
   static const List<String> availableTypefaces = [

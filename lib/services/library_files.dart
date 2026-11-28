@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../core/platform_caps.dart';
 import 'file_storage_service.dart';
@@ -20,7 +19,7 @@ import 'file_storage_service.dart';
 abstract final class LibraryFiles {
   /// Whether [path] is already in Yomu's own storage.
   static Future<bool> isStored(String path) async {
-    final appDir = (await getApplicationDocumentsDirectory()).path;
+    final appDir = (await FileStorageService.appDataDir()).path;
     return p.isWithin(appDir, path);
   }
 

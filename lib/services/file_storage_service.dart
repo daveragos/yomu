@@ -16,8 +16,18 @@ class FileStorageService {
   static Future<Directory> audioDir(int? bookId) =>
       _appSubDir(['audio', '${bookId ?? 'unassigned'}']);
 
+  /// The folder Yomu keeps its own files in (books, covers, voice notes).
+  ///
+  /// On Linux and Windows "documents" is the user's own Documents folder,
+  /// so Yomu uses its private data folder there instead
+  /// (`~/.local/share/com.ragoose.yomu` on Linux).
+  static Future<Directory> appDataDir() =>
+      Platform.isLinux || Platform.isWindows
+      ? getApplicationSupportDirectory()
+      : getApplicationDocumentsDirectory();
+
   static Future<Directory> _appSubDir(List<String> parts) async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await appDataDir();
     final dir = Directory(p.joinAll([appDir.path, ...parts]));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
@@ -27,7 +37,12 @@ class FileStorageService {
 
   /// Whether [path] lives inside the app's cache directory, or on iOS its
   /// `tmp` folder, where file_picker puts the files it hands back.
+  ///
+  /// Linux and Windows have no app cache of their own: the temporary
+  /// directory is the shared /tmp (or %TEMP%), where a book the user opens
+  /// is their original, which must never be deleted as a "cached copy".
   static Future<bool> isInCache(String path) async {
+    if (Platform.isLinux || Platform.isWindows) return false;
     _cacheRoots ??= [
       (await getTemporaryDirectory()).path,
       if (Platform.isIOS) Directory.systemTemp.path,

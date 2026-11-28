@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/breakpoints.dart';
+import '../../core/yomu_colors.dart';
 
 /// Which edge a sheet slides in from in a wide window.
 enum SheetSide { left, right }
@@ -59,11 +60,16 @@ Future<T?> showAdaptiveSheet<T>({
               width: maxPanelWidth,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                // Sheets that rely on the bottom sheet's background color
-                // get it here too; the rest paint their own.
-                child: Material(
-                  color: backgroundColor ?? Colors.transparent,
-                  child: Builder(builder: builder),
+                // Take the keyboard, so Escape closes the panel rather than
+                // reaching the screen underneath.
+                child: Focus(
+                  autofocus: true,
+                  // Sheets that rely on the bottom sheet's background color
+                  // get it here too; the rest paint their own.
+                  child: Material(
+                    color: backgroundColor ?? Colors.transparent,
+                    child: Builder(builder: builder),
+                  ),
                 ),
               ),
             ),
@@ -89,4 +95,32 @@ Future<T?> showAdaptiveSheet<T>({
       );
     },
   );
+}
+
+/// The grab handle at the top of a sheet. Sheets shown by [showAdaptiveSheet]
+/// can only be dragged as phone bottom sheets, so in a wide window, where
+/// they are side panels, it draws nothing.
+class SheetHandle extends StatelessWidget {
+  /// Defaults to the foreground at 24%, which reads in light and dark.
+  final Color? color;
+  final EdgeInsetsGeometry? margin;
+
+  const SheetHandle({super.key, this.color, this.margin});
+
+  @override
+  Widget build(BuildContext context) {
+    if (Breakpoints.isWide(context)) {
+      // Keep the space around it, so the panel's content isn't cramped.
+      return Padding(padding: margin ?? EdgeInsets.zero);
+    }
+    return Container(
+      margin: margin,
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: color ?? context.yomu.tint(0.24),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
 }

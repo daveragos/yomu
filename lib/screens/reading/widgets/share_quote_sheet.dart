@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../utils/share_files.dart';
 
 /// A bottom sheet that shows themed quote card styles for sharing selected text.
 class ShareQuoteSheet extends StatefulWidget {
@@ -117,7 +118,9 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
           ? '"${widget.text}"\n\n— $meta'
           : '"${widget.text}"';
 
-      await SharePlus.instance.share(
+      if (!mounted) return;
+      await shareFiles(
+        context,
         ShareParams(
           files: [XFile(file.path, mimeType: 'image/png')],
           text: shareText,
@@ -142,14 +145,7 @@ class _ShareQuoteSheetState extends State<ShareQuoteSheet> {
           children: [
             // Handle
             const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.tint(0.24),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            const SheetHandle(),
             const SizedBox(height: 16),
 
             // Title
