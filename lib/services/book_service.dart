@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+import 'file_storage_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:epubx/epubx.dart';
 import 'package:image/image.dart' as img;
@@ -34,8 +34,14 @@ class BookService {
   /// know, such as `.yomu`, so every file is listed and
   /// `LibraryNotifier.importIncoming` sorts out what can be opened.
   Future<List<String>> pickImportPaths() async {
+    // Linux file dialogs filter by case-sensitive extension, so offer only
+    // what Yomu opens, in either case.
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
+      dialogTitle: 'Add books',
+      type: Platform.isLinux ? FileType.custom : FileType.any,
+      allowedExtensions: Platform.isLinux
+          ? const ['epub', 'pdf', 'yomu', 'EPUB', 'PDF', 'YOMU']
+          : null,
       allowMultiple: true,
     );
     if (result == null) return [];
@@ -44,7 +50,6 @@ class BookService {
         if (file.path != null) file.path!,
     ];
   }
-
 
   // Helper method for EPUB processing
   Future<Book?> _processEpub(File file) async {
@@ -58,7 +63,7 @@ class BookService {
       // Save cover
       String coverPath = '';
       if (epubBook.CoverImage != null) {
-        final appDir = await getApplicationDocumentsDirectory();
+        final appDir = await FileStorageService.appDataDir();
         final coversDir = Directory(p.join(appDir.path, 'covers'));
         if (!await coversDir.exists()) await coversDir.create();
 
@@ -110,7 +115,7 @@ class BookService {
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        final appDir = await getApplicationDocumentsDirectory();
+        final appDir = await FileStorageService.appDataDir();
         final coversDir = Directory(p.join(appDir.path, 'covers'));
         if (!await coversDir.exists()) await coversDir.create();
 
@@ -129,7 +134,7 @@ class BookService {
 
   Future<String> saveLocalCover(File file) async {
     try {
-      final appDir = await getApplicationDocumentsDirectory();
+      final appDir = await FileStorageService.appDataDir();
       final coversDir = Directory(p.join(appDir.path, 'covers'));
       if (!await coversDir.exists()) await coversDir.create();
 

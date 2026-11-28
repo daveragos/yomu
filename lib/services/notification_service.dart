@@ -1,4 +1,5 @@
-import 'dart:io' show Platform;
+import 'dart:async';
+import 'dart:io' show Directory, File, Platform, Process;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -42,10 +43,14 @@ class NotificationService {
           requestSoundPermission: false,
         );
 
-    const InitializationSettings settings = InitializationSettings(
+    final InitializationSettings settings = InitializationSettings(
       android: androidSettings,
       iOS: darwinSettings,
       macOS: darwinSettings,
+      linux: LinuxInitializationSettings(
+        defaultActionName: 'Open Yomu',
+        defaultIcon: AssetsLinuxIcon('assets/app_icon.png'),
+      ),
     );
 
     // This runs before runApp, so a failure here must not stop the app from
@@ -118,6 +123,9 @@ class NotificationService {
   Future<bool> requestPermissions() async {
     if (!_ready) return false;
 
+    // Linux desktops have no notification permission to ask for.
+    if (Platform.isLinux) return true;
+
     if (Platform.isMacOS) {
       final granted = await _notifications
           .resolvePlatformSpecificImplementation<
@@ -172,6 +180,17 @@ class NotificationService {
     required int minute,
   }) async {
     if (!_ready) return;
+    if (Platform.isLinux) {
+      final time =
+          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+      return _scheduleLinux(
+        id,
+        title,
+        body,
+        '*-*-* $time:00',
+        () => _nextInstanceOfTime(hour, minute),
+      );
+    }
     await _notifications.zonedSchedule(
       id: id,
       title: title,
@@ -195,6 +214,23 @@ class NotificationService {
 
   Future<void> scheduleWeekendBoostNotifications() async {
     if (!_ready) return;
+    if (Platform.isLinux) {
+      await _scheduleLinux(
+        1000,
+        '2x XP Weekend!',
+        "It's the weekend! Earn double XP for all reading activities and quests.",
+        'Sat *-*-* 10:00:00',
+        () => _nextInstanceOfDayAndTime(DateTime.saturday, 10, 0),
+      );
+      await _scheduleLinux(
+        1001,
+        "Don't miss out on 2x XP!",
+        "Last day of the weekend boost! Get your reading in and level up faster.",
+        'Sun *-*-* 10:00:00',
+        () => _nextInstanceOfDayAndTime(DateTime.sunday, 10, 0),
+      );
+      return;
+    }
     final scheduleMode = await _androidScheduleMode();
 
     // Saturday 10:00 AM
@@ -268,13 +304,148 @@ class NotificationService {
     return scheduledDate;
   }
 
+  /// Repeating reminders on Linux, which the notifications plugin can't
+  /// schedule. Each one is a systemd user timer that shows the notification
+  /// with `notify-send`, so it arrives even when Yomu is closed, like the
+  /// scheduled notifications on other platforms. Without systemd or
+  /// notify-send, they're shown while Yomu is running instead.
+  Future<void> _scheduleLinux(
+    int id,
+    String title,
+    String body,
+    String onCalendar,
+    tz.TZDateTime Function() next,
+  ) async {
+    _openTimers.remove(id)?.cancel();
+    if (await _installReminderTimer(id, title, body, onCalendar)) return;
+    _scheduleWhileOpen(id, title, body, next);
+  }
+
+  static Directory get _systemdUserDir {
+    final env = Platform.environment;
+    final config = env['XDG_CONFIG_HOME']?.isNotEmpty == true
+        ? env['XDG_CONFIG_HOME']!
+        : '${env['HOME']}/.config';
+    return Directory('$config/systemd/user');
+  }
+
+  static String _reminderUnit(int id) => 'yomu-reminder-$id';
+
+  /// The full path of [command] on PATH (minimal systems may lack `which`).
+  static String? _findOnPath(String command) {
+    for (final dir in (Platform.environment['PATH'] ?? '').split(':')) {
+      if (dir.isEmpty) continue;
+      final file = File('$dir/$command');
+      if (file.existsSync()) return file.path;
+    }
+    return null;
+  }
+
+  /// Quotes [text] as one argument of a systemd `ExecStart=` line.
+  static String _systemdArg(String text) =>
+      '"${text.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('%', '%%').replaceAll(r'$', r'$$')}"';
+
+  Future<bool> _installReminderTimer(
+    int id,
+    String title,
+    String body,
+    String onCalendar,
+  ) async {
+    try {
+      final notifySend = _findOnPath('notify-send');
+      if (notifySend == null) return false;
+      final dir = _systemdUserDir;
+      await dir.create(recursive: true);
+      final unit = _reminderUnit(id);
+      await File('${dir.path}/$unit.service').writeAsString('''
+[Unit]
+Description=Yomu reading reminder
+
+[Service]
+Type=oneshot
+ExecStart=$notifySend --app-name=Yomu --icon=com.ragoose.yomu --hint=string:desktop-entry:com.ragoose.yomu ${_systemdArg(title)} ${_systemdArg(body)}
+''');
+      await File('${dir.path}/$unit.timer').writeAsString('''
+[Unit]
+Description=Yomu reading reminder
+
+[Timer]
+OnCalendar=$onCalendar
+
+[Install]
+WantedBy=timers.target
+''');
+      final reload = await Process.run('systemctl', [
+        '--user',
+        'daemon-reload',
+      ]);
+      if (reload.exitCode != 0) return false;
+      // restart, not just start, so a changed reminder time takes effect.
+      await Process.run('systemctl', ['--user', 'enable', '$unit.timer']);
+      final start = await Process.run('systemctl', [
+        '--user',
+        'restart',
+        '$unit.timer',
+      ]);
+      return start.exitCode == 0;
+    } catch (e) {
+      debugPrint('Could not set up reminder timer: $e');
+      return false;
+    }
+  }
+
+  Future<void> _removeReminderTimer(int id) async {
+    final unit = _reminderUnit(id);
+    final timer = File('${_systemdUserDir.path}/$unit.timer');
+    if (!await timer.exists()) return;
+    try {
+      await Process.run('systemctl', [
+        '--user',
+        'disable',
+        '--now',
+        '$unit.timer',
+      ]);
+      await timer.delete();
+      await File('${_systemdUserDir.path}/$unit.service').delete();
+      await Process.run('systemctl', ['--user', 'daemon-reload']);
+    } catch (e) {
+      debugPrint('Could not remove reminder timer: $e');
+    }
+  }
+
+  /// Fallback when no systemd timer can be set up: reminders shown while
+  /// Yomu runs, checked against the clock once a minute rather than with one
+  /// long timer, which would run late after the computer sleeps.
+  final Map<int, Timer> _openTimers = {};
+
+  void _scheduleWhileOpen(
+    int id,
+    String title,
+    String body,
+    tz.TZDateTime Function() next,
+  ) {
+    _openTimers.remove(id)?.cancel();
+    var due = next();
+    _openTimers[id] = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (tz.TZDateTime.now(tz.local).isBefore(due)) return;
+      due = next();
+      showNotification(id: id, title: title, body: body);
+    });
+  }
+
   Future<void> cancel({required int id}) async {
     if (!_ready) return;
+    _openTimers.remove(id)?.cancel();
+    if (Platform.isLinux) await _removeReminderTimer(id);
     await _notifications.cancel(id: id);
   }
 
   Future<void> cancelAll() async {
     if (!_ready) return;
+    for (final timer in _openTimers.values) {
+      timer.cancel();
+    }
+    _openTimers.clear();
     await _notifications.cancelAll();
   }
 }

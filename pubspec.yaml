@@ -54,6 +54,9 @@ dependencies:
   markdown: ^7.2.2
   record: ^7.1.1
   archive: ^4.0.9
+  just_audio_media_kit: ^2.1.0
+  media_kit_libs_linux: ^1.2.1
+  sqflite_common_ffi: ^2.4.7
 
 dependency_overrides:
   # epubx 4.0.0 on pub.dev is pinned to image 3; upstream's unreleased 4.0.1
@@ -72,7 +75,6 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
-  sqflite_common_ffi: ^2.4.7
   path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
 flutter:
@@ -80,3 +82,36 @@ flutter:
 
   assets:
     - assets/
+    # Outfit, bundled so the app looks right offline; google_fonts uses these
+    # instead of downloading them.
+    - assets/google_fonts/
+    - assets/fonts/
+
+  # The reader's typefaces (ReaderSettings.availableTypefaces); Gelasio
+  # stands in for Georgia where the system has no Georgia.
+  fonts:
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/Merriweather-Regular.ttf
+        - asset: assets/fonts/Merriweather-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Merriweather-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Merriweather-BoldItalic.ttf
+          weight: 700
+          style: italic
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend-Regular.ttf
+        - asset: assets/fonts/Lexend-Bold.ttf
+          weight: 700
+    - family: Gelasio
+      fonts:
+        - asset: assets/fonts/Gelasio-Regular.ttf
+        - asset: assets/fonts/Gelasio-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Gelasio-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Gelasio-BoldItalic.ttf
+          weight: 700
+          style: italic

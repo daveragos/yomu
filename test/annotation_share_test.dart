@@ -26,6 +26,10 @@ class _FakePathProvider extends Fake
   @override
   Future<String?> getApplicationDocumentsPath() async => p.join(root, 'docs');
 
+  // Yomu's data folder on Linux and Windows (FileStorageService.appDataDir).
+  @override
+  Future<String?> getApplicationSupportPath() async => p.join(root, 'docs');
+
   @override
   Future<String?> getTemporaryPath() async => p.join(root, 'tmp');
 }

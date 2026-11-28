@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../utils/share_files.dart';
 import '../../../models/book_model.dart';
 import '../../../services/annotation_share_service.dart';
 import '../../../services/database_service.dart';
@@ -60,7 +61,9 @@ Future<void> shareBookWithNotes(BuildContext context, Book book) async {
       onlyUids: options.uids,
     );
     messenger.hideCurrentSnackBar();
-    await SharePlus.instance.share(
+    if (!context.mounted) return;
+    await shareFiles(
+      context,
       ShareParams(
         files: [
           XFile(

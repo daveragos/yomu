@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart'
+    show sqfliteFfiInit, databaseFactoryFfi;
 import 'package:path/path.dart';
 import '../models/book_model.dart';
 import '../models/bookmark_model.dart';
@@ -28,7 +30,20 @@ class DatabaseService {
   }
 
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'yomu.db');
+    // sqflite has no Linux/Windows plugin; there it runs on SQLite via FFI,
+    // whose default folder is relative to the working directory, so the
+    // database lives in Yomu's data folder instead.
+    final usesFfi = Platform.isLinux || Platform.isWindows;
+    if (usesFfi) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+    String path = join(
+      usesFfi
+          ? (await FileStorageService.appDataDir()).path
+          : await getDatabasesPath(),
+      'yomu.db',
+    );
     return await openDatabase(
       path,
       version: 21,

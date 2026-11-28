@@ -58,14 +58,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
           children: [
             // Handle bar
             Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              child: SheetHandle(color: Colors.white.withValues(alpha: 0.3)),
             ),
             const SizedBox(height: 20),
 
@@ -236,7 +229,7 @@ class _DisplaySettingsSheetState extends ConsumerState<DisplaySettingsSheet> {
               child: Text(
                 typeface,
                 style: TextStyle(
-                  fontFamily: typeface == 'System' ? null : typeface,
+                  fontFamily: ReaderSettings.fontFamilyFor(typeface),
                 ),
               ),
             );
